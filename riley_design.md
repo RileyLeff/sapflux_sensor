@@ -24,7 +24,7 @@ LM5165Y ultra-low Iq synchronous buck, fixed 3.3V output. PFM mode (RT shorted t
 | L1 | Inductor | C5289353 | XR XRNR4018-68uH/M | 68µH, 470mA Isat, 1Ω DCR, 4x4mm shielded | $0.036 | Extended | 68µH for margin on minimum on-time constraint (LF(min) = 30V x 180ns / 120mA = 45µH). Worst-case 54.4µH at -20% tolerance still clears 45µH. Shielded. |
 | C1 | Input Cap | C29823 | Fenghua 1206B475K500NT | 4.7µF 50V X7R, 1206 | $0.04 | **Basic** | Local energy reservoir for buck switching pulses. Note: X7R DC bias derating at 24V may reduce effective capacitance to ~2µF. Acceptable for LM5165's low current draw (<50mA) in PFM mode. |
 | C_VIN | VIN HF Decoupling | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | Place tight to LM5165 VIN/GND pins. Handles HF switching edges that the 4.7µF C1 is too slow for. Same part as bypass caps. |
-| C2 | Output Cap | C76634 | TDK C2012X5R1A226M125AC | 22µF 10V X5R, 0805 | $0.03 | Extended | Smooths 3.3V output ripple. TI Design 2 uses 10µF; 22µF is conservative. |
+| C2 | Output Cap | C76634 | TDK C2012X5R1A226KT000N | 22µF 10V X5R, 0805 | $0.03 | Extended | Smooths 3.3V output ripple. TI Design 2 uses 10µF; 22µF is conservative. |
 | C6 | VCC Decoupling | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.006 | **Basic** | Decouples U_BUCK's internal VCC LDO (pin 10). |
 | R_ILIM | Current Limit | C23206 | UNI-ROYAL 0603WAF5602T5E | 56kΩ 1%, 0603 | $0.001 | **Basic** | ILIM pin to GND. Sets 120mA peak current / 50mA max PFM output per Design 2. |
 
@@ -87,7 +87,7 @@ Converts MCU UART to differential RS-485 on the M8 cable. Half-duplex. Receiver 
 | U_RS485 | RS-485 Transceiver | C8963 | MaxLinear SP3485EN-L/TR | 3.3V, half-duplex, 10Mbps, SOIC-8 | $0.20 | **Basic** | DE and ~RE on separate MCU GPIOs. Default mode: receive (DE=0/~RE=0, 800µA typ / 1500µA max per datasheet). Transmit: DE=1/~RE=1. Shutdown (DE=0/~RE=1) available for firmware polling mode. Fail-safe receiver: outputs HIGH (UART idle) when bus is floating — no external bias needed. |
 | R_DE_PD | DE Default Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | DE pin to GND. STM32 GPIOs are Hi-Z during reset/boot — without this, DE floats and SP3485 may drive the bus. 100kΩ is high enough to not interfere with MCU drive. Same part as R_WD_PU. |
 | R_RE_PD | ~RE Default Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | ~RE pin to GND. Ensures receiver is enabled during boot (DE=0/~RE=0 = receive). SP3485 fail-safe outputs idle when bus is floating, so enabling the receiver during boot is safe — MCU UART sees clean silence. Same part as R_WD_PU. |
-| R_TERM | RS-485 Termination | C22787 | UNI-ROYAL 0603WAF1200T5E | 120Ω 1%, 0603 | $0.001 | **Basic** | In series with C_TERM (AC termination). Terminates signal edges for data integrity but blocks DC current. |
+| R_TERM | RS-485 Termination | C22787 | UNI-ROYAL 0603WAF1200T5E | 120Ω 1%, 0603 | $0.001 | **Basic** | In series with C_TERM (AC termination). Hard-populated: this adapter is always at end-of-line (point-to-point cable from logger). Terminates signal edges for data integrity but blocks DC current. |
 | C_TERM | AC Termination Cap | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V X7R, 0603 | $0.001 | **Basic** | In series with R_TERM. Blocks DC path through termination. RC = 120Ω × 100nF = 12µs. At 115200 baud, |Z| = 123Ω (near-ideal 120Ω match). Same part as bypass caps — eliminates one unique part number. |
 | D_RS485 | RS-485 ESD/TVS | C7420375 | hongjiacheng SM712 | Asymmetric 7V/12V standoff, 16V/26V clamp, dual-channel, SOT-23 | $0.07 | **Preferred** | Purpose-built for RS-485. Asymmetric standoff matches RS-485 common-mode range (-7V to +12V). SP3485 bus pin abs max is ±15V — SM712 clamps at 20V/26V which exceeds this, but this is standard RS-485 TVS practice (microsecond transients, not sustained). IEC 61000-4-2/4-5. Place near J1. Replaces PESD1CAN (clamped at 70V — useless, SP3485 dies at 15V). |
 
@@ -267,8 +267,8 @@ Test pads are just exposed copper pads on the PCB — zero BOM cost, zero assemb
 
 | Pin | Signal | Notes |
 |-----|--------|-------|
-| 1 | Heater A | 24V heater (non-polar) |
-| 2 | Heater B | 24V heater (non-polar) |
+| 1 | Heater A | 24V protected rail (heater element is non-polar) |
+| 2 | Heater B | Low-side switched return via Q1 (heater element is non-polar) |
 | 3 | Ground | Sensor ground reference |
 | 4 | Excitation | Filtered 3.3V for thermistor dividers (through R_EXC/C_EXC) |
 | 5-10 | Data 1-6 | Thermistor analog lines (through R_AIN1-6 to ADC inputs) |
