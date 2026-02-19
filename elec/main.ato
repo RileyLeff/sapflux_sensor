@@ -160,8 +160,10 @@ module SapFluxAdapter:
 
     # === PGOOD monitoring ===
     # LM5165 PGOOD (open-drain) with 10k pull-up to 3.3V
+    # Also gates SCR latch arming (prevents power-on reset from triggering latch)
     r_pgood = new Resistor
     r_pgood.resistance = 10kohm +/- 1%
     r_pgood.package = "0603"
     mcu.package.PC7 ~ buck.pgood.line
     buck.pgood.line ~> r_pgood ~> power_3v3.hv
+    buck.pgood.line ~ heater.pgood

@@ -118,6 +118,9 @@ MCU fires a 24V heater through an N-channel MOSFET for 1-2 second pulses (~0.6A)
 | R_FB | Latch Feedback | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | Q2_INV collector → Q_LATCH base. Provides positive feedback to sustain latch. 24µA base drive gives 8× margin over required 0.31mA collector sink. Same part as R_WD_PU. |
 | R_LATCH_PD | Latch Base Pulldown | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | Q_LATCH base to GND. Prevents noise from triggering latch when PNP is off. 1MΩ ≫ R_FB (100kΩ) so it doesn't interfere with trigger. |
 | R_PNP_BASE | PNP Base-Emitter Pull-up | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | PNP base to 3.3V (emitter). Defines OFF state when D_ISO is reverse-biased and Q_LATCH is off. Without this, PNP base floats → leakage/noise could cause spurious heater lockout. 140× margin over transistor leakage at 85°C. Same part as R_WD_PU. |
+| Q_ARM | Latch Arm FET | C8545 | CJ 2N7002 | 60V/115mA, SOT-23 | $0.014 | **Basic** | N-FET in series with R_FB. Breaks latch feedback loop until PGOOD charges arm_node. Prevents TPL5010 power-on reset (~60ms) from triggering permanent heater lockout at every boot. Same part as Q_WD. |
+| R_ARM | Arm Delay Resistor | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | PGOOD → arm_node charge resistor. τ = 1MΩ × 1µF = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max TPL5010 tRST = 3.6× margin. Same part as R_LATCH_PD. |
+| C_ARM | Arm Delay Cap | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.003 | **Basic** | Holds arm_node low during power-on, preventing latch feedback until RC charges past Q_ARM Vgs(th). Same part as C_EXC. |
 | R_DONE_PD | DONE Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | TPL5010 DONE pin to GND. Keeps DONE low when MCU is in reset/unpowered, preventing floating input from confusing the watchdog. Same part as R_WD_PU. |
 | C_WD | Watchdog Bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | TPL5010 VDD to GND decoupling. Same part as other 100nF caps. |
 
@@ -133,25 +136,33 @@ MCU timer ──→ R_GATE (1kΩ) ──→ Q1 gate ──→ R4 (10kΩ) ──�
                                    ↑
                               Q_WD drain
                               Q_WD source → GND
-                              Q_WD gate ←── Q2_INV collector ──→ R_FB (100kΩ) ──→ Q_LATCH base
-                                              ↑                                       ↑
-                                        R_WD_PD (10kΩ) → GND                  R_LATCH_PD (1MΩ) → GND
-                                        Q2_INV emitter → 3.3V                 Q_LATCH emitter → GND
+                              Q_WD gate ←── Q2_INV collector ──→ R_FB (100kΩ) ──→ Q_ARM ──→ Q_LATCH base
+                                              ↑                                     ↑            ↑
+                                        R_WD_PD (10kΩ) → GND                  arm_node    R_LATCH_PD (1MΩ) → GND
+                                        Q2_INV emitter → 3.3V                              Q_LATCH emitter → GND
                                         Q2_INV base ←── R_BASE (10kΩ) ←── D_ISO ←── RSTn
                                               ↑  ↑           (anode)    (cathode)      ↑
                                               |  R_PNP_BASE (100kΩ) → 3.3V
                                         Q_LATCH collector                        R_WD_PU (100kΩ) → 3.3V
                                                                                  TPL5010 RSTn (open-drain)
                                                                                  MCU NRST
+
+Latch arm circuit:
+  PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
+                            ↑
+                       Q_ARM gate
 ```
-Normal: RSTn HIGH → D_ISO reverse-biased → R_PNP_BASE holds PNP base at 3.3V → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power.
-Fault: RSTn LOW (200ms pulse) → D_ISO forward-biased → PNP ON → collector HIGH → R_FB drives NPN base (26µA) → NPN ON → pulls PNP base LOW via collector → **latched permanently**. D_ISO reverse-biased when latched → RSTn stays HIGH → MCU NRST is NOT held low — MCU boots normally and can report fault via RS-485. Heater stays locked out until power cycle.
+Power-on: PGOOD LOW → arm_node at 0V → Q_ARM OFF → R_FB can't reach Q_LATCH → latch disabled. PNP still activates during TPL5010 POR → Q_WD clamps gate (heater off during reset, good). After ~60ms, TPL5010 releases RSTn → PNP off → heater gate free. Then PGOOD goes HIGH → RC charges → after ≥361ms, Q_ARM turns on → latch armed.
+Normal: RSTn HIGH → D_ISO reverse-biased → R_PNP_BASE holds PNP base at 3.3V → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power. Q_ARM is on (armed) but no current flows.
+Fault: RSTn LOW → D_ISO forward-biased → PNP ON → collector HIGH → R_FB → Q_ARM (on) → Q_LATCH ON → pulls PNP base LOW → **latched permanently**. D_ISO reverse-biased when latched → RSTn stays HIGH → MCU NRST not held low — MCU boots and reports fault via RS-485. Heater locked out until power cycle.
 Latch power: 0.64mA from 3.3V (0.1mA from 24V battery). Only during fault — irrelevant.
 RSTn also connects to MCU NRST for belt-and-suspenders reset.
 
+**PGOOD-gated arming is critical:** Without the arm gate, the TPL5010 power-on reset (RSTn LOW for ~60ms at every boot, per datasheet section 7.3.1) would trigger the SCR latch, permanently locking out the heater before the MCU even boots. Q_ARM (N-FET in R_FB path) breaks the feedback loop until PGOOD charges arm_node through a 1MΩ/1µF RC (τ=1s). Worst-case arming delay is 361ms (Vgs(th)=1.0V) vs 100ms max tRST — 3.6× safety margin. All three arm components (2N7002, 1MΩ, 1µF) use existing BOM part numbers.
+
 **D_ISO is critical:** Without the isolation diode, Q_LATCH (when latched) pulls the PNP base to 0.2V. R_BASE (10kΩ) forms a voltage divider with R_WD_PU (100kΩ) → RSTn = 0.48V, which is below the STM32 NRST LOW threshold (~1.1V). The MCU would be stuck in permanent reset and unable to report the fault. D_ISO (1N4148WS) blocks this reverse current path. At -40°C with hFE=50, trigger still has 29× margin.
 
-**TPL5010 RSTn + SCR latch:** The TPL5010 RSTn output is a pulse (~200ms), not sustained. The cross-coupled PNP/NPN latch (Q2_INV + Q_LATCH) converts this pulse into a permanent hold: one RSTn LOW pulse triggers the latch, which keeps the PNP saturated and Q_WD gate clamped indefinitely — even after RSTn returns HIGH. The latch can only be cleared by a power cycle (removing battery/solar). D_ISO (1N4148WS, in series with R_BASE) isolates the latch from the RSTn/NRST net: when latched, D_ISO is reverse-biased, so the MCU still resets and boots normally — it can report the fault via RS-485, but cannot fire the heater until manually power-cycled. This is intentional: TPL5010 only fires when layers 1 (timer) and 2 (IWDG) have both failed, indicating a serious fault. Permanent lockout is the appropriate response.
+**TPL5010 RSTn + SCR latch:** The TPL5010 RSTn output is a pulse (~60ms typ, 100ms max), not sustained. The cross-coupled PNP/NPN latch (Q2_INV + Q_LATCH) converts this pulse into a permanent hold: one RSTn LOW pulse triggers the latch (when armed), which keeps the PNP saturated and Q_WD gate clamped indefinitely — even after RSTn returns HIGH. The latch can only be cleared by a power cycle (removing battery/solar). D_ISO (1N4148WS, in series with R_BASE) isolates the latch from the RSTn/NRST net: when latched, D_ISO is reverse-biased, so the MCU still resets and boots normally — it can report the fault via RS-485, but cannot fire the heater until manually power-cycled. This is intentional: TPL5010 only fires when layers 1 (timer) and 2 (IWDG) have both failed, indicating a serious fault. Permanent lockout is the appropriate response.
 
 ### ADC Input Protection
 

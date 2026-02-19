@@ -5,19 +5,29 @@ Q1 (XCHS3N12 N-FET) switches 24V heater current. TPL5010 external watchdog
 provides MCU-independent kill via PNP/NPN SCR latch. D_ISO isolates latch
 from NRST so MCU can still boot and report fault.
 
+PGOOD-gated arming: Q_ARM (N-FET in R_FB path) prevents the latch from
+self-sustaining until RC-delayed PGOOD charges arm_node above Vgs(th).
+This prevents the TPL5010 power-on reset (~60ms) from permanently
+triggering the latch at every boot. Arming delay ≥361ms (3.6× margin).
+
 Gate-kill circuit:
   MCU timer → R_GATE (1k) → gate_node → R4 (10k) → GND
                                   ↑
                              Q_WD drain
                              Q_WD source → GND
-                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_LATCH base
-                                            ↑                                   ↑
-                                      R_WD_PD (10k) → GND              R_LATCH_PD (1M) → GND
-                                      Q2_INV emitter → 3.3V            Q_LATCH emitter → GND
+                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_ARM → Q_LATCH base
+                                            ↑                               ↑          ↑
+                                      R_WD_PD (10k) → GND           arm_node    R_LATCH_PD (1M) → GND
+                                      Q2_INV emitter → 3.3V            ↑        Q_LATCH emitter → GND
                                       Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
                                             ↑  ↑          (anode)   (cathode)    ↑
                                             |  R_PNP_BASE (100k) → 3.3V
-                                      Q_LATCH collector                  R_WD_PU (100k) → 3.3V
+                                      Q_LATCH collector          R_WD_PU (100k) → 3.3V
+
+Latch arm circuit:
+  PGOOD → R_ARM (1M) → arm_node → C_ARM (1uF) → GND
+                           ↑
+                      Q_ARM gate
 """
 
 #pragma experiment("BRIDGE_CONNECT")
@@ -35,6 +45,7 @@ from "parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4
 from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato" import Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
 from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
 
 module HeaterDriver:
     """
@@ -67,6 +78,9 @@ module HeaterDriver:
 
     rstn = new Electrical
     """TPL5010 RSTn node. Also connects to MCU NRST (wired in top-level)."""
+
+    pgood = new Electrical
+    """PGOOD signal from buck converter. Gates latch arming via RC delay."""
 
     # --- Power FET and flyback ---
     q1 = new XCH_XCHS3N12_package
@@ -140,6 +154,22 @@ module HeaterDriver:
     margin over worst-case transistor leakage at 85°C, while still allowing
     easy latch trigger (hFE needed = 1.4 vs MMBT3904 min 100)."""
 
+    # --- PGOOD-gated latch arm circuit ---
+    q_arm = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET in R_FB path. Breaks latch feedback loop until PGOOD charges
+    arm_node above Vgs(th). Prevents TPL5010 power-on reset from triggering
+    permanent heater lockout."""
+
+    r_arm = new Resistor
+    r_arm.resistance = 1Mohm +/- 1%
+    r_arm.package = "0603"
+    """Slow-charge resistor for arm RC delay. τ = 1MΩ × 1µF = 1s.
+    Arming delay ≥361ms (Vgs(th) min) vs 100ms max TPL5010 tRST."""
+
+    c_arm = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1µF arm delay cap. Holds arm_node low during power-on reset,
+    preventing latch feedback until RC charges past Q_ARM threshold."""
+
     # --- Internal nodes ---
     gate_node = new Electrical
     """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
@@ -153,8 +183,14 @@ module HeaterDriver:
     d_iso_anode_node = new Electrical
     """D_ISO anode: R_BASE input (between D_ISO and PNP base)."""
 
+    fb_out_node = new Electrical
+    """R_FB output / Q_ARM drain junction."""
+
     latch_base_node = new Electrical
-    """Q_LATCH base: R_FB output, R_LATCH_PD top."""
+    """Q_LATCH base: Q_ARM source, R_LATCH_PD top."""
+
+    arm_node = new Electrical
+    """PGOOD-delayed arm signal. RC charges from PGOOD through R_ARM."""
 
     # === Heater power path ===
 
@@ -218,10 +254,15 @@ module HeaterDriver:
     q2_inv.B ~ pnp_base_node
     q2_inv.C ~ pnp_coll_node
 
-    # PNP collector drives Q_WD gate + feedback
+    # PNP collector drives Q_WD gate + feedback (through PGOOD-gated Q_ARM)
     pnp_coll_node ~ q_wd.G
     pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
-    pnp_coll_node ~> r_fb ~> latch_base_node
+    pnp_coll_node ~> r_fb ~> fb_out_node
+
+    # Q_ARM gates the feedback path: latch can't sustain until armed
+    q_arm.D ~ fb_out_node
+    q_arm.S ~ latch_base_node
+    q_arm.G ~ arm_node
 
     # D_ISO: cathode at RSTn, anode → R_BASE → PNP base
     d_iso.K ~ rstn
@@ -235,6 +276,16 @@ module HeaterDriver:
 
     # PNP base-emitter pull-up (defines OFF state in normal operation)
     pnp_base_node ~> r_pnp_base ~> power_3v3.hv
+
+    # === PGOOD-gated latch arm ===
+
+    # RC delay: PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
+    # τ = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max tRST.
+    # At power-on: arm_node low → Q_ARM off → R_FB disconnected → latch disabled.
+    # After ~400-800ms: arm_node charged → Q_ARM on → latch armed for real faults.
+    pgood ~> r_arm ~> arm_node
+    arm_node ~ c_arm.p1
+    c_arm.p2 ~ power_3v3.lv
 
     # Latch base pull-down (noise immunity)
     latch_base_node ~> r_latch_pd ~> power_3v3.lv
