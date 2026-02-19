@@ -81,6 +81,9 @@ module ADCFrontEnd:
     # Addressor handles ADDR pin wiring internally
     adc2.addressor.address = 0x49
 
+    # Tie unused ADC2 AIN3 to GND (prevents floating input from coupling noise)
+    adc2.inputs[3].line ~ power.lv
+
     # ALERT/DRDY
     alert1 ~ adc1.alert_ready.line
     alert2 ~ adc2.alert_ready.line
@@ -109,6 +112,14 @@ module ADCFrontEnd:
     d_j2b.VCC ~ power.hv
     d_j2b.GND ~ power.lv
     d_j2b.ESD4 ~ power.lv
+
+    # Local decoupling for TVS arrays (absorbs ESD dump current, prevents 3.3V rail bounce)
+    c_esd_a = new YAGEO_CC0603KRX7R9BB104_package
+    c_esd_b = new YAGEO_CC0603KRX7R9BB104_package
+    c_esd_a.p1 ~ power.hv
+    c_esd_a.p2 ~ power.lv
+    c_esd_b.p1 ~ power.hv
+    c_esd_b.p2 ~ power.lv
 
     # --- Input protection: 7 channels (1k series R + 100nF shunt C each) ---
 

@@ -190,6 +190,13 @@ module HeaterDriver:
     u_wdt.WAKE ~ wake
     u_wdt.DONE ~ done
 
+    # DONE pull-down: keeps DONE low when MCU is in reset/unpowered,
+    # preventing floating input from confusing TPL5010
+    r_done_pd = new Resistor
+    r_done_pd.resistance = 100kohm +/- 1%
+    r_done_pd.package = "0603"
+    done ~> r_done_pd ~> power_3v3.lv
+
     # RSTn with pull-up
     u_wdt.RSTn ~ rstn
     rstn ~> r_wd_pu ~> power_3v3.hv

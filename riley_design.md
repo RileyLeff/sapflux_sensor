@@ -25,11 +25,10 @@ LM5165Y ultra-low Iq synchronous buck, fixed 3.3V output. PFM mode (RT shorted t
 | C1 | Input Cap | C29823 | Fenghua 1206B475K500NT | 4.7µF 50V X7R, 1206 | $0.04 | **Basic** | Local energy reservoir for buck switching pulses. Note: X7R DC bias derating at 24V may reduce effective capacitance to ~2µF. Acceptable for LM5165's low current draw (<50mA) in PFM mode. |
 | C_VIN | VIN HF Decoupling | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | Place tight to LM5165 VIN/GND pins. Handles HF switching edges that the 4.7µF C1 is too slow for. Same part as bypass caps. |
 | C2 | Output Cap | C76634 | TDK C2012X5R1A226M125AC | 22µF 10V X5R, 0805 | $0.03 | Extended | Smooths 3.3V output ripple. TI Design 2 uses 10µF; 22µF is conservative. |
-| C3 | Bootstrap Cap | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | BST to SW pin. Provides boosted voltage to drive high-side MOSFET. |
 | C6 | VCC Decoupling | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.006 | **Basic** | Decouples U_BUCK's internal VCC LDO (pin 10). |
 | R_ILIM | Current Limit | C23206 | UNI-ROYAL 0603WAF5602T5E | 56kΩ 1%, 0603 | $0.001 | **Basic** | ILIM pin to GND. Sets 120mA peak current / 50mA max PFM output per Design 2. |
 
-**Pin connections:** RT → GND (PFM mode, no resistor). EN → VIN (always on; internal UVLO at 2.9V is sufficient since the data logger controls power — no need for an external EN divider). SS → open (internal 900µs soft-start). HYS → open. PGOOD → MCU GPIO via 10kΩ pull-up (see MCU section).
+**Pin connections:** RT → GND (PFM mode, no resistor). EN → VIN (always on; internal UVLO at 2.9V is sufficient since the data logger controls power — no need for an external EN divider). BST → SW (internal bootstrap, no external cap needed — P-FET high side). SS → open (internal 900µs soft-start). HYS → open. PGOOD → MCU GPIO via 10kΩ pull-up (see MCU section).
 
 ### Analog-to-Digital Converters
 
@@ -50,8 +49,8 @@ LM5165Y ultra-low Iq synchronous buck, fixed 3.3V output. PFM mode (RT shorted t
 |-----|-----------|------|-----|-------|-------|------|-------|
 | U_ADC1 | 16-bit ADC | C37593 | TI ADS1115IDGSR | 16-bit, 4-ch, I2C, VSSOP-10 | $1.08 | Extended | Channels 1-3 + excitation sense (AIN3). ADDR→GND = 0x48. ALERT/DRDY → MCU GPIO (conversion-ready interrupt). |
 | U_ADC2 | 16-bit ADC | C37593 | TI ADS1115IDGSR | 16-bit, 4-ch, I2C, VSSOP-10 | $1.08 | Extended | Channels 4-6. ADDR→VDD = 0x49. ALERT/DRDY → MCU GPIO. Same setup fee as U_ADC1. |
-| R_ALRT1 | ADC1 ALERT Pull-up | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | ADS1115 ALERT/DRDY is open-drain — requires external pull-up for conversion-ready interrupt. U_ADC1 ALERT to 3.3V. Same part as R4/R_BOOT0. |
-| R_ALRT2 | ADC2 ALERT Pull-up | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | Same for U_ADC2. Same part as R_ALRT1. |
+| R_ALRT1 | ADC1 ALERT Pull-up | — | — | 10kΩ 1%, 0402 | — | — | *Included in ADS1115 registry package.* ALERT/DRDY open-drain pull-up to 3.3V. |
+| R_ALRT2 | ADC2 ALERT Pull-up | — | — | 10kΩ 1%, 0402 | — | — | *Included in ADS1115 registry package.* Same for U_ADC2. |
 
 ### EEPROM
 
@@ -70,7 +69,7 @@ Calibration, config, device identity. Written rarely. NOT used for heater safety
 
 **MCU peripheral allocation** (pin assignment deferred to PCB layout phase, will use STM32CubeMX):
 - **Power:** 4x 100nF on VDD/VDDA pins, FB_VDDA (600Ω ferrite bead) + 1µF bulk on VDDA, 100nF on NRST
-- **I2C:** SDA + SCL (shared bus: 2x ADC + EEPROM, 4.7kΩ pull-ups)
+- **I2C:** SDA + SCL (shared bus: 2x ADC + EEPROM, 5kΩ effective pull-ups from ADS1115 registry packages)
 - **USART + RS-485 control:** TX, RX, DE, ~RE (4 pins). SP3485 receiver always on (~RE=0 via R_RE_PD pull-down). USART wakeup from Stop mode on RX start bit detection. R_DE_PD (100kΩ) pulls DE low during boot (prevents bus driving). Split DE/~RE enables firmware-configurable polling mode.
 - **Timer output:** One channel for heater gate via R_GATE (one-pulse mode)
 - **Watchdog I/O:** WAKE (EXTI input) + DONE (output) for TPL5010. RSTn → NRST.
@@ -118,6 +117,7 @@ MCU fires a 24V heater through an N-channel MOSFET for 1-2 second pulses (~0.6A)
 | Q_LATCH | NPN Latch | C20526 | CJ MMBT3904 | 40V/200mA, hFE≥100, SOT-23 | $0.010 | **Basic** | SCR latch: cross-coupled with Q2_INV (PNP). Collector to PNP base node, emitter to GND. One RSTn pulse triggers permanent heater lockout until power cycle. D_ISO (1N4148WS) isolates latch from RSTn/NRST — MCU still boots and reports fault. |
 | R_FB | Latch Feedback | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | Q2_INV collector → Q_LATCH base. Provides positive feedback to sustain latch. 24µA base drive gives 8× margin over required 0.31mA collector sink. Same part as R_WD_PU. |
 | R_LATCH_PD | Latch Base Pulldown | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | Q_LATCH base to GND. Prevents noise from triggering latch when PNP is off. 1MΩ ≫ R_FB (100kΩ) so it doesn't interfere with trigger. |
+| R_DONE_PD | DONE Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | TPL5010 DONE pin to GND. Keeps DONE low when MCU is in reset/unpowered, preventing floating input from confusing the watchdog. Same part as R_WD_PU. |
 | C_WD | Watchdog Bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | TPL5010 VDD to GND decoupling. Same part as other 100nF caps. |
 
 **Heater safety — 4-layer architecture (see Firmware Architecture for details):**
@@ -166,12 +166,7 @@ The 6 thermistor lines and excitation sense line travel through potentially long
 
 ### I2C Bus
 
-Shared bus: MCU, EEPROM, 2x ADC. Requires external pull-up resistors on SDA and SCL.
-
-| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
-|-----|-----------|------|-----|-------|-------|------|-------|
-| R_SDA | I2C Pull-up (SDA) | C23162 | UNI-ROYAL 0603WAF4701T5E | 4.7kΩ 1%, 0603 | $0.001 | **Basic** | SDA to 3.3V. Standard value for 100-400kHz I2C with 4 devices on bus. |
-| R_SCL | I2C Pull-up (SCL) | C23162 | UNI-ROYAL 0603WAF4701T5E | 4.7kΩ 1%, 0603 | $0.001 | **Basic** | SCL to 3.3V. Same part as R_SDA. |
+Shared bus: MCU, EEPROM, 2x ADC. Pull-ups provided by ADS1115 registry packages (2× 10kΩ per line = 5kΩ effective). No separate pull-up resistors needed. 5kΩ is within I2C fast mode spec (valid range: 967Ω–5.6kΩ at 3.3V, 50pF bus capacitance).
 
 ### Decoupling & Bypass Capacitors
 
@@ -184,11 +179,11 @@ Every IC needs a local bypass cap (100nF ceramic, placed as close to the power p
 | C_VDDA | MCU VDDA bulk | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | 1 | $0.006 | **Basic** | Additional bulk cap on VDDA for analog reference stability. On VDDA side of FB_VDDA (after ferrite bead). Same part as C6. |
 | C_NRST | MCU Reset filter | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | NRST pin to GND. Filters noise on reset line. |
 | C_EEPROM | EEPROM bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | U_EEPROM VCC to GND. |
-| C_ADC1 | ADC1 bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | U_ADC1 VDD to GND. |
-| C_ADC2 | ADC2 bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | U_ADC2 VDD to GND. |
-| C_RS485 | RS-485 bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | U_RS485 VCC to GND. |
+| C_ADC1 | ADC1 bypass | — | — | 100nF, 0402 | 1 | — | — | *Included in ADS1115 registry package.* U_ADC1 VDD to GND. |
+| C_ADC2 | ADC2 bypass | — | — | 100nF, 0402 | 1 | — | — | *Included in ADS1115 registry package.* U_ADC2 VDD to GND. |
+| C_RS485 | RS-485 bypass | — | — | 100nF, 0402 | 1 | — | — | *Included in SP3485 registry package.* U_RS485 VCC to GND. |
 
-All bypass caps use C14663 (already in BOM, basic, no additional setup fee). Total: 9 instances here + C3 (bootstrap) + C5 (shield) + C_WD (watchdog bypass) + C_VIN (buck HF) + C_AIN1-6 (6x ADC filter) + C_AIN_EXC (excitation filter) + C_TERM (AC termination) = 21 total instances of C14663. Additional layout-phase instances: 2x local decoupling near D_J2A/D_J2B TVS arrays (see PCB Layout Guidelines).
+Explicit bypass caps use C14663 (already in BOM, basic, no additional setup fee). Total: 6 instances here (C_MCU1-4 + C_NRST + C_EEPROM) + C5 (shield) + C_WD (watchdog bypass) + C_VIN (buck HF) + C_AIN1-6 (6x ADC filter) + C_AIN_EXC (excitation filter) + C_TERM (AC termination) + C_ESD_A + C_ESD_B (TVS local decoupling) = 19 total instances of C14663. C_ADC1, C_ADC2, and C_RS485 are now provided by atopile registry packages (0402, auto-picked). Note: C3 (bootstrap) removed — LM5165Y uses internal bootstrap (P-FET high side).
 
 ### PGOOD Monitoring
 
@@ -267,7 +262,7 @@ Test pads are just exposed copper pads on the PCB — zero BOM cost, zero assemb
 
 ### BOM Summary
 
-- **Basic/preferred parts (no setup fee):** C29823, C14663, C25804, C8963, C23228, C8218, C22962, C23206, C23162, C23204, C22787, C21190, C15849, C8542, C8545, C25803, C25950, C7420375, C1002, C20526, C22935, C2128 (22 unique)
+- **Basic/preferred parts (no setup fee):** C29823, C14663, C25804, C8963, C23228, C8218, C22962, C23206, C23204, C22787, C21190, C15849, C8542, C8545, C25803, C25950, C7420375, C1002, C20526, C22935, C2128 (21 unique). Note: I2C pull-ups (was C23162), ADC/RS-485 decoupling, and ALERT pull-ups are now provided by atopile registry packages (0402 passives, auto-picked at build time).
 - **Extended parts ($3 setup fee each):** C315903, C16015, C693627, C2071924, C5289353, C76634, C48928121, C4054386, C37593, C81193, C22461780, C19108968, C441318, C473912, C2847904, C2835429 (16 unique × $3 = $48 setup for first run)
 - **Hand-solder:** J1, J2 (through-hole, easy)
 - **Buy separately:** KF2EDGK-3.5-10P cable-side plug
