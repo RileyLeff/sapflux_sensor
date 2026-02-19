@@ -1,0 +1,24 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component CAZN_M8_P4A_GPL_M8_JD_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C19108968", date="2026-02-19T02:25:44.567671+00:00", checksum="4b9136b4c80ef32688cb1777f923e8a0e48107ad3e35fcb5c95a25bf1e06f344">
+
+    trait is_atomic_part<manufacturer="CAZN", partnumber="M8-P4A-GPL M8-JD", footprint="CONN-TH_M8-P4A-GPL-M8-JD.kicad_mod", symbol="M8-P4A-GPLM8-JD.kicad_sym", model="CONN-TH_M8-P4A-GPL-M8-JD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C19108968", manufacturer="CAZN", partno="M8-P4A-GPL M8-JD">
+    trait has_designator_prefix<prefix="CN">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2311011001_CAZN-M8-P4A-GPL-M8-JD_C19108968.pdf">
+
+    # pins (M8 4-pin A-coded, right-angle male)
+    signal V24 ~ pin 1
+    signal RS485_A ~ pin 2
+    signal GND ~ pin 3
+    signal RS485_B ~ pin 4
+    signal SHELL1 ~ pin 5
+    signal SHELL2 ~ pin 6

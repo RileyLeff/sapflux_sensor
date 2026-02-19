@@ -1,0 +1,203 @@
+"""
+ADC front-end: 2x ADS1115 + input protection + excitation filter.
+
+Signal path per thermistor channel:
+  J2 pin → R_AIN (1k) → [TVS ESD pin + C_AIN 100nF to GND] → ADC AIN pin
+
+Excitation path:
+  MCU GPIO → R_EXC (560 ohm) → filtered_exc → C_EXC (1uF to GND)
+                                      |→ J2 pin 4 (excitation to sensor)
+                                      |→ R_AIN_EXC (1k) → [TVS + C_AIN_EXC] → ADC1 AIN3
+
+TVS arrays (PRTR5V0U4D):
+  D_J2A: excitation sense + thermistors 1-3 (4 channels)
+  D_J2B: thermistors 4-6 + unused ESD4 (tied to GND)
+
+ADC1 (0x48): AIN0-AIN2 = thermistors 1-3, AIN3 = excitation sense
+ADC2 (0x49): AIN0-AIN2 = thermistors 4-6, AIN3 = unused
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "atopile/ti-ads1115/ti-ads1115.ato" import TI_ADS1115
+from "parts/TECH_PUBLIC_PRTR5V0U4D_TP/TECH_PUBLIC_PRTR5V0U4D_TP.ato" import TECH_PUBLIC_PRTR5V0U4D_TP_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module ADCFrontEnd:
+    """
+    2x ADS1115 16-bit ADCs with 7-channel input protection (RC filters + TVS)
+    and excitation filter for thermistor measurement.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply for ADCs and TVS arrays."""
+
+    sda = new Electrical
+    """I2C SDA line (shared bus, wired in top-level)."""
+
+    scl = new Electrical
+    """I2C SCL line (shared bus, wired in top-level)."""
+
+    excitation_gpio = new Electrical
+    """MCU GPIO output driving thermistor excitation."""
+
+    excitation_out = new Electrical
+    """Filtered excitation to J2 connector (sensor cable)."""
+
+    thermistor_1 = new Electrical
+    thermistor_2 = new Electrical
+    thermistor_3 = new Electrical
+    thermistor_4 = new Electrical
+    thermistor_5 = new Electrical
+    thermistor_6 = new Electrical
+
+    alert1 = new Electrical
+    """ADC1 ALERT/DRDY output to MCU."""
+
+    alert2 = new Electrical
+    """ADC2 ALERT/DRDY output to MCU."""
+
+    # --- ADC instances (registry package includes decoupling + I2C pull-ups + ALERT pull-up) ---
+    adc1 = new TI_ADS1115
+    adc2 = new TI_ADS1115
+
+    # Power
+    power ~ adc1.power
+    power ~ adc2.power
+
+    # I2C (direct line connections, avoid interface-level merging issues)
+    sda ~ adc1.i2c.sda.line
+    sda ~ adc2.i2c.sda.line
+    scl ~ adc1.i2c.scl.line
+    scl ~ adc2.i2c.scl.line
+
+    # Addresses: ADC1 = 0x48 (default), ADC2 = 0x49
+    # Addressor handles ADDR pin wiring internally
+    adc2.addressor.address = 0x49
+
+    # ALERT/DRDY
+    alert1 ~ adc1.alert_ready.line
+    alert2 ~ adc2.alert_ready.line
+
+    # --- Excitation filter (R_EXC + C_EXC) ---
+    r_exc = new Resistor
+    r_exc.resistance = 560ohm +/- 1%
+    r_exc.package = "0603"
+
+    c_exc = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1uF 50V. RC = 560 ohm x 1uF = 560us, fc = 284Hz."""
+
+    filtered_exc = new Electrical
+
+    excitation_gpio ~> r_exc ~> filtered_exc
+    filtered_exc ~ c_exc.p1
+    c_exc.p2 ~ power.lv
+    filtered_exc ~ excitation_out
+
+    # --- TVS arrays ---
+    d_j2a = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    d_j2b = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+
+    d_j2a.VCC ~ power.hv
+    d_j2a.GND ~ power.lv
+    d_j2b.VCC ~ power.hv
+    d_j2b.GND ~ power.lv
+    d_j2b.ESD4 ~ power.lv
+
+    # --- Input protection: 7 channels (1k series R + 100nF shunt C each) ---
+
+    # Series resistors (auto-pick 1k 0603)
+    r_ain1 = new Resistor
+    r_ain1.resistance = 1kohm +/- 1%
+    r_ain1.package = "0603"
+    r_ain2 = new Resistor
+    r_ain2.resistance = 1kohm +/- 1%
+    r_ain2.package = "0603"
+    r_ain3 = new Resistor
+    r_ain3.resistance = 1kohm +/- 1%
+    r_ain3.package = "0603"
+    r_ain4 = new Resistor
+    r_ain4.resistance = 1kohm +/- 1%
+    r_ain4.package = "0603"
+    r_ain5 = new Resistor
+    r_ain5.resistance = 1kohm +/- 1%
+    r_ain5.package = "0603"
+    r_ain6 = new Resistor
+    r_ain6.resistance = 1kohm +/- 1%
+    r_ain6.package = "0603"
+    r_ain_exc = new Resistor
+    r_ain_exc.resistance = 1kohm +/- 1%
+    r_ain_exc.package = "0603"
+
+    # Filter caps (100nF 50V explicit for voltage rating)
+    c_ain1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain4 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain5 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain6 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain_exc = new YAGEO_CC0603KRX7R9BB104_package
+
+    # Protected nodes (after series R, at TVS/cap/ADC junction)
+    prot_1 = new Electrical
+    prot_2 = new Electrical
+    prot_3 = new Electrical
+    prot_4 = new Electrical
+    prot_5 = new Electrical
+    prot_6 = new Electrical
+    prot_exc = new Electrical
+
+    # === Ch1: thermistor_1 → ADC1 AIN0, TVS D_J2A.ESD2 ===
+    thermistor_1 ~> r_ain1 ~> prot_1
+    prot_1 ~ c_ain1.p1
+    c_ain1.p2 ~ power.lv
+    prot_1 ~ d_j2a.ESD2
+    prot_1 ~ adc1.inputs[0].line
+
+    # === Ch2: thermistor_2 → ADC1 AIN1, TVS D_J2A.ESD3 ===
+    thermistor_2 ~> r_ain2 ~> prot_2
+    prot_2 ~ c_ain2.p1
+    c_ain2.p2 ~ power.lv
+    prot_2 ~ d_j2a.ESD3
+    prot_2 ~ adc1.inputs[1].line
+
+    # === Ch3: thermistor_3 → ADC1 AIN2, TVS D_J2A.ESD4 ===
+    thermistor_3 ~> r_ain3 ~> prot_3
+    prot_3 ~ c_ain3.p1
+    c_ain3.p2 ~ power.lv
+    prot_3 ~ d_j2a.ESD4
+    prot_3 ~ adc1.inputs[2].line
+
+    # === Ch4: thermistor_4 → ADC2 AIN0, TVS D_J2B.ESD1 ===
+    thermistor_4 ~> r_ain4 ~> prot_4
+    prot_4 ~ c_ain4.p1
+    c_ain4.p2 ~ power.lv
+    prot_4 ~ d_j2b.ESD1
+    prot_4 ~ adc2.inputs[0].line
+
+    # === Ch5: thermistor_5 → ADC2 AIN1, TVS D_J2B.ESD2 ===
+    thermistor_5 ~> r_ain5 ~> prot_5
+    prot_5 ~ c_ain5.p1
+    c_ain5.p2 ~ power.lv
+    prot_5 ~ d_j2b.ESD2
+    prot_5 ~ adc2.inputs[1].line
+
+    # === Ch6: thermistor_6 → ADC2 AIN2, TVS D_J2B.ESD3 ===
+    thermistor_6 ~> r_ain6 ~> prot_6
+    prot_6 ~ c_ain6.p1
+    c_ain6.p2 ~ power.lv
+    prot_6 ~ d_j2b.ESD3
+    prot_6 ~ adc2.inputs[2].line
+
+    # === Excitation sense → ADC1 AIN3, TVS D_J2A.ESD1 ===
+    filtered_exc ~> r_ain_exc ~> prot_exc
+    prot_exc ~ c_ain_exc.p1
+    c_ain_exc.p2 ~ power.lv
+    prot_exc ~ d_j2a.ESD1
+    prot_exc ~ adc1.inputs[3].line

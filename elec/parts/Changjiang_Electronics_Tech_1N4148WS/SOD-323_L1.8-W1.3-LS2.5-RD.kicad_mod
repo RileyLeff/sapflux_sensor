@@ -1,0 +1,137 @@
+(footprint "Changjiang_Electronics_Tech_1N4148WS:SOD-323_L1.8-W1.3-LS2.5-RD"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "49ff8c11-6e43-4d17-bf10-2adc709c3e33")
+	(property "Reference" "REF**"
+		(at 0 -4)
+		(layer "F.SilkS")
+		(uuid "daf1c687-35c3-4943-a12d-3dc0ff94b414")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SOD-323_L1.8-W1.3-LS2.5-RD"
+		(at 0 4)
+		(layer "F.Fab")
+		(uuid "a7b4a96e-7c85-4309-9797-aa05a8206541")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -1.22 0.65)
+		(end -1.19 0.65)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "b5498a73-6454-438e-9f0b-f6d4a5d3c244")
+	)
+	(fp_line
+		(start 0.91 0.73)
+		(end 0.91 0.52)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f7d22e9b-cc4d-4926-b93b-005f2cd8eddc")
+	)
+	(fp_line
+		(start 0.91 -0.73)
+		(end 0.91 -0.53)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "c5893fbc-7cd6-48b8-bbc5-e5b634cc89d4")
+	)
+	(fp_line
+		(start -0.85 -0.73)
+		(end 0.91 -0.73)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "cc1775fe-070c-4904-aa3f-4b076be47d03")
+	)
+	(fp_line
+		(start -0.85 0.73)
+		(end 0.91 0.73)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "9eead6d9-7cc9-4765-94a4-cb5597b456ba")
+	)
+	(fp_line
+		(start -0.44 -0.73)
+		(end -0.44 0.73)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "960bba6a-8da9-4b1d-b2f8-7ebb5360f427")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "59b21478-940c-4cbc-ab15-631fc6f7d009")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" smd rect
+		(at 1.17 0 0)
+		(size 1 0.75)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "ee0bce6e-683a-47a7-8789-155550ee2aea")
+	)
+	(pad "1" smd rect
+		(at -1.17 0 0)
+		(size 1 0.75)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "783d63c6-48d4-4808-8e6d-b91bcc92e68a")
+	)
+	(model "${KIPRJMOD}/../../parts/Changjiang_Electronics_Tech_1N4148WS/2.STEP"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

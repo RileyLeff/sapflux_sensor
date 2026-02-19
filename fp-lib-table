@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "sap_footprints")(type "KiCad")(uri "${KIPRJMOD}/common_lib/sap_footprints")(options "")(descr ""))
+)

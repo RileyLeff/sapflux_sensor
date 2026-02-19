@@ -1,0 +1,19 @@
+requires-atopile: ^0.14.0
+
+paths:
+  src: ./
+  layout: ./layouts
+
+builds:
+  default:
+    entry: main.ato:SapFluxAdapter
+dependencies:
+- type: registry
+  identifier: atopile/ti-ads1115
+  release: 0.2.0
+- type: registry
+  identifier: atopile/maxlinear-sp3485
+  release: 0.2.0
+- type: registry
+  identifier: atopile/microchip-24lc32
+  release: 0.3.0

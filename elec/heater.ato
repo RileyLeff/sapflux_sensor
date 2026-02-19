@@ -1,0 +1,220 @@
+"""
+Heater driver + TPL5010 watchdog + SCR latch safety circuit.
+
+Q1 (XCHS3N12 N-FET) switches 24V heater current. TPL5010 external watchdog
+provides MCU-independent kill via PNP/NPN SCR latch. D_ISO isolates latch
+from NRST so MCU can still boot and report fault.
+
+Gate-kill circuit:
+  MCU timer → R_GATE (1k) → gate_node → R4 (10k) → GND
+                                  ↑
+                             Q_WD drain
+                             Q_WD source → GND
+                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_LATCH base
+                                            ↑                                   ↑
+                                      R_WD_PD (10k) → GND              R_LATCH_PD (1M) → GND
+                                      Q2_INV emitter → 3.3V            Q_LATCH emitter → GND
+                                      Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
+                                            ↑           (anode)   (cathode)    ↑
+                                      Q_LATCH collector                  R_WD_PU (100k) → 3.3V
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/XCH_XCHS3N12/XCH_XCHS3N12.ato" import XCH_XCHS3N12_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+from "parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato" import Texas_Instruments_TPL5010DDCR_package
+from "parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato" import Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
+from "parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato" import Changjiang_Electronics_Tech_2N7002_package
+from "parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4148WS.ato" import Changjiang_Electronics_Tech_1N4148WS_package
+from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato" import Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
+from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module HeaterDriver:
+    """
+    24V heater driver with 4-layer safety: hardware timer, IWDG, external
+    watchdog (TPL5010), and thermistor interlock. SCR latch provides
+    permanent lockout on watchdog fault.
+    """
+
+    # --- External interfaces ---
+    power_24v = new ElectricPower
+    """24V protected rail (heater power + bulk cap)."""
+
+    power_3v3 = new ElectricPower
+    """3.3V rail (watchdog, PNP emitter, pull-ups)."""
+
+    heater_hi = new Electrical
+    """Heater positive terminal (from J2, connects to 24V)."""
+
+    heater_lo = new Electrical
+    """Heater negative terminal (from J2, connects to Q1 drain)."""
+
+    gate_drive = new Electrical
+    """MCU timer output (into R_GATE)."""
+
+    wake = new Electrical
+    """TPL5010 WAKE output → MCU EXTI input."""
+
+    done = new Electrical
+    """TPL5010 DONE input ← MCU GPIO output."""
+
+    rstn = new Electrical
+    """TPL5010 RSTn node. Also connects to MCU NRST (wired in top-level)."""
+
+    # --- Power FET and flyback ---
+    q1 = new XCH_XCHS3N12_package
+    """120V/3A N-FET heater switch."""
+
+    d4 = new MDD_Microdiode_Electronics_SS36_package
+    """60V/3A flyback Schottky across heater."""
+
+    # --- Bulk decoupling on 24V ---
+    c4 = new Honor_Elec_VP1H101M0607_package
+    """100uF 50V electrolytic. Absorbs heater switching transients."""
+
+    # --- TPL5010 watchdog ---
+    u_wdt = new Texas_Instruments_TPL5010DDCR_package
+
+    c_wd = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF bypass on TPL5010 VDD."""
+
+    r_delay = new Resistor
+    r_delay.resistance = 11kohm +/- 1%
+    r_delay.package = "0603"
+
+    # --- Gate control resistors ---
+    r_gate = new Resistor
+    r_gate.resistance = 1kohm +/- 1%
+    r_gate.package = "0603"
+
+    r4 = new Resistor
+    r4.resistance = 10kohm +/- 1%
+    r4.package = "0603"
+
+    # --- SCR latch components ---
+    q2_inv = new Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
+    """PNP inverter. Inverts RSTn to drive gate clamp."""
+
+    q_wd = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET gate clamp. Pulls Q1 gate to GND on fault."""
+
+    q_latch = new Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
+    """NPN latch. Cross-coupled with Q2_INV for permanent lockout."""
+
+    d_iso = new Changjiang_Electronics_Tech_1N4148WS_package
+    """Isolation diode. Prevents latch from holding MCU in reset."""
+
+    r_base = new Resistor
+    r_base.resistance = 10kohm +/- 1%
+    r_base.package = "0603"
+
+    r_wd_pd = new Resistor
+    r_wd_pd.resistance = 10kohm +/- 1%
+    r_wd_pd.package = "0603"
+
+    r_wd_pu = new Resistor
+    r_wd_pu.resistance = 100kohm +/- 1%
+    r_wd_pu.package = "0603"
+
+    r_fb = new Resistor
+    r_fb.resistance = 100kohm +/- 1%
+    r_fb.package = "0603"
+
+    r_latch_pd = new Resistor
+    r_latch_pd.resistance = 1Mohm +/- 1%
+    r_latch_pd.package = "0603"
+
+    # --- Internal nodes ---
+    gate_node = new Electrical
+    """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
+
+    pnp_coll_node = new Electrical
+    """Q2_INV collector: R_WD_PD top, Q_WD gate, R_FB input."""
+
+    pnp_base_node = new Electrical
+    """Q2_INV base: R_BASE output, Q_LATCH collector."""
+
+    d_iso_anode_node = new Electrical
+    """D_ISO anode: R_BASE input (between D_ISO and PNP base)."""
+
+    latch_base_node = new Electrical
+    """Q_LATCH base: R_FB output, R_LATCH_PD top."""
+
+    # === Heater power path ===
+
+    # 24V → heater_hi, heater_lo → Q1 → GND
+    heater_hi ~ power_24v.hv
+    heater_lo ~ q1.D
+    q1.S ~ power_24v.lv
+
+    # Flyback diode across heater (anode at Q1 drain, cathode at 24V)
+    d4.A ~ heater_lo
+    d4.K ~ heater_hi
+
+    # Bulk cap on 24V rail
+    power_24v.hv ~ c4.p1
+    c4.p2 ~ power_24v.lv
+
+    # === Gate drive path ===
+
+    # MCU timer → R_GATE → gate_node → R4 → GND
+    gate_drive ~> r_gate ~> gate_node
+    gate_node ~> r4 ~> power_24v.lv
+
+    # Q1 gate
+    gate_node ~ q1.G
+
+    # Q_WD clamps gate to GND on fault
+    q_wd.D ~ gate_node
+    q_wd.S ~ power_24v.lv
+
+    # === TPL5010 watchdog ===
+
+    u_wdt.VDD ~ power_3v3.hv
+    u_wdt.GND ~ power_3v3.lv
+
+    # Bypass cap
+    power_3v3.hv ~ c_wd.p1
+    c_wd.p2 ~ power_3v3.lv
+
+    # Timeout resistor (11k → ~9.6s period)
+    u_wdt.DELAY_M_RST ~> r_delay ~> power_3v3.lv
+
+    # MCU interface
+    u_wdt.WAKE ~ wake
+    u_wdt.DONE ~ done
+
+    # RSTn with pull-up
+    u_wdt.RSTn ~ rstn
+    rstn ~> r_wd_pu ~> power_3v3.hv
+
+    # === SCR latch circuit ===
+
+    # PNP inverter (Q2_INV): emitter → 3.3V, base via R_BASE/D_ISO
+    q2_inv.E ~ power_3v3.hv
+    q2_inv.B ~ pnp_base_node
+    q2_inv.C ~ pnp_coll_node
+
+    # PNP collector drives Q_WD gate + feedback
+    pnp_coll_node ~ q_wd.G
+    pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
+    pnp_coll_node ~> r_fb ~> latch_base_node
+
+    # D_ISO: cathode at RSTn, anode → R_BASE → PNP base
+    d_iso.K ~ rstn
+    d_iso.A ~ d_iso_anode_node
+    d_iso_anode_node ~> r_base ~> pnp_base_node
+
+    # NPN latch (Q_LATCH): collector → PNP base node, emitter → GND
+    q_latch.C ~ pnp_base_node
+    q_latch.E ~ power_3v3.lv
+    q_latch.B ~ latch_base_node
+
+    # Latch base pull-down (noise immunity)
+    latch_base_node ~> r_latch_pd ~> power_3v3.lv

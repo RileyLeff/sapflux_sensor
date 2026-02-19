@@ -1,0 +1,80 @@
+"""
+Connectors: M8 upstream (J1) + 10-pin sensor header (J2) + shield cap.
+
+J1 (M8 4-pin A-coded):
+  Pin 1: 24V power input
+  Pin 2: RS-485 A (+)
+  Pin 3: GND
+  Pin 4: RS-485 B (-)
+  Shell: C5 (100nF) to GND
+
+J2 (KF2EDGV 10-pin 3.5mm):
+  Pin 1-2: Heater A/B (24V, non-polar)
+  Pin 3: Ground
+  Pin 4: Excitation (filtered 3.3V)
+  Pin 5-10: Data 1-6 (thermistors)
+"""
+
+import ElectricPower
+import Electrical
+
+from "parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato" import CAZN_M8_P4A_GPL_M8_JD_package
+from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module Connectors:
+    """M8 upstream connector, 10-pin sensor header, and shield cap."""
+
+    # --- External interfaces ---
+    power_24v = new ElectricPower
+    """24V raw power from M8 connector."""
+
+    rs485_a = new Electrical
+    """RS-485 A line."""
+
+    rs485_b = new Electrical
+    """RS-485 B line."""
+
+    heater_hi = new Electrical
+    """Heater positive terminal."""
+
+    heater_lo = new Electrical
+    """Heater negative terminal."""
+
+    excitation = new Electrical
+    """Filtered excitation output to sensor."""
+
+    thermistor_1 = new Electrical
+    thermistor_2 = new Electrical
+    thermistor_3 = new Electrical
+    thermistor_4 = new Electrical
+    thermistor_5 = new Electrical
+    thermistor_6 = new Electrical
+
+    # --- J1: M8 upstream connector ---
+    j1 = new CAZN_M8_P4A_GPL_M8_JD_package
+
+    j1.V24 ~ power_24v.hv
+    j1.GND ~ power_24v.lv
+    j1.RS485_A ~ rs485_a
+    j1.RS485_B ~ rs485_b
+
+    # Shield cap (100nF, blocks ground loop DC, passes HF EMI)
+    c5 = new YAGEO_CC0603KRX7R9BB104_package
+    j1.SHELL1 ~ c5.p1
+    c5.p2 ~ power_24v.lv
+    j1.SHELL2 ~ c5.p1
+
+    # --- J2: 10-pin sensor header ---
+    j2 = new Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+
+    j2.HEATER_A ~ heater_hi
+    j2.HEATER_B ~ heater_lo
+    j2.GND ~ power_24v.lv
+    j2.EXCITATION ~ excitation
+    j2.DATA1 ~ thermistor_1
+    j2.DATA2 ~ thermistor_2
+    j2.DATA3 ~ thermistor_3
+    j2.DATA4 ~ thermistor_4
+    j2.DATA5 ~ thermistor_5
+    j2.DATA6 ~ thermistor_6

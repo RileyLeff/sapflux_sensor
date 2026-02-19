@@ -1,0 +1,66 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component STMicroelectronics_STM32G0B1CBT6_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2847904", date="2026-02-19T02:25:09.495731+00:00", checksum="a9bfaa7e07948e87c86db616a045e335c9563fe07369f33b15632ab52835df01">
+
+    trait is_atomic_part<manufacturer="STMicroelectronics", partnumber="STM32G0B1CBT6", footprint="LQFP-48_L7.0-W7.0-P0.50-LS9.0-BL.kicad_mod", symbol="STM32G0B1CBT6.kicad_sym", model="LQFP-48_L7.0-W7.0-H1.4-LS9.0-P0.50.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2847904", manufacturer="STMicroelectronics", partno="STM32G0B1CBT6">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2108142230_STMicroelectronics-STM32G0B1CBT6_C2847904.pdf">
+
+    # pins
+    signal PA0 ~ pin 11
+    signal PA1 ~ pin 12
+    signal PA2 ~ pin 13
+    signal PA3 ~ pin 14
+    signal PA4 ~ pin 15
+    signal PA5 ~ pin 16
+    signal PA6 ~ pin 17
+    signal PA7 ~ pin 18
+    signal PA8 ~ pin 28
+    signal PA9 ~ pin 29
+    signal PA10 ~ pin 32
+    signal PA11PA9 ~ pin 33
+    signal PA12PA10 ~ pin 34
+    signal PA13 ~ pin 35
+    signal PA14_BOOT0 ~ pin 36
+    signal PA15 ~ pin 37
+    signal PB0 ~ pin 19
+    signal PB1 ~ pin 20
+    signal PB2 ~ pin 21
+    signal PB3 ~ pin 42
+    signal PB4 ~ pin 43
+    signal PB5 ~ pin 44
+    signal PB6 ~ pin 45
+    signal PB7 ~ pin 46
+    signal PB8 ~ pin 47
+    signal PB9 ~ pin 48
+    signal PB10 ~ pin 22
+    signal PB11 ~ pin 23
+    signal PB12 ~ pin 24
+    signal PB13 ~ pin 25
+    signal PB14 ~ pin 26
+    signal PB15 ~ pin 27
+    signal PC6 ~ pin 30
+    signal PC7 ~ pin 31
+    signal PC13 ~ pin 1
+    signal PC14_OSC32_IN ~ pin 2
+    signal PC15_OSC32_OUT ~ pin 3
+    signal PD0 ~ pin 38
+    signal PD1 ~ pin 39
+    signal PD2 ~ pin 40
+    signal PD3 ~ pin 41
+    signal PF0_OSC_IN ~ pin 8
+    signal PF1_OSC_OUT ~ pin 9
+    signal PF2_NRST ~ pin 10
+    signal VBAT ~ pin 4
+    signal VDD_VDDA ~ pin 6
+    signal VREFpos ~ pin 5
+    signal VSS_VSSA ~ pin 7

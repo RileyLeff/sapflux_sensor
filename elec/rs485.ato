@@ -1,0 +1,102 @@
+"""
+RS-485 transceiver: SP3485 + AC termination + SM712 TVS + boot pull-ups/downs.
+
+Topology:
+  MCU UART TX → SP3485 DI
+  MCU UART RX ← SP3485 RO
+  MCU GPIO DE → SP3485 DE (R_DE_PD 100k pull-down: driver OFF during boot)
+  MCU GPIO ~RE → SP3485 ~RE (R_RE_PD 100k pull-down: receiver ON during boot)
+
+  SP3485 A/B → SM712 TVS → M8 connector (via top-level wiring)
+  A-B: R_TERM (120 ohm) + C_TERM (100nF) in series (AC termination)
+
+No bias resistors — SP3485 fail-safe receiver handles floating bus.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "atopile/maxlinear-sp3485/maxlinear-sp3485.ato" import MaxLinear_SP3485
+from "parts/hongjiacheng_SM712/hongjiacheng_SM712.ato" import hongjiacheng_SM712_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module RS485Bus:
+    """
+    SP3485 half-duplex RS-485 transceiver with AC termination,
+    SM712 TVS protection, and boot-safe pull resistors.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply."""
+
+    uart_tx = new Electrical
+    """MCU UART TX → SP3485 DI (data in)."""
+
+    uart_rx = new Electrical
+    """MCU UART RX ← SP3485 RO (receiver out)."""
+
+    de = new Electrical
+    """MCU GPIO → SP3485 DE (driver enable, active high)."""
+
+    n_re = new Electrical
+    """MCU GPIO → SP3485 ~RE (receiver enable, active low)."""
+
+    rs485_a = new Electrical
+    """RS-485 A line (to M8 connector)."""
+
+    rs485_b = new Electrical
+    """RS-485 B line (to M8 connector)."""
+
+    # --- SP3485 transceiver (registry: includes 100nF decoupling) ---
+    transceiver = new MaxLinear_SP3485
+    power ~ transceiver.power
+
+    # UART connections
+    uart_tx ~ transceiver.uart.tx.line
+    uart_rx ~ transceiver.uart.rx.line
+
+    # Control lines
+    de ~ transceiver.driver_enable.line
+    n_re ~ transceiver.n_receiver_enable.line
+
+    # RS-485 bus
+    rs485_a ~ transceiver.rs485_bus.p.line
+    rs485_b ~ transceiver.rs485_bus.n.line
+
+    # --- Boot-state pull resistors (100k, auto-pick) ---
+    r_de_pd = new Resistor
+    r_de_pd.resistance = 100kohm +/- 1%
+    r_de_pd.package = "0603"
+
+    r_re_pd = new Resistor
+    r_re_pd.resistance = 100kohm +/- 1%
+    r_re_pd.package = "0603"
+
+    # DE pull-down: driver OFF during boot (Hi-Z GPIOs)
+    de ~> r_de_pd ~> power.lv
+
+    # ~RE pull-down: receiver ON during boot (enables USART wakeup from Stop)
+    n_re ~> r_re_pd ~> power.lv
+
+    # --- AC termination (120 ohm + 100nF in series between A and B) ---
+    r_term = new Resistor
+    r_term.resistance = 120ohm +/- 1%
+    r_term.package = "0603"
+
+    c_term = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF 50V. Blocks DC, terminates signal edges. |Z| = 123 ohm at 115200 baud."""
+
+    rs485_a ~> r_term ~> c_term.p1
+    c_term.p2 ~ rs485_b
+
+    # --- SM712 TVS (asymmetric dual, purpose-built for RS-485) ---
+    d_rs485 = new hongjiacheng_SM712_package
+    """7V/12V standoff, 16V/26V clamp. Place near M8 connector."""
+
+    d_rs485.A ~ rs485_a
+    d_rs485.B ~ rs485_b
+    d_rs485.GND ~ power.lv

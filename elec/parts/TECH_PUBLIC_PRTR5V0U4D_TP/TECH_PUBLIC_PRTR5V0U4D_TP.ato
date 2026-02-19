@@ -1,0 +1,24 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component TECH_PUBLIC_PRTR5V0U4D_TP_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2835429", date="2026-02-19T02:25:14.186067+00:00", checksum="51d9977f19f589bacb268243ec597de45dbd02e59abd64d3393eb48088c3e702">
+
+    trait is_atomic_part<manufacturer="TECH PUBLIC", partnumber="PRTR5V0U4D-TP", footprint="SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR.kicad_mod", symbol="PRTR5V0U4D-TP.kicad_sym", model="SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2835429", manufacturer="TECH PUBLIC", partno="PRTR5V0U4D-TP">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2105251936_TECH-PUBLIC-PRTR5V0U4D-TP_C2835429.pdf">
+
+    # pins
+    signal ESD1 ~ pin 4
+    signal ESD2 ~ pin 6
+    signal ESD3 ~ pin 1
+    signal ESD4 ~ pin 3
+    signal GND ~ pin 2
+    signal VCC ~ pin 5

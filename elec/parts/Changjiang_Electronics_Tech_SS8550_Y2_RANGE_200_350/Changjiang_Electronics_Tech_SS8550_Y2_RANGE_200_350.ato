@@ -1,0 +1,23 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package:
+    """SS8550 Y2 200-350"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8542", date="2026-02-19T02:25:16.471587+00:00", checksum="9430444a6815926d9ae1fa180751769e6c95cbdce935626f2e22e9e02d16f56c">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="SS8550 Y2(RANGE:200-350)", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="SS8550_C8542.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8542", manufacturer="Changjiang Electronics Tech ", partno="SS8550 Y2(RANGE:200-350)">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1810161212_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--SS8550-Y2-RANGE-200-350_C8542.pdf">
+
+    # pins
+    signal B ~ pin 1
+    signal C ~ pin 3
+    signal E ~ pin 2

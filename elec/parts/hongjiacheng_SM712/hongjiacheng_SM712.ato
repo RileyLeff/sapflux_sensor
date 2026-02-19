@@ -1,0 +1,21 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_SM712_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C7420375", date="2026-02-19T02:25:11.761916+00:00", checksum="5a2acc190c7ecd69b6c89cf53e51b84e39a6d72cf9bb5570b89d8c76aeb668a4">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="SM712", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="SM712_C7420375.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C7420375", manufacturer="hongjiacheng", partno="SM712">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2308281515_hongjiacheng-SM712_C7420375.pdf">
+
+    # pins (SM712: asymmetric dual TVS for RS-485)
+    signal A ~ pin 1
+    signal GND ~ pin 2
+    signal B ~ pin 3

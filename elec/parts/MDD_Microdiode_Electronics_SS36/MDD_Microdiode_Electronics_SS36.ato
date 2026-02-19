@@ -1,0 +1,22 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component MDD_Microdiode_Electronics_SS36_package:
+    """SS36"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C16015", date="2026-02-19T02:12:07.709248+00:00", checksum="73759f76687dff7e5430b490d90c08447bdd92e62198302295a0923bce581c0c">
+
+    trait is_atomic_part<manufacturer="MDD（Microdiode Electronics）", partnumber="SS36", footprint="SMA_L4.3-W2.6-LS5.2-RD.kicad_mod", symbol="SS36.kicad_sym", model="SMA_L4.3-W2.6-LS5.2-RD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C16015", manufacturer="MDD（Microdiode Electronics）", partno="SS36">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2408051031_MDD-Microdiode-Semiconductor-SS36_C16015.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1

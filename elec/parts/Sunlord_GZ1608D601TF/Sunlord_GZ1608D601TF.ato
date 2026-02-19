@@ -1,0 +1,22 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Sunlord_GZ1608D601TF_package:
+    """600Ω ±25% 100MHz"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C1002", date="2026-02-19T02:25:34.177444+00:00", checksum="a8119cc46357c1907e2cb1b1fefb9b8863878032f96758710d9a8da3f0650812">
+
+    trait is_atomic_part<manufacturer="Sunlord", partnumber="GZ1608D601TF", footprint="L0603.kicad_mod", symbol="GZ1608D601TF.kicad_sym", model="L0603_L1.6-W0.8-H0.5_BEAD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C1002", manufacturer="Sunlord", partno="GZ1608D601TF">
+    trait has_designator_prefix<prefix="L">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2310301640_Sunlord-GZ1608D601TF_C1002.pdf">
+
+    # pins (ferrite bead, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

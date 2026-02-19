@@ -1,0 +1,102 @@
+"""
+STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, and VDDA filtering.
+
+Power topology:
+  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VBAT, VREFpos
+  Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
+
+Note: LQFP-48 merges VDD and VDDA into one pin (VDD_VDDA). Ferrite bead
+filters ALL MCU power. 200mA rating is ample for ~20mA MCU draw.
+
+BOOT0: 10k pull-down to GND (normal boot from flash).
+NRST: 100nF filter cap to GND. Exposed for TPL5010 RSTn connection.
+
+GPIO assignments are made in the top-level module via package pin access.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.ato" import STMicroelectronics_STM32G0B1CBT6_package
+from "parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato" import Sunlord_GZ1608D601TF_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module MCU:
+    """
+    STM32G0B1CBT6 with power filtering, decoupling, BOOT0 pull-down,
+    and NRST filter cap.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply rail (from buck converter)."""
+
+    nrst = new Electrical
+    """NRST node — exposed for TPL5010 RSTn + SCR latch connection."""
+
+    # --- Package (exposed for GPIO wiring in top-level) ---
+    package = new STMicroelectronics_STM32G0B1CBT6_package
+
+    # --- VDDA ferrite bead ---
+    fb_vdda = new Sunlord_GZ1608D601TF_package
+    """600 ohm @ 100MHz. Filters digital noise from MCU power pins."""
+
+    # --- Internal filtered rail node ---
+    vdd_filtered = new Electrical
+    """MCU-side of ferrite bead. All MCU power pins connect here."""
+
+    # --- Bulk cap on VDDA (1uF, after ferrite bead) ---
+    c_vdda = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+    # --- Bypass caps (4x 100nF, after ferrite bead) ---
+    c_mcu1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu4 = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- NRST filter cap ---
+    c_nrst = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- BOOT0 pull-down ---
+    r_boot0 = new Resistor
+    r_boot0.resistance = 10kohm +/- 1%
+    r_boot0.package = "0603"
+
+    # === Power path: 3.3V -> ferrite bead -> MCU pins ===
+    power.hv ~ fb_vdda.p1
+    fb_vdda.p2 ~ vdd_filtered
+
+    # MCU power pins (all on filtered side)
+    vdd_filtered ~ package.VDD_VDDA
+    vdd_filtered ~ package.VBAT
+    vdd_filtered ~ package.VREFpos
+    power.lv ~ package.VSS_VSSA
+
+    # === Bypass caps (after ferrite bead) ===
+    vdd_filtered ~ c_mcu1.p1
+    c_mcu1.p2 ~ power.lv
+
+    vdd_filtered ~ c_mcu2.p1
+    c_mcu2.p2 ~ power.lv
+
+    vdd_filtered ~ c_mcu3.p1
+    c_mcu3.p2 ~ power.lv
+
+    vdd_filtered ~ c_mcu4.p1
+    c_mcu4.p2 ~ power.lv
+
+    # === VDDA bulk cap (after ferrite bead) ===
+    vdd_filtered ~ c_vdda.p1
+    c_vdda.p2 ~ power.lv
+
+    # === NRST ===
+    package.PF2_NRST ~ nrst
+    nrst ~ c_nrst.p1
+    c_nrst.p2 ~ power.lv
+
+    # === BOOT0 pull-down ===
+    package.PA14_BOOT0 ~> r_boot0 ~> power.lv

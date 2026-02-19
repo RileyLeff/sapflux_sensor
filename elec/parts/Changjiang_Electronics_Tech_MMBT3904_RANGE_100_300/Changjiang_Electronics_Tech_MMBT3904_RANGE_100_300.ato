@@ -1,0 +1,23 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package:
+    """MMBT3904 1AM 100-300"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C20526", date="2026-02-19T02:25:41.677622+00:00", checksum="fa9608125b9fa576a968c3256d8885a63ab833e20da2f54b8df58affffbd7b9a">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="MMBT3904(RANGE:100-300)", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="MMBT3904-C20526.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C20526", manufacturer="Changjiang Electronics Tech ", partno="MMBT3904(RANGE:100-300)">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2207041900_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--MMBT3904-RANGE-100-300_C20526.pdf">
+
+    # pins
+    signal B ~ pin 1
+    signal C ~ pin 3
+    signal E ~ pin 2

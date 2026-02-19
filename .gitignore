@@ -1,0 +1,18 @@
+*.lck
+*.bkp
+*.kicad_sch-bak
+fp-info-cache
+*-backups/
+_autosave-*
+*.kicad_prl
+*.kicad_dru
+
+# Generated files
+saptest1.xml
+saptest1-erc.rpt
+
+# Local config
+.mcp.json
+
+# Datasheets (downloaded from LCSC, ~18MB PDFs + extracted text)
+datasheets/

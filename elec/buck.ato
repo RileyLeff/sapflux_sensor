@@ -1,0 +1,136 @@
+"""
+LM5165Y buck converter: 24V protected input to 3.3V output.
+
+PFM mode (RT shorted to GND) for 10.5uA quiescent current.
+RILIM = 56k for 120mA peak / 50mA max PFM output.
+Design follows TI Design 2 (Section 8.2.2, Figure 50).
+
+Topology:
+  VIN (24V) --+-- C1 (4.7uF 50V) --+-- GND
+              |                      |
+              +-- C_VIN (100nF 50V) -+
+              |
+           U_BUCK.VIN
+              |
+           U_BUCK.SW --- L1 (68uH) --- VOUT (3.3V)
+              |                           |
+           U_BUCK.VOUT --+-- C2 (22uF) --+-- GND
+                         |
+                         +-- C6 (1uF 50V) --- GND
+
+  RT -> GND (PFM mode)
+  EN -> VIN (always on, internal UVLO at 2.9V)
+  ILIM -> R_ILIM (56k) -> GND
+  SS -> open, HYS -> open
+  EP -> GND
+  PGOOD -> MCU (open-drain, needs external pull-up)
+
+Note: LM5165 VSON-10 has internal bootstrap — no external BST cap needed.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import ElectricLogic
+
+from "parts/Texas_Instruments_LM5165YDRCR/Texas_Instruments_LM5165YDRCR.ato" import Texas_Instruments_LM5165YDRCR_package
+from "parts/XR_XRNR4018_68uH_M/XR_XRNR4018_68uH_M.ato" import XR_XRNR4018_68uH_M_package
+from "parts/FH_1206B475K500NT/FH_1206B475K500NT.ato" import FH_1206B475K500NT_package
+from "parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato" import TDK_C2012X5R1A226KT000N_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module BuckConverter:
+    """
+    LM5165Y synchronous buck: 24V -> 3.3V, PFM mode, 10.5uA Iq.
+    150mA max output, 120mA peak current limit (RILIM=56k).
+    """
+
+    # --- External interfaces ---
+    power_in = new ElectricPower
+    """24V protected input rail."""
+
+    power_out = new ElectricPower
+    """3.3V regulated output rail."""
+
+    pgood = new ElectricLogic
+    """
+    Power-good output (open-drain). Goes high when 3.3V is in regulation.
+    Needs external 10k pull-up to 3.3V (in MCU module).
+    """
+
+    # --- IC ---
+    u_buck = new Texas_Instruments_LM5165YDRCR_package
+
+    # --- Inductor ---
+    l1 = new XR_XRNR4018_68uH_M_package
+    """68uH, 470mA Isat, 1 ohm DCR, 4x4mm shielded."""
+
+    # --- Input capacitors (24V rail, need 50V rating) ---
+    c1 = new FH_1206B475K500NT_package
+    """4.7uF 50V X7R, 1206. Bulk input energy reservoir."""
+
+    c_vin = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF 50V, 0603. HF decoupling tight to VIN/GND pins."""
+
+    # --- Output capacitors ---
+    c2 = new TDK_C2012X5R1A226KT000N_package
+    """22uF 10V X5R, 0805. Output ripple smoothing."""
+
+    c6 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1uF 50V X5R, 0603. Internal VCC LDO decoupling on VOUT."""
+
+    # --- Current limit resistor ---
+    r_ilim = new Resistor
+    r_ilim.resistance = 56kohm +/- 1%
+    r_ilim.package = "0603"
+
+    # === Power connections ===
+
+    # VIN rail
+    power_in.hv ~ u_buck.VIN
+    power_in.hv ~ c1.p1
+    power_in.hv ~ c_vin.p1
+
+    # Input caps to GND
+    c1.p2 ~ power_in.lv
+    c_vin.p2 ~ power_in.lv
+
+    # GND connections
+    power_in.lv ~ u_buck.GND
+    power_in.lv ~ u_buck.EP
+    power_in.lv ~ power_out.lv
+
+    # === Control pin connections ===
+
+    # EN -> VIN (always on; internal UVLO at 2.9V handles startup)
+    u_buck.EN ~ power_in.hv
+
+    # RT -> GND (PFM mode, no timing resistor)
+    u_buck.RT ~ power_in.lv
+
+    # ILIM -> 56k -> GND (120mA peak current limit)
+    u_buck.ILIM ~> r_ilim ~> power_in.lv
+
+    # SS -> open (internal 900us soft-start) — no connection needed
+    # HYS -> open — no connection needed
+
+    # === Output path ===
+
+    # SW -> L1 -> VOUT
+    u_buck.SW ~ l1.p1
+    l1.p2 ~ u_buck.VOUT
+
+    # VOUT rail
+    u_buck.VOUT ~ power_out.hv
+    u_buck.VOUT ~ c2.p1
+    u_buck.VOUT ~ c6.p1
+
+    # Output caps to GND
+    c2.p2 ~ power_out.lv
+    c6.p2 ~ power_out.lv
+
+    # === PGOOD output ===
+    u_buck.PGOOD ~ pgood.line
+    pgood.reference ~ power_out

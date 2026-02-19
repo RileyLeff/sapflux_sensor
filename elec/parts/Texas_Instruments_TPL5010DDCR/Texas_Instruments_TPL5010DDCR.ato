@@ -1,0 +1,24 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Texas_Instruments_TPL5010DDCR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C473912", date="2026-02-19T02:25:23.708222+00:00", checksum="2e8369c712287f542e1af78fcd7b355873361e4d0c7642624d2219e3ad24f110">
+
+    trait is_atomic_part<manufacturer="Texas Instruments", partnumber="TPL5010DDCR", footprint="SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR.kicad_mod", symbol="TPL5010DDCR.kicad_sym", model="SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C473912", manufacturer="Texas Instruments", partno="TPL5010DDCR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2002291407_Texas-Instruments-TPL5010DDCR_C473912.pdf">
+
+    # pins
+    signal DELAY_M_RST ~ pin 3
+    signal DONE ~ pin 4
+    signal GND ~ pin 2
+    signal RSTn ~ pin 6
+    signal VDD ~ pin 1
+    signal WAKE ~ pin 5

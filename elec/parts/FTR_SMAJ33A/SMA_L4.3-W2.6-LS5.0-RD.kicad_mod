@@ -1,0 +1,137 @@
+(footprint "FTR_SMAJ33A:SMA_L4.3-W2.6-LS5.0-RD"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "a79746cb-f1b9-4936-8493-aa101384a6c6")
+	(property "Reference" "REF**"
+		(at 0 -4.01)
+		(layer "F.SilkS")
+		(uuid "e72e1d83-897e-4963-85ad-b9cd19b1174c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SMA_L4.3-W2.6-LS5.0-RD"
+		(at 0 4.01)
+		(layer "F.Fab")
+		(uuid "74847801-aaf3-4173-9e95-d295c1cd83fc")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -2.5 1.3)
+		(end -2.47 1.3)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "019d35b5-0a48-438d-8e25-d8be66dfa23b")
+	)
+	(fp_line
+		(start -1.08 -1.36)
+		(end -1.08 1.36)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "25356266-aaea-426c-818c-c45886e15ea7")
+	)
+	(fp_line
+		(start -2.5 1.36)
+		(end 2.16 1.36)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "bb35218f-c1d5-457c-8bd1-72f9021b843e")
+	)
+	(fp_line
+		(start -2.53 -1.36)
+		(end 2.16 -1.35)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "1bc3d2fd-9391-4151-ab18-8dd1b4e07c62")
+	)
+	(fp_line
+		(start 2.16 1.36)
+		(end 2.16 1.01)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "bd2893e1-61d0-40e5-91e2-d031175ef36a")
+	)
+	(fp_line
+		(start 2.16 -1.27)
+		(end 2.16 -0.92)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "36e7024f-cc2e-483b-8a01-073a59be09c3")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "a301cd3c-8f09-4d14-93bd-276b0d3e4959")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" smd rect
+		(at 2.4 -0.01 180)
+		(size 2.05 1.62)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "85f6822e-5f0e-41fc-89f0-bfb05dc40faf")
+	)
+	(pad "1" smd rect
+		(at -2.4 0.01 0)
+		(size 2.05 1.62)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "91117126-5e77-46a1-ae5d-43488b6c7675")
+	)
+	(model "${KIPRJMOD}/../../parts/FTR_SMAJ33A/SMA_L4.3-W2.6-LS5.0-RD.STEP"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

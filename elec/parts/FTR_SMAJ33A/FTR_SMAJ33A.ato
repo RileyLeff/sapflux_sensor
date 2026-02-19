@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component FTR_SMAJ33A_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C693627", date="2026-02-19T02:12:05.283849+00:00", checksum="f37b75617fe9022947f29af911791ea747e85e5ab8116c52cb32abd303ad073e">
+
+    trait is_atomic_part<manufacturer="FTR", partnumber="SMAJ33A", footprint="SMA_L4.3-W2.6-LS5.0-RD.kicad_mod", symbol="SMAJ33A_C693627.kicad_sym", model="SMA_L4.3-W2.6-LS5.0-RD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C693627", manufacturer="FTR", partno="SMAJ33A">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2008311005_FTR-SMAJ33A_C693627.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal C ~ pin 1

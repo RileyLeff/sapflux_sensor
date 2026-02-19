@@ -1,0 +1,173 @@
+(footprint "Littelfuse_2920L110_60MR:F2920"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "0e3e17c0-2c0f-4ebb-84e8-394ed5edbe22")
+	(property "Reference" "REF**"
+		(at 0 -4)
+		(layer "F.SilkS")
+		(uuid "f9ea20d0-8d0f-4fe1-83f7-520217f220f4")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "F2920"
+		(at 0 4)
+		(layer "F.Fab")
+		(uuid "829584f4-c85a-4ace-9263-edd3c0971a7d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -3.7 2.5)
+		(end -3.67 2.5)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "81d9c6c4-8537-49b4-bf25-56edd67eabc9")
+	)
+	(fp_line
+		(start -4.3 -2.9)
+		(end -2.3 -2.9)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "c990f932-62cf-4d1b-bedb-98dc4e5f275a")
+	)
+	(fp_line
+		(start -4.6 -2.5)
+		(end -4.6 2.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "6c9fd0ab-2267-4ddc-a4c3-2ef359147b5f")
+	)
+	(fp_line
+		(start -4.3 2.9)
+		(end -2.3 2.9)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "8e325f0c-8a4a-4a3a-8126-ff6f027040ec")
+	)
+	(fp_line
+		(start 2.3 -2.9)
+		(end 4.3 -2.9)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "45a5023e-ccde-4cd0-bc60-0e2c5bcedade")
+	)
+	(fp_line
+		(start 4.6 -2.5)
+		(end 4.6 2.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "55ec31f7-62c2-452e-ab43-a9e7088b1b4b")
+	)
+	(fp_line
+		(start 2.3 2.9)
+		(end 4.3 2.9)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "3bd60637-62fe-46d6-b9dd-7de83dfab331")
+	)
+	(fp_arc
+		(start -0 -0)
+		(mid 0.76 -0.76)
+		(end 0 -1.52)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(locked no)
+		(uuid "3b8a0cdd-b89d-4daf-87a3-1595ed97331a")
+	)
+	(fp_arc
+		(start -0 -0)
+		(mid -0.63 0.89)
+		(end 0.26 1.52)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(locked no)
+		(uuid "595fa808-d8f0-4ba9-a542-0a13ab715a1c")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "57affbd4-c2ec-455e-84aa-bbdc9ebd5ac8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd rect
+		(at -3.3 0 0)
+		(size 2 5.3)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "52f83597-e105-46df-8f29-83f51ce383fb")
+	)
+	(pad "2" smd rect
+		(at 3.3 0 0)
+		(size 2 5.3)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "496fd8b9-9f6b-4122-98e1-4c11f47c2926")
+	)
+	(model "${KIPRJMOD}/../../parts/Littelfuse_2920L110_60MR/F2920-1.step"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

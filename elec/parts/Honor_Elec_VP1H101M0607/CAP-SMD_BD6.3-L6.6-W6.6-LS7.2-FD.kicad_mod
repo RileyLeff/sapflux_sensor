@@ -1,0 +1,173 @@
+(footprint "Honor_Elec_VP1H101M0607:CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "a5e6d066-96d4-4e3d-bbfe-c02f0e1e4a7a")
+	(property "Reference" "REF**"
+		(at 0 -4)
+		(layer "F.SilkS")
+		(uuid "e9617cd3-170f-4c2c-bfff-4275bf0fcd97")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD"
+		(at 0 4)
+		(layer "F.Fab")
+		(uuid "82ccd50e-3713-4e33-9c07-332849ca9d56")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -3.6 3.3)
+		(end -3.57 3.3)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "f7ae4951-55f8-4e78-921c-1e5b73270389")
+	)
+	(fp_line
+		(start 3.36 0.74)
+		(end 3.38 3.37)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "a19db8ec-a0b0-46ce-8d13-305a7f1ac563")
+	)
+	(fp_line
+		(start 3.38 3.37)
+		(end -1.98 3.37)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "3275ec91-7c6f-4be5-aa32-c31231536d24")
+	)
+	(fp_line
+		(start -1.98 3.37)
+		(end -3.37 1.98)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "d0192632-4daa-4e22-82fc-140b0db3393a")
+	)
+	(fp_line
+		(start -3.37 1.98)
+		(end -3.36 0.68)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "6e3ea702-ee94-4a65-a3ee-79485e06fbf5")
+	)
+	(fp_line
+		(start 3.37 -0.71)
+		(end 3.38 -3.38)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f55011ab-ba47-4b1b-bc3d-5ec5004066e5")
+	)
+	(fp_line
+		(start 3.38 -3.38)
+		(end -1.98 -3.38)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "0e12f5a7-6397-4e78-9991-e8e1033a2ddf")
+	)
+	(fp_line
+		(start -1.98 -3.38)
+		(end -3.38 -1.98)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "e85f442b-fd07-4fe9-92a6-247f6dc30904")
+	)
+	(fp_line
+		(start -3.38 -1.98)
+		(end -3.38 -0.69)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "1b237db2-16bb-46c7-a5e3-b7169fb93eb6")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "c12c39af-268d-47ec-83c6-c82e6499d2d8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" smd rect
+		(at 2.67 0 0)
+		(size 3.5 1.2)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "3ec6d6ef-4322-45b7-80f1-4e2206086e71")
+	)
+	(pad "1" smd rect
+		(at -2.67 0 0)
+		(size 3.5 1.2)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "7454f6d4-e91b-45d1-b56b-ed45a176bacd")
+	)
+	(model "${KIPRJMOD}/../../parts/Honor_Elec_VP1H101M0607/CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.step"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 180)
+		)
+	)
+	(embedded_fonts no)
+)

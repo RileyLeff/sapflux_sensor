@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Honor_Elec_VP1H101M0607_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C4054386", date="2026-02-19T02:25:37.021502+00:00", checksum="9a9352fa829b79cc0c56aeed1dc2f52620a36116dfd9e4e90f06ac658b9a1384">
+
+    trait is_atomic_part<manufacturer="Honor Elec", partnumber="VP1H101M0607", footprint="CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.kicad_mod", symbol="VP1H101M0607.kicad_sym", model="CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C4054386", manufacturer="Honor Elec", partno="VP1H101M0607">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2208181800_Honor-Elec-VP1H101M0607_C4054386.pdf">
+
+    # pins (electrolytic capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

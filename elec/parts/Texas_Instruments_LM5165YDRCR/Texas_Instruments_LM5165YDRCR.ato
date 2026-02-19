@@ -1,0 +1,29 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Texas_Instruments_LM5165YDRCR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2071924", date="2026-02-19T02:25:03.476930+00:00", checksum="5c67e3cb2a35aab6b9428f4031586cbe661c15743d63ebea95d5acbf02cfb197">
+
+    trait is_atomic_part<manufacturer="Texas Instruments", partnumber="LM5165YDRCR", footprint="VSON-10_L3.0-W3.0-P0.50-TL-EP.kicad_mod", symbol="LM5165YDRCR.kicad_sym", model="VSON-10_L3.0-W3.0-H0.6-P0.50.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2071924", manufacturer="Texas Instruments", partno="LM5165YDRCR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2303011930_Texas-Instruments-LM5165YDRCR_C2071924.pdf">
+
+    # pins
+    signal EN ~ pin 7
+    signal EP ~ pin 11
+    signal GND ~ pin 10
+    signal HYS ~ pin 9
+    signal ILIM ~ pin 3
+    signal PGOOD ~ pin 6
+    signal RT ~ pin 5
+    signal SS ~ pin 4
+    signal SW ~ pin 1
+    signal VIN ~ pin 2
+    signal VOUT ~ pin 8

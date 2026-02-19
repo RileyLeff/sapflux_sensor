@@ -1,0 +1,57 @@
+"""
+Status RGB LED: common-anode, MCU sinks current through resistors.
+
+  3.3V → LED anode
+  LED R cathode → R_R (680 ohm) → MCU GPIO (sink)
+  LED G cathode → R_G (200 ohm) → MCU GPIO (sink)
+  LED B cathode → R_B (220 ohm) → MCU GPIO (sink)
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/XINGLIGHT_XL_B1212RGBA_HF/XINGLIGHT_XL_B1212RGBA_HF.ato" import XINGLIGHT_XL_B1212RGBA_HF_package
+
+module StatusLED:
+    """Common-anode RGB LED with current-limiting resistors."""
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply (anode connection)."""
+
+    red = new Electrical
+    """MCU GPIO sink for red LED."""
+
+    green = new Electrical
+    """MCU GPIO sink for green LED."""
+
+    blue = new Electrical
+    """MCU GPIO sink for blue LED."""
+
+    # --- LED ---
+    led = new XINGLIGHT_XL_B1212RGBA_HF_package
+
+    # --- Current-limiting resistors ---
+    r_r = new Resistor
+    r_r.resistance = 680ohm +/- 1%
+    r_r.package = "0603"
+
+    r_g = new Resistor
+    r_g.resistance = 200ohm +/- 1%
+    r_g.package = "0603"
+
+    r_b = new Resistor
+    r_b.resistance = 220ohm +/- 1%
+    r_b.package = "0603"
+
+    # --- Wiring ---
+    # Anode to 3.3V
+    led.A ~ power.hv
+
+    # Cathodes through resistors to MCU GPIOs
+    led.R ~> r_r ~> red
+    led.G ~> r_g ~> green
+    led.B ~> r_b ~> blue

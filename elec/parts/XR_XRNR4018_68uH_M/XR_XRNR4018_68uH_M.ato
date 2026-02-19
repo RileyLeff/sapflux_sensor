@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XR_XRNR4018_68uH_M_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C5289353", date="2026-02-19T02:25:06.147204+00:00", checksum="684b0efbc87412a12cb684c6cbbff7a0e6bdd1660ee9b229cc1ed6283242900e">
+
+    trait is_atomic_part<manufacturer="XR", partnumber="XRNR4018-68uH/M", footprint="IND-SMD_L4.0-W4.0.kicad_mod", symbol="XRNR4018-68UH_M.kicad_sym", model="IND-SMD_L4.0-W4.0-H1.9.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C5289353", manufacturer="XR", partno="XRNR4018-68uH/M">
+    trait has_designator_prefix<prefix="L">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2211290930_XR-XRNR4018-68uH-M_C5289353.pdf">
+
+    # pins (inductor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

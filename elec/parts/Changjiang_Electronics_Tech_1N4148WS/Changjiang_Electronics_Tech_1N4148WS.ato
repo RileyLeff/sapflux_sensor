@@ -1,0 +1,22 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_1N4148WS_package:
+    """1N4148WS T4"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2128", date="2026-02-19T02:25:39.470637+00:00", checksum="eef67aa31f800c776ae46946e19100def5d34938098f11384cfd1750db4c8a31">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="1N4148WS", footprint="SOD-323_L1.8-W1.3-LS2.5-RD.kicad_mod", symbol="1N4148WST4.kicad_sym", model="2.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2128", manufacturer="Changjiang Electronics Tech ", partno="1N4148WS">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1810101110_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--1N4148WS_C2128.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1

@@ -1,0 +1,22 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component FH_1206B475K500NT_package:
+    """4.7uF (475) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C29823", date="2026-02-19T02:25:50.357176+00:00", checksum="3f5685005c4463ab1b17bcf6157439520cd30dc3121088ffbb93097d441bae22">
+
+    trait is_atomic_part<manufacturer="FH", partnumber="1206B475K500NT", footprint="C1206.kicad_mod", symbol="1206B475K500NT.kicad_sym", model="C1206_L3.2-W1.6-H1.3.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C29823", manufacturer="FH", partno="1206B475K500NT">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_FH--Guangdong-Fenghua-Advanced-Tech-1206B475K500NT_C29823.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

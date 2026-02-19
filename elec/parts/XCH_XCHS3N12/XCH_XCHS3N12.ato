@@ -1,0 +1,19 @@
+#pragma experiment("TRAITS")
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XCH_XCHS3N12_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C48928121", date="2026-02-19T02:25:21.351673+00:00", checksum="4f855a7348212e4b5849f6785d572ed3fd88adcaf263436f185302201b2e7ff2">
+
+    trait is_atomic_part<manufacturer="XCH", partnumber="XCHS3N12", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="XCHS3N12.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C48928121", manufacturer="XCH", partno="XCHS3N12">
+    trait has_designator_prefix<prefix="Q">
+
+    # pins
+    signal D ~ pin 3
+    signal G ~ pin 1
+    signal S ~ pin 2

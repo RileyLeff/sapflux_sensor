@@ -1,0 +1,28 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C441318", date="2026-02-19T02:25:48.209512+00:00", checksum="bfccf92e9f8ee49479214f88fe3c924424d2c32907f1e67ed71935114ff1e4d7">
+
+    trait is_atomic_part<manufacturer="Cixi Kefa Elec", partnumber="KF2EDGV-3.5-10P", footprint="CONN-TH_10P-P3.50_KF2EDGV-3.5-10P.kicad_mod", symbol="KF2EDGV-3.5-10P.kicad_sym", model="CONN-TH_10P-P3.50_KF2EDGV-3.5-10P.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C441318", manufacturer="Cixi Kefa Elec", partno="KF2EDGV-3.5-10P">
+    trait has_designator_prefix<prefix="CN">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2303311930_Cixi-Kefa-Elec-KF2EDGV-3-5-10P_C441318.pdf">
+
+    # pins (10-pin pluggable terminal block, 3.5mm pitch)
+    signal HEATER_A ~ pin 1
+    signal HEATER_B ~ pin 2
+    signal GND ~ pin 3
+    signal EXCITATION ~ pin 4
+    signal DATA1 ~ pin 5
+    signal DATA2 ~ pin 6
+    signal DATA3 ~ pin 7
+    signal DATA4 ~ pin 8
+    signal DATA5 ~ pin 9
+    signal DATA6 ~ pin 10
