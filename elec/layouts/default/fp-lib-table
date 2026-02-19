@@ -273,4 +273,11 @@
 		(options "")
 		(descr "atopile: part lib: UNI_ROYAL_0603WAF6800T5E")
 	)
+	(lib
+		(name "onsemi_CAT24C32WI_GT3")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/onsemi_CAT24C32WI_GT3")
+		(options "")
+		(descr "atopile: part lib: onsemi_CAT24C32WI_GT3")
+	)
 )

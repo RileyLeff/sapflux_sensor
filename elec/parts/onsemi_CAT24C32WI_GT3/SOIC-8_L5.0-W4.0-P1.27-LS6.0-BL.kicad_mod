@@ -1,0 +1,207 @@
+(footprint "onsemi_CAT24C32WI_GT3:SOIC-8_L5.0-W4.0-P1.27-LS6.0-BL"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "90485ab7-fe30-4154-8466-44e8ce5c3bab")
+	(property "Reference" "REF**"
+		(at 0 -6.71)
+		(layer "F.SilkS")
+		(uuid "11a61060-cb30-4151-ba7e-6fe0e7a1840b")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SOIC-8_L5.0-W4.0-P1.27-LS6.0-BL"
+		(at 0 6.71)
+		(layer "F.Fab")
+		(uuid "d8a36da2-733e-459a-9307-67035eb7e76c")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -2.41 3)
+		(end -2.38 3)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "470be6b3-8dac-4932-baa1-9e64c267da82")
+	)
+	(fp_circle
+		(center -1.91 3.4)
+		(end -1.76 3.4)
+		(stroke
+			(width 0.3)
+			(type solid)
+		)
+		(layer "Cmts.User")
+		(locked no)
+		(uuid "d06e1686-23d6-4fcd-9692-3a373299f929")
+	)
+	(fp_circle
+		(center -1.78 1.02)
+		(end -1.63 1.02)
+		(stroke
+			(width 0.3)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(locked no)
+		(uuid "fbedcd32-02a4-4b30-a34d-4d8e53bd27d3")
+	)
+	(fp_line
+		(start -2.5 1.5)
+		(end 2.5 1.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "b583e539-4dc2-402f-81d4-73f827b44834")
+	)
+	(fp_line
+		(start -2.5 -1.5)
+		(end 2.5 -1.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "1002ce41-48f2-4d69-918b-b41f8d12f02d")
+	)
+	(fp_line
+		(start -2.5 1.5)
+		(end -2.5 0.73)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "43adb348-a9cf-40c7-a375-05cfef01bc9a")
+	)
+	(fp_line
+		(start -2.5 -1.5)
+		(end -2.5 -0.73)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "2846dc4f-d3a2-493f-84b1-6e2f49946147")
+	)
+	(fp_line
+		(start 2.5 -1.5)
+		(end 2.5 1.5)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "3b63c5dc-2160-404b-b216-623f4bbcd07c")
+	)
+	(fp_arc
+		(start -2.5 -0.73)
+		(mid -2.5063704 0.7299722)
+		(end -2.4872597 -0.7298888)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(locked no)
+		(uuid "b14a10d2-6d5a-49b0-a66e-2c9725fcb745")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "39f3c954-d892-402b-a085-b656a9a5e007")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd oval
+		(at -1.91 2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "fa35c8a1-0e3a-4179-9f1f-48da192caa1d")
+	)
+	(pad "2" smd oval
+		(at -0.63 2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "8727ec25-0374-440e-92bc-3d2de8b43e49")
+	)
+	(pad "3" smd oval
+		(at 0.63 2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "520c2bd7-91b4-49f7-8054-b6620c9cb646")
+	)
+	(pad "4" smd oval
+		(at 1.9 2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "7da91e6c-ef0e-4ef4-9e90-3647a05d6100")
+	)
+	(pad "8" smd oval
+		(at -1.91 -2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "42782d3b-0470-441b-ae23-ac49511aa777")
+	)
+	(pad "7" smd oval
+		(at -0.63 -2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "14576b85-ba60-4494-b7ad-c550e5d926f5")
+	)
+	(pad "6" smd oval
+		(at 0.63 -2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "1d976255-4cb3-467c-bbd4-ee94f05100e4")
+	)
+	(pad "5" smd oval
+		(at 1.9 -2.71 0)
+		(size 0.57 1.95)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "66a75a5e-019a-4f7a-93e2-641891bab8a5")
+	)
+	(model "${KIPRJMOD}/../../parts/onsemi_CAT24C32WI_GT3/SOIC-8_L4.9-W3.9-H1.7-LS6.0-P1.27.STEP"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

@@ -1,0 +1,26 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component onsemi_CAT24C32WI_GT3_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C81193", date="2026-02-19T03:34:13.724821+00:00", checksum="ed2d5e156f21b57ad7670ae0ef57c33e512f1d19e7eb07e1f5aca3f629b909b0">
+
+    trait is_atomic_part<manufacturer="onsemi", partnumber="CAT24C32WI-GT3", footprint="SOIC-8_L5.0-W4.0-P1.27-LS6.0-BL.kicad_mod", symbol="CAT24C32WI-GT3.kicad_sym", model="SOIC-8_L4.9-W3.9-H1.7-LS6.0-P1.27.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C81193", manufacturer="onsemi", partno="CAT24C32WI-GT3">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1809291220_onsemi-CAT24C32WI-GT3_C81193.pdf">
+
+    # pins
+    signal A0 ~ pin 1
+    signal A1 ~ pin 2
+    signal A2 ~ pin 3
+    signal SCL ~ pin 6
+    signal SDA ~ pin 5
+    signal VCC ~ pin 8
+    signal VSS ~ pin 4
+    signal WP ~ pin 7

@@ -32,7 +32,8 @@ from "rs485.ato" import RS485Bus
 from "heater.ato" import HeaterDriver
 from "led.ato" import StatusLED
 from "connectors.ato" import Connectors
-from "atopile/microchip-24lc32/microchip-24lc32.ato" import Microchip_24LC32
+from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 
 module SapFluxAdapter:
     """Top-level module for the sap flux sensor adapter board."""
@@ -83,16 +84,25 @@ module SapFluxAdapter:
     led = new StatusLED
     power_3v3 ~ led.power
 
-    # EEPROM (registry package: includes decoupling + I2C pull-ups)
-    eeprom = new Microchip_24LC32
+    # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
+    eeprom = new onsemi_CAT24C32WI_GT3_package
+    c_eeprom = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
 
     # === EEPROM wiring ===
-    power_3v3 ~ eeprom.power
-    # I2C: direct line connections (avoid interface-level merging)
-    sda ~ eeprom.i2c.sda.line
-    scl ~ eeprom.i2c.scl.line
+    # Power + decoupling
+    eeprom.VCC ~ power_3v3.hv
+    eeprom.VSS ~ power_3v3.lv
+    c_eeprom.p1 ~ power_3v3.hv
+    c_eeprom.p2 ~ power_3v3.lv
+    # I2C
+    sda ~ eeprom.SDA
+    scl ~ eeprom.SCL
+    # Address = 0x50 (A0=A1=A2=GND)
+    eeprom.A0 ~ power_3v3.lv
+    eeprom.A1 ~ power_3v3.lv
+    eeprom.A2 ~ power_3v3.lv
     # WP tied to GND (writes always allowed)
-    eeprom.write_protect.line ~ power_3v3.lv
+    eeprom.WP ~ power_3v3.lv
 
     # === I2C bus wiring ===
     # ADC front-end I2C
