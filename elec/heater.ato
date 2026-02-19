@@ -15,7 +15,8 @@ Gate-kill circuit:
                                       R_WD_PD (10k) → GND              R_LATCH_PD (1M) → GND
                                       Q2_INV emitter → 3.3V            Q_LATCH emitter → GND
                                       Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
-                                            ↑           (anode)   (cathode)    ↑
+                                            ↑  ↑          (anode)   (cathode)    ↑
+                                            |  R_PNP_BASE (100k) → 3.3V
                                       Q_LATCH collector                  R_WD_PU (100k) → 3.3V
 """
 
@@ -130,6 +131,15 @@ module HeaterDriver:
     r_latch_pd.resistance = 1Mohm +/- 1%
     r_latch_pd.package = "0603"
 
+    r_pnp_base = new Resistor
+    r_pnp_base.resistance = 100kohm +/- 1%
+    r_pnp_base.package = "0603"
+    """PNP base-emitter pull-up. Defines OFF state when D_ISO is reverse-biased
+    and Q_LATCH is off (normal operation). Without this, the PNP base floats
+    and leakage/noise could cause spurious heater lockout. 100kΩ gives 140×
+    margin over worst-case transistor leakage at 85°C, while still allowing
+    easy latch trigger (hFE needed = 1.4 vs MMBT3904 min 100)."""
+
     # --- Internal nodes ---
     gate_node = new Electrical
     """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
@@ -222,6 +232,9 @@ module HeaterDriver:
     q_latch.C ~ pnp_base_node
     q_latch.E ~ power_3v3.lv
     q_latch.B ~ latch_base_node
+
+    # PNP base-emitter pull-up (defines OFF state in normal operation)
+    pnp_base_node ~> r_pnp_base ~> power_3v3.hv
 
     # Latch base pull-down (noise immunity)
     latch_base_node ~> r_latch_pd ~> power_3v3.lv

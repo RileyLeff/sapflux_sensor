@@ -117,6 +117,7 @@ MCU fires a 24V heater through an N-channel MOSFET for 1-2 second pulses (~0.6A)
 | Q_LATCH | NPN Latch | C20526 | CJ MMBT3904 | 40V/200mA, hFE≥100, SOT-23 | $0.010 | **Basic** | SCR latch: cross-coupled with Q2_INV (PNP). Collector to PNP base node, emitter to GND. One RSTn pulse triggers permanent heater lockout until power cycle. D_ISO (1N4148WS) isolates latch from RSTn/NRST — MCU still boots and reports fault. |
 | R_FB | Latch Feedback | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | Q2_INV collector → Q_LATCH base. Provides positive feedback to sustain latch. 24µA base drive gives 8× margin over required 0.31mA collector sink. Same part as R_WD_PU. |
 | R_LATCH_PD | Latch Base Pulldown | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | Q_LATCH base to GND. Prevents noise from triggering latch when PNP is off. 1MΩ ≫ R_FB (100kΩ) so it doesn't interfere with trigger. |
+| R_PNP_BASE | PNP Base-Emitter Pull-up | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | PNP base to 3.3V (emitter). Defines OFF state when D_ISO is reverse-biased and Q_LATCH is off. Without this, PNP base floats → leakage/noise could cause spurious heater lockout. 140× margin over transistor leakage at 85°C. Same part as R_WD_PU. |
 | R_DONE_PD | DONE Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | TPL5010 DONE pin to GND. Keeps DONE low when MCU is in reset/unpowered, preventing floating input from confusing the watchdog. Same part as R_WD_PU. |
 | C_WD | Watchdog Bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | TPL5010 VDD to GND decoupling. Same part as other 100nF caps. |
 
@@ -137,12 +138,13 @@ MCU timer ──→ R_GATE (1kΩ) ──→ Q1 gate ──→ R4 (10kΩ) ──�
                                         R_WD_PD (10kΩ) → GND                  R_LATCH_PD (1MΩ) → GND
                                         Q2_INV emitter → 3.3V                 Q_LATCH emitter → GND
                                         Q2_INV base ←── R_BASE (10kΩ) ←── D_ISO ←── RSTn
-                                              ↑              (anode)    (cathode)      ↑
+                                              ↑  ↑           (anode)    (cathode)      ↑
+                                              |  R_PNP_BASE (100kΩ) → 3.3V
                                         Q_LATCH collector                        R_WD_PU (100kΩ) → 3.3V
                                                                                  TPL5010 RSTn (open-drain)
                                                                                  MCU NRST
 ```
-Normal: RSTn HIGH → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power.
+Normal: RSTn HIGH → D_ISO reverse-biased → R_PNP_BASE holds PNP base at 3.3V → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power.
 Fault: RSTn LOW (200ms pulse) → D_ISO forward-biased → PNP ON → collector HIGH → R_FB drives NPN base (26µA) → NPN ON → pulls PNP base LOW via collector → **latched permanently**. D_ISO reverse-biased when latched → RSTn stays HIGH → MCU NRST is NOT held low — MCU boots normally and can report fault via RS-485. Heater stays locked out until power cycle.
 Latch power: 0.64mA from 3.3V (0.1mA from 24V battery). Only during fault — irrelevant.
 RSTn also connects to MCU NRST for belt-and-suspenders reset.
