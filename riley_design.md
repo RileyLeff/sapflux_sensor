@@ -166,7 +166,7 @@ RSTn also connects to MCU NRST for belt-and-suspenders reset.
 
 ### ADC Input Protection
 
-The 6 thermistor lines and excitation sense line travel through potentially long cable runs (25m+, via J2) to the ADC inputs. Each line gets a 1kΩ series resistor (ESD current limiting) and a 100nF shunt cap (hardware anti-aliasing / EMI filter). The RC filter (fc = 1.6kHz) dumps HF noise from long cables to ground before it reaches ADC silicon. Two PRTR5V0U4D rail-clamp TVS arrays provide additional ESD protection — the 1kΩ series resistors limit current into the TVS diodes during fast transients, and the 0.3pF junction capacitance is negligible compared to the 100nF filter caps.
+The 6 thermistor lines and excitation sense line travel through potentially long cable runs (25m+, via J2) to the ADC inputs. Each line is protected by a PRTR5V0U4D TVS array at the connector side (clamps ESD transients before they reach any downstream components), followed by a 1kΩ series resistor and 100nF shunt cap forming an RC low-pass filter (fc = 1.6kHz) that dumps HF noise from long cables to ground before it reaches ADC silicon. TVS placement at the connector side is critical — placing the 1kΩ resistor before the TVS would allow multi-kV ESD voltages to develop across the 0603 resistor before the TVS can clamp.
 
 | Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
 |-----|-----------|------|-----|-------|-------|------|-------|

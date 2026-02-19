@@ -2,7 +2,7 @@
 ADC front-end: 2x ADS1115 + input protection + excitation filter.
 
 Signal path per thermistor channel:
-  J2 pin → R_AIN (1k) → [TVS ESD pin + C_AIN 100nF to GND] → ADC AIN pin
+  J2 pin → [TVS ESD pin] → R_AIN (1k) → [C_AIN 100nF to GND] → ADC AIN pin
 
 Excitation path:
   MCU GPIO → R_EXC (560 ohm) → filtered_exc → C_EXC (1uF to GND)
@@ -165,50 +165,50 @@ module ADCFrontEnd:
     prot_exc = new Electrical
 
     # === Ch1: thermistor_1 → ADC1 AIN0, TVS D_J2A.ESD2 ===
+    thermistor_1 ~ d_j2a.ESD2
     thermistor_1 ~> r_ain1 ~> prot_1
     prot_1 ~ c_ain1.p1
     c_ain1.p2 ~ power.lv
-    prot_1 ~ d_j2a.ESD2
     prot_1 ~ adc1.inputs[0].line
 
     # === Ch2: thermistor_2 → ADC1 AIN1, TVS D_J2A.ESD3 ===
+    thermistor_2 ~ d_j2a.ESD3
     thermistor_2 ~> r_ain2 ~> prot_2
     prot_2 ~ c_ain2.p1
     c_ain2.p2 ~ power.lv
-    prot_2 ~ d_j2a.ESD3
     prot_2 ~ adc1.inputs[1].line
 
     # === Ch3: thermistor_3 → ADC1 AIN2, TVS D_J2A.ESD4 ===
+    thermistor_3 ~ d_j2a.ESD4
     thermistor_3 ~> r_ain3 ~> prot_3
     prot_3 ~ c_ain3.p1
     c_ain3.p2 ~ power.lv
-    prot_3 ~ d_j2a.ESD4
     prot_3 ~ adc1.inputs[2].line
 
     # === Ch4: thermistor_4 → ADC2 AIN0, TVS D_J2B.ESD1 ===
+    thermistor_4 ~ d_j2b.ESD1
     thermistor_4 ~> r_ain4 ~> prot_4
     prot_4 ~ c_ain4.p1
     c_ain4.p2 ~ power.lv
-    prot_4 ~ d_j2b.ESD1
     prot_4 ~ adc2.inputs[0].line
 
     # === Ch5: thermistor_5 → ADC2 AIN1, TVS D_J2B.ESD2 ===
+    thermistor_5 ~ d_j2b.ESD2
     thermistor_5 ~> r_ain5 ~> prot_5
     prot_5 ~ c_ain5.p1
     c_ain5.p2 ~ power.lv
-    prot_5 ~ d_j2b.ESD2
     prot_5 ~ adc2.inputs[1].line
 
     # === Ch6: thermistor_6 → ADC2 AIN2, TVS D_J2B.ESD3 ===
+    thermistor_6 ~ d_j2b.ESD3
     thermistor_6 ~> r_ain6 ~> prot_6
     prot_6 ~ c_ain6.p1
     c_ain6.p2 ~ power.lv
-    prot_6 ~ d_j2b.ESD3
     prot_6 ~ adc2.inputs[2].line
 
     # === Excitation sense → ADC1 AIN3, TVS D_J2A.ESD1 ===
+    filtered_exc ~ d_j2a.ESD1
     filtered_exc ~> r_ain_exc ~> prot_exc
     prot_exc ~ c_ain_exc.p1
     c_ain_exc.p2 ~ power.lv
-    prot_exc ~ d_j2a.ESD1
     prot_exc ~ adc1.inputs[3].line
