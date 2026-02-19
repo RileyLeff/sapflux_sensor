@@ -1,473 +1,33 @@
----
-REVIEW CONTEXT: Sap Flux Sensor Adapter Board (atopile implementation)
----
+--- FILE: elec/LICENSE.txt ---
+MIT License
 
---- FILE: elec/main.ato ---
-"""
-Sap Flux Sensor Adapter Board — atopile implementation.
-24V battery/solar powered, RS-485 comms, STM32G0B1 MCU,
-2x ADS1115 ADCs, heater driver with TPL5010 watchdog.
+Copyright (c) 2026, Pepper Powderly
 
-Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
-wires connectors, and establishes shared buses (I2C, power rails).
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
-  PA0: RS-485 ~RE         PA8: TIM1_CH1 (heater gate)
-  PA1: RS-485 DE          PA13: SWDIO
-  PA2: USART2_TX          PA14: SWCLK / BOOT0
-  PA3: USART2_RX          PB0: ADC1 ALERT/DRDY
-  PA4: TPL5010 WAKE       PB1: ADC2 ALERT/DRDY
-  PA5: TPL5010 DONE       PB3: LED R (sink)
-  PB4: LED G (sink)       PB6: I2C1_SCL
-  PB5: LED B (sink)       PB7: I2C1_SDA
-  PC6: Excitation GPIO    PC7: PGOOD input
-"""
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-#pragma experiment("BRIDGE_CONNECT")
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-import ElectricPower
-import Electrical
-import Resistor
 
-from "protection.ato" import InputProtection
-from "buck.ato" import BuckConverter
-from "mcu.ato" import MCU
-from "adc.ato" import ADCFrontEnd
-from "rs485.ato" import RS485Bus
-from "heater.ato" import HeaterDriver
-from "led.ato" import StatusLED
-from "connectors.ato" import Connectors
-from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
-from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+--- FILE: elec/README.md ---
+# my_first_ato_project
 
-module SapFluxAdapter:
-    """Top-level module for the sap flux sensor adapter board."""
+A brand new atopile project!
 
-    # === Power rails ===
-    power_24v_raw = new ElectricPower
-    power_24v_protected = new ElectricPower
-    power_3v3 = new ElectricPower
-
-    # === Shared I2C bus nodes ===
-    sda = new Electrical
-    scl = new Electrical
-
-    # === Subsystem instances ===
-
-    # Connectors (J1 M8 upstream, J2 10-pin sensor)
-    connectors = new Connectors
-    power_24v_raw ~ connectors.power_24v
-
-    # Input protection (PTC + TVS + Schottky)
-    input_protection = new InputProtection
-    power_24v_raw ~ input_protection.power_in
-    input_protection.power_out ~ power_24v_protected
-
-    # Buck converter (24V -> 3.3V)
-    buck = new BuckConverter
-    power_24v_protected ~ buck.power_in
-    buck.power_out ~ power_3v3
-
-    # MCU
-    mcu = new MCU
-    power_3v3 ~ mcu.power
-
-    # ADC front-end (2x ADS1115 + input protection + excitation filter)
-    adc = new ADCFrontEnd
-    power_3v3 ~ adc.power
-
-    # RS-485 transceiver
-    rs485 = new RS485Bus
-    power_3v3 ~ rs485.power
-
-    # Heater driver + TPL5010 watchdog + SCR latch
-    heater = new HeaterDriver
-    power_24v_protected ~ heater.power_24v
-    power_3v3 ~ heater.power_3v3
-
-    # Status LED
-    led = new StatusLED
-    power_3v3 ~ led.power
-
-    # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
-    eeprom = new onsemi_CAT24C32WI_GT3_package
-    c_eeprom = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
-
-    # === EEPROM wiring ===
-    # Power + decoupling
-    eeprom.VCC ~ power_3v3.hv
-    eeprom.VSS ~ power_3v3.lv
-    c_eeprom.p1 ~ power_3v3.hv
-    c_eeprom.p2 ~ power_3v3.lv
-    # I2C
-    sda ~ eeprom.SDA
-    scl ~ eeprom.SCL
-    # Address = 0x50 (A0=A1=A2=GND)
-    eeprom.A0 ~ power_3v3.lv
-    eeprom.A1 ~ power_3v3.lv
-    eeprom.A2 ~ power_3v3.lv
-    # WP tied to GND (writes always allowed)
-    eeprom.WP ~ power_3v3.lv
-
-    # === I2C bus wiring ===
-    # ADC front-end I2C
-    sda ~ adc.sda
-    scl ~ adc.scl
-
-    # MCU I2C1 (PB7=SDA, PB6=SCL)
-    sda ~ mcu.package.PB7
-    scl ~ mcu.package.PB6
-
-    # === RS-485 wiring ===
-    # USART2 (PA2=TX, PA3=RX)
-    mcu.package.PA2 ~ rs485.uart_tx
-    mcu.package.PA3 ~ rs485.uart_rx
-    # Control GPIOs (PA1=DE, PA0=~RE)
-    mcu.package.PA1 ~ rs485.de
-    mcu.package.PA0 ~ rs485.n_re
-    # Bus lines to M8 connector
-    rs485.rs485_a ~ connectors.rs485_a
-    rs485.rs485_b ~ connectors.rs485_b
-
-    # === Heater wiring ===
-    # Gate drive from MCU timer (PA8 = TIM1_CH1, one-pulse mode)
-    mcu.package.PA8 ~ heater.gate_drive
-    # Watchdog I/O
-    mcu.package.PA4 ~ heater.wake
-    mcu.package.PA5 ~ heater.done
-    # RSTn shared with MCU NRST
-    mcu.nrst ~ heater.rstn
-    # Heater terminals to J2 connector
-    connectors.heater_hi ~ heater.heater_hi
-    connectors.heater_lo ~ heater.heater_lo
-
-    # === ADC wiring ===
-    # Excitation GPIO (PC6)
-    mcu.package.PC6 ~ adc.excitation_gpio
-    # Excitation output to J2 connector
-    adc.excitation_out ~ connectors.excitation
-    # Thermistor lines from J2 to ADC
-    connectors.thermistor_1 ~ adc.thermistor_1
-    connectors.thermistor_2 ~ adc.thermistor_2
-    connectors.thermistor_3 ~ adc.thermistor_3
-    connectors.thermistor_4 ~ adc.thermistor_4
-    connectors.thermistor_5 ~ adc.thermistor_5
-    connectors.thermistor_6 ~ adc.thermistor_6
-    # ALERT/DRDY to MCU (PB0=ADC1, PB1=ADC2)
-    mcu.package.PB0 ~ adc.alert1
-    mcu.package.PB1 ~ adc.alert2
-
-    # === LED wiring ===
-    # MCU sinks current (GPIOs drive low to turn on)
-    mcu.package.PB3 ~ led.red
-    mcu.package.PB4 ~ led.green
-    mcu.package.PB5 ~ led.blue
-
-    # === PGOOD monitoring ===
-    # LM5165 PGOOD (open-drain) with 10k pull-up to 3.3V
-    r_pgood = new Resistor
-    r_pgood.resistance = 10kohm +/- 1%
-    r_pgood.package = "0603"
-    mcu.package.PC7 ~ buck.pgood.line
-    buck.pgood.line ~> r_pgood ~> power_3v3.hv
-
-
---- FILE: elec/protection.ato ---
-"""
-Input protection circuit: PTC fuse + TVS clamp + Schottky reverse polarity.
-
-Topology:
-  J1 (24V) --> F1 (PTC) --> node_a --> D1 (Schottky, anode->cathode) --> +24V Protected
-                                |
-                              D2 (TVS, cathode to node_a, anode to GND)
-                                |
-                               GND
-"""
-
-import Electrical
-import ElectricPower
-
-from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
-from "parts/FTR_SMAJ33A/FTR_SMAJ33A.ato" import FTR_SMAJ33A_package
-from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
-
-module InputProtection:
-    """
-    24V input protection: PTC fuse (1.1A hold, 60V),
-    TVS clamp (33V standoff, ~53V clamp), Schottky reverse polarity (60V/3A).
-    """
-
-    # External interfaces
-    power_in = new ElectricPower
-    power_out = new ElectricPower
-
-    # Components
-    f1 = new Littelfuse_2920L110_60MR_package
-    d2_tvs = new FTR_SMAJ33A_package
-    d1_schottky = new MDD_Microdiode_Electronics_SS36_package
-
-    # Internal node between fuse output and diodes
-    node_a = new Electrical
-
-    # F1: series fuse from input to node_a
-    power_in.hv ~ f1.p1
-    f1.p2 ~ node_a
-
-    # D2: TVS clamp, cathode to node_a, anode to GND
-    d2_tvs.C ~ node_a
-    d2_tvs.A ~ power_in.lv
-
-    # D1: Schottky, anode to node_a, cathode to output
-    d1_schottky.A ~ node_a
-    d1_schottky.K ~ power_out.hv
-
-    # Ground passthrough
-    power_in.lv ~ power_out.lv
-
-
---- FILE: elec/buck.ato ---
-"""
-LM5165Y buck converter: 24V protected input to 3.3V output.
-
-PFM mode (RT shorted to GND) for 10.5uA quiescent current.
-RILIM = 56k for 120mA peak / 50mA max PFM output.
-Design follows TI Design 2 (Section 8.2.2, Figure 50).
-
-Topology:
-  VIN (24V) --+-- C1 (4.7uF 50V) --+-- GND
-              |                      |
-              +-- C_VIN (100nF 50V) -+
-              |
-           U_BUCK.VIN
-              |
-           U_BUCK.SW --- L1 (68uH) --- VOUT (3.3V)
-              |                           |
-           U_BUCK.VOUT --+-- C2 (22uF) --+-- GND
-                         |
-                         +-- C6 (1uF 50V) --- GND
-
-  RT -> GND (PFM mode)
-  EN -> VIN (always on, internal UVLO at 2.9V)
-  ILIM -> R_ILIM (56k) -> GND
-  SS -> open, HYS -> open
-  EP -> GND
-  PGOOD -> MCU (open-drain, needs external pull-up)
-
-Note: LM5165 VSON-10 has internal bootstrap — no external BST cap needed.
-"""
-
-#pragma experiment("BRIDGE_CONNECT")
-
-import Resistor
-import ElectricPower
-import ElectricLogic
-
-from "parts/Texas_Instruments_LM5165YDRCR/Texas_Instruments_LM5165YDRCR.ato" import Texas_Instruments_LM5165YDRCR_package
-from "parts/XR_XRNR4018_68uH_M/XR_XRNR4018_68uH_M.ato" import XR_XRNR4018_68uH_M_package
-from "parts/FH_1206B475K500NT/FH_1206B475K500NT.ato" import FH_1206B475K500NT_package
-from "parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato" import TDK_C2012X5R1A226KT000N_package
-from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
-from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-
-module BuckConverter:
-    """
-    LM5165Y synchronous buck: 24V -> 3.3V, PFM mode, 10.5uA Iq.
-    150mA max output, 120mA peak current limit (RILIM=56k).
-    """
-
-    # --- External interfaces ---
-    power_in = new ElectricPower
-    """24V protected input rail."""
-
-    power_out = new ElectricPower
-    """3.3V regulated output rail."""
-
-    pgood = new ElectricLogic
-    """
-    Power-good output (open-drain). Goes high when 3.3V is in regulation.
-    Needs external 10k pull-up to 3.3V (in MCU module).
-    """
-
-    # --- IC ---
-    u_buck = new Texas_Instruments_LM5165YDRCR_package
-
-    # --- Inductor ---
-    l1 = new XR_XRNR4018_68uH_M_package
-    """68uH, 470mA Isat, 1 ohm DCR, 4x4mm shielded."""
-
-    # --- Input capacitors (24V rail, need 50V rating) ---
-    c1 = new FH_1206B475K500NT_package
-    """4.7uF 50V X7R, 1206. Bulk input energy reservoir."""
-
-    c_vin = new YAGEO_CC0603KRX7R9BB104_package
-    """100nF 50V, 0603. HF decoupling tight to VIN/GND pins."""
-
-    # --- Output capacitors ---
-    c2 = new TDK_C2012X5R1A226KT000N_package
-    """22uF 10V X5R, 0805. Output ripple smoothing."""
-
-    c6 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-    """1uF 50V X5R, 0603. Internal VCC LDO decoupling on VOUT."""
-
-    # --- Current limit resistor ---
-    r_ilim = new Resistor
-    r_ilim.resistance = 56kohm +/- 1%
-    r_ilim.package = "0603"
-
-    # === Power connections ===
-
-    # VIN rail
-    power_in.hv ~ u_buck.VIN
-    power_in.hv ~ c1.p1
-    power_in.hv ~ c_vin.p1
-
-    # Input caps to GND
-    c1.p2 ~ power_in.lv
-    c_vin.p2 ~ power_in.lv
-
-    # GND connections
-    power_in.lv ~ u_buck.GND
-    power_in.lv ~ u_buck.EP
-    power_in.lv ~ power_out.lv
-
-    # === Control pin connections ===
-
-    # EN -> VIN (always on; internal UVLO at 2.9V handles startup)
-    u_buck.EN ~ power_in.hv
-
-    # RT -> GND (PFM mode, no timing resistor)
-    u_buck.RT ~ power_in.lv
-
-    # ILIM -> 56k -> GND (120mA peak current limit)
-    u_buck.ILIM ~> r_ilim ~> power_in.lv
-
-    # SS -> open (internal 900us soft-start) — no connection needed
-    # HYS -> open — no connection needed
-
-    # === Output path ===
-
-    # SW -> L1 -> VOUT
-    u_buck.SW ~ l1.p1
-    l1.p2 ~ u_buck.VOUT
-
-    # VOUT rail
-    u_buck.VOUT ~ power_out.hv
-    u_buck.VOUT ~ c2.p1
-    u_buck.VOUT ~ c6.p1
-
-    # Output caps to GND
-    c2.p2 ~ power_out.lv
-    c6.p2 ~ power_out.lv
-
-    # === PGOOD output ===
-    u_buck.PGOOD ~ pgood.line
-    pgood.reference ~ power_out
-
-
---- FILE: elec/mcu.ato ---
-"""
-STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, and VDDA filtering.
-
-Power topology:
-  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VBAT, VREFpos
-  Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
-
-Note: LQFP-48 merges VDD and VDDA into one pin (VDD_VDDA). Ferrite bead
-filters ALL MCU power. 200mA rating is ample for ~20mA MCU draw.
-
-BOOT0: 10k pull-down to GND (normal boot from flash).
-NRST: 100nF filter cap to GND. Exposed for TPL5010 RSTn connection.
-
-GPIO assignments are made in the top-level module via package pin access.
-"""
-
-#pragma experiment("BRIDGE_CONNECT")
-
-import Resistor
-import ElectricPower
-import Electrical
-
-from "parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.ato" import STMicroelectronics_STM32G0B1CBT6_package
-from "parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato" import Sunlord_GZ1608D601TF_package
-from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
-
-module MCU:
-    """
-    STM32G0B1CBT6 with power filtering, decoupling, BOOT0 pull-down,
-    and NRST filter cap.
-    """
-
-    # --- External interfaces ---
-    power = new ElectricPower
-    """3.3V supply rail (from buck converter)."""
-
-    nrst = new Electrical
-    """NRST node — exposed for TPL5010 RSTn + SCR latch connection."""
-
-    # --- Package (exposed for GPIO wiring in top-level) ---
-    package = new STMicroelectronics_STM32G0B1CBT6_package
-
-    # --- VDDA ferrite bead ---
-    fb_vdda = new Sunlord_GZ1608D601TF_package
-    """600 ohm @ 100MHz. Filters digital noise from MCU power pins."""
-
-    # --- Internal filtered rail node ---
-    vdd_filtered = new Electrical
-    """MCU-side of ferrite bead. All MCU power pins connect here."""
-
-    # --- Bulk cap on VDDA (1uF, after ferrite bead) ---
-    c_vdda = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-
-    # --- Bypass caps (4x 100nF, after ferrite bead) ---
-    c_mcu1 = new YAGEO_CC0603KRX7R9BB104_package
-    c_mcu2 = new YAGEO_CC0603KRX7R9BB104_package
-    c_mcu3 = new YAGEO_CC0603KRX7R9BB104_package
-    c_mcu4 = new YAGEO_CC0603KRX7R9BB104_package
-
-    # --- NRST filter cap ---
-    c_nrst = new YAGEO_CC0603KRX7R9BB104_package
-
-    # --- BOOT0 pull-down ---
-    r_boot0 = new Resistor
-    r_boot0.resistance = 10kohm +/- 1%
-    r_boot0.package = "0603"
-
-    # === Power path: 3.3V -> ferrite bead -> MCU pins ===
-    power.hv ~ fb_vdda.p1
-    fb_vdda.p2 ~ vdd_filtered
-
-    # MCU power pins (all on filtered side)
-    vdd_filtered ~ package.VDD_VDDA
-    vdd_filtered ~ package.VBAT
-    vdd_filtered ~ package.VREFpos
-    power.lv ~ package.VSS_VSSA
-
-    # === Bypass caps (after ferrite bead) ===
-    vdd_filtered ~ c_mcu1.p1
-    c_mcu1.p2 ~ power.lv
-
-    vdd_filtered ~ c_mcu2.p1
-    c_mcu2.p2 ~ power.lv
-
-    vdd_filtered ~ c_mcu3.p1
-    c_mcu3.p2 ~ power.lv
-
-    vdd_filtered ~ c_mcu4.p1
-    c_mcu4.p2 ~ power.lv
-
-    # === VDDA bulk cap (after ferrite bead) ===
-    vdd_filtered ~ c_vdda.p1
-    c_vdda.p2 ~ power.lv
-
-    # === NRST ===
-    package.PF2_NRST ~ nrst
-    nrst ~ c_nrst.p1
-    c_nrst.p2 ~ power.lv
-
-    # === BOOT0 pull-down ===
-    package.PA14_BOOT0 ~> r_boot0 ~> power.lv
-
+Created by Pepper Powderly <pepper@atopile.io>
 
 --- FILE: elec/adc.ato ---
 """
@@ -685,6 +245,1848 @@ module ADCFrontEnd:
     prot_exc ~ d_j2a.ESD1
     prot_exc ~ adc1.inputs[3].line
 
+--- FILE: elec/buck.ato ---
+"""
+LM5165Y buck converter: 24V protected input to 3.3V output.
+
+PFM mode (RT shorted to GND) for 10.5uA quiescent current.
+RILIM = 56k for 120mA peak / 50mA max PFM output.
+Design follows TI Design 2 (Section 8.2.2, Figure 50).
+
+Topology:
+  VIN (24V) --+-- C1 (4.7uF 50V) --+-- GND
+              |                      |
+              +-- C_VIN (100nF 50V) -+
+              |
+           U_BUCK.VIN
+              |
+           U_BUCK.SW --- L1 (68uH) --- VOUT (3.3V)
+              |                           |
+           U_BUCK.VOUT --+-- C2 (22uF) --+-- GND
+                         |
+                         +-- C6 (1uF 50V) --- GND
+
+  RT -> GND (PFM mode)
+  EN -> VIN (always on, internal UVLO at 2.9V)
+  ILIM -> R_ILIM (56k) -> GND
+  SS -> open, HYS -> open
+  EP -> GND
+  PGOOD -> MCU (open-drain, needs external pull-up)
+
+Note: LM5165 VSON-10 has internal bootstrap — no external BST cap needed.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import ElectricLogic
+
+from "parts/Texas_Instruments_LM5165YDRCR/Texas_Instruments_LM5165YDRCR.ato" import Texas_Instruments_LM5165YDRCR_package
+from "parts/XR_XRNR4018_68uH_M/XR_XRNR4018_68uH_M.ato" import XR_XRNR4018_68uH_M_package
+from "parts/FH_1206B475K500NT/FH_1206B475K500NT.ato" import FH_1206B475K500NT_package
+from "parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato" import TDK_C2012X5R1A226KT000N_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module BuckConverter:
+    """
+    LM5165Y synchronous buck: 24V -> 3.3V, PFM mode, 10.5uA Iq.
+    150mA max output, 120mA peak current limit (RILIM=56k).
+    """
+
+    # --- External interfaces ---
+    power_in = new ElectricPower
+    """24V protected input rail."""
+
+    power_out = new ElectricPower
+    """3.3V regulated output rail."""
+
+    pgood = new ElectricLogic
+    """
+    Power-good output (open-drain). Goes high when 3.3V is in regulation.
+    Needs external 10k pull-up to 3.3V (in MCU module).
+    """
+
+    # --- IC ---
+    u_buck = new Texas_Instruments_LM5165YDRCR_package
+
+    # --- Inductor ---
+    l1 = new XR_XRNR4018_68uH_M_package
+    """68uH, 470mA Isat, 1 ohm DCR, 4x4mm shielded."""
+
+    # --- Input capacitors (24V rail, need 50V rating) ---
+    c1 = new FH_1206B475K500NT_package
+    """4.7uF 50V X7R, 1206. Bulk input energy reservoir."""
+
+    c_vin = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF 50V, 0603. HF decoupling tight to VIN/GND pins."""
+
+    # --- Output capacitors ---
+    c2 = new TDK_C2012X5R1A226KT000N_package
+    """22uF 10V X5R, 0805. Output ripple smoothing."""
+
+    c6 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1uF 50V X5R, 0603. Internal VCC LDO decoupling on VOUT."""
+
+    # --- Current limit resistor ---
+    r_ilim = new Resistor
+    r_ilim.resistance = 56kohm +/- 1%
+    r_ilim.package = "0603"
+
+    # === Power connections ===
+
+    # VIN rail
+    power_in.hv ~ u_buck.VIN
+    power_in.hv ~ c1.p1
+    power_in.hv ~ c_vin.p1
+
+    # Input caps to GND
+    c1.p2 ~ power_in.lv
+    c_vin.p2 ~ power_in.lv
+
+    # GND connections
+    power_in.lv ~ u_buck.GND
+    power_in.lv ~ u_buck.EP
+    power_in.lv ~ power_out.lv
+
+    # === Control pin connections ===
+
+    # EN -> VIN (always on; internal UVLO at 2.9V handles startup)
+    u_buck.EN ~ power_in.hv
+
+    # RT -> GND (PFM mode, no timing resistor)
+    u_buck.RT ~ power_in.lv
+
+    # ILIM -> 56k -> GND (120mA peak current limit)
+    u_buck.ILIM ~> r_ilim ~> power_in.lv
+
+    # SS -> open (internal 900us soft-start) — no connection needed
+    # HYS -> open — no connection needed
+
+    # === Output path ===
+
+    # SW -> L1 -> VOUT
+    u_buck.SW ~ l1.p1
+    l1.p2 ~ u_buck.VOUT
+
+    # VOUT rail
+    u_buck.VOUT ~ power_out.hv
+    u_buck.VOUT ~ c2.p1
+    u_buck.VOUT ~ c6.p1
+
+    # Output caps to GND
+    c2.p2 ~ power_out.lv
+    c6.p2 ~ power_out.lv
+
+    # === PGOOD output ===
+    u_buck.PGOOD ~ pgood.line
+    pgood.reference ~ power_out
+
+--- FILE: elec/connectors.ato ---
+"""
+Connectors: M8 upstream (J1) + 10-pin sensor header (J2) + shield cap.
+
+J1 (M8 4-pin A-coded):
+  Pin 1: 24V power input
+  Pin 2: RS-485 A (+)
+  Pin 3: GND
+  Pin 4: RS-485 B (-)
+  Shell: C5 (100nF) to GND
+
+J2 (KF2EDGV 10-pin 3.5mm):
+  Pin 1-2: Heater A/B (24V, non-polar)
+  Pin 3: Ground
+  Pin 4: Excitation (filtered 3.3V)
+  Pin 5-10: Data 1-6 (thermistors)
+"""
+
+import ElectricPower
+import Electrical
+
+from "parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato" import CAZN_M8_P4A_GPL_M8_JD_package
+from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module Connectors:
+    """M8 upstream connector, 10-pin sensor header, and shield cap."""
+
+    # --- External interfaces ---
+    power_24v = new ElectricPower
+    """24V raw power from M8 connector."""
+
+    rs485_a = new Electrical
+    """RS-485 A line."""
+
+    rs485_b = new Electrical
+    """RS-485 B line."""
+
+    heater_hi = new Electrical
+    """Heater positive terminal."""
+
+    heater_lo = new Electrical
+    """Heater negative terminal."""
+
+    excitation = new Electrical
+    """Filtered excitation output to sensor."""
+
+    thermistor_1 = new Electrical
+    thermistor_2 = new Electrical
+    thermistor_3 = new Electrical
+    thermistor_4 = new Electrical
+    thermistor_5 = new Electrical
+    thermistor_6 = new Electrical
+
+    # --- J1: M8 upstream connector ---
+    j1 = new CAZN_M8_P4A_GPL_M8_JD_package
+
+    j1.V24 ~ power_24v.hv
+    j1.GND ~ power_24v.lv
+    j1.RS485_A ~ rs485_a
+    j1.RS485_B ~ rs485_b
+
+    # Shield cap (100nF, blocks ground loop DC, passes HF EMI)
+    c5 = new YAGEO_CC0603KRX7R9BB104_package
+    j1.SHELL1 ~ c5.p1
+    c5.p2 ~ power_24v.lv
+    j1.SHELL2 ~ c5.p1
+
+    # --- J2: 10-pin sensor header ---
+    j2 = new Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+
+    j2.HEATER_A ~ heater_hi
+    j2.HEATER_B ~ heater_lo
+    j2.GND ~ power_24v.lv
+    j2.EXCITATION ~ excitation
+    j2.DATA1 ~ thermistor_1
+    j2.DATA2 ~ thermistor_2
+    j2.DATA3 ~ thermistor_3
+    j2.DATA4 ~ thermistor_4
+    j2.DATA5 ~ thermistor_5
+    j2.DATA6 ~ thermistor_6
+
+--- FILE: elec/heater.ato ---
+"""
+Heater driver + TPL5010 watchdog + SCR latch safety circuit.
+
+Q1 (XCHS3N12 N-FET) switches 24V heater current. TPL5010 external watchdog
+provides MCU-independent kill via PNP/NPN SCR latch. D_ISO isolates latch
+from NRST so MCU can still boot and report fault.
+
+PGOOD-gated arming: Q_ARM (N-FET in R_FB path) prevents the latch from
+self-sustaining until RC-delayed PGOOD charges arm_node above Vgs(th).
+This prevents the TPL5010 power-on reset (~60ms) from permanently
+triggering the latch at every boot. Arming delay ≥361ms (3.6× margin).
+
+Gate-kill circuit:
+  MCU timer → R_GATE (1k) → gate_node → R4 (10k) → GND
+                                  ↑
+                             Q_WD drain
+                             Q_WD source → GND
+                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_ARM → Q_LATCH base
+                                            ↑                               ↑          ↑
+                                      R_WD_PD (10k) → GND           arm_node    R_LATCH_PD (1M) → GND
+                                      Q2_INV emitter → 3.3V            ↑        Q_LATCH emitter → GND
+                                      Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
+                                            ↑  ↑          (anode)   (cathode)    ↑
+                                            |  R_PNP_BASE (100k) → 3.3V
+                                      Q_LATCH collector          R_WD_PU (100k) → 3.3V
+
+Latch arm circuit:
+  PGOOD → R_ARM (1M) → arm_node → C_ARM (1uF) → GND
+                           ↑
+                      Q_ARM gate
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/XCH_XCHS3N12/XCH_XCHS3N12.ato" import XCH_XCHS3N12_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+from "parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato" import Texas_Instruments_TPL5010DDCR_package
+from "parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato" import Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
+from "parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato" import Changjiang_Electronics_Tech_2N7002_package
+from "parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4148WS.ato" import Changjiang_Electronics_Tech_1N4148WS_package
+from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato" import Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
+from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module HeaterDriver:
+    """
+    24V heater driver with 4-layer safety: hardware timer, IWDG, external
+    watchdog (TPL5010), and thermistor interlock. SCR latch provides
+    permanent lockout on watchdog fault.
+    """
+
+    # --- External interfaces ---
+    power_24v = new ElectricPower
+    """24V protected rail (heater power + bulk cap)."""
+
+    power_3v3 = new ElectricPower
+    """3.3V rail (watchdog, PNP emitter, pull-ups)."""
+
+    heater_hi = new Electrical
+    """Heater positive terminal (from J2, connects to 24V)."""
+
+    heater_lo = new Electrical
+    """Heater negative terminal (from J2, connects to Q1 drain)."""
+
+    gate_drive = new Electrical
+    """MCU timer output (into R_GATE)."""
+
+    wake = new Electrical
+    """TPL5010 WAKE output → MCU EXTI input."""
+
+    done = new Electrical
+    """TPL5010 DONE input ← MCU GPIO output."""
+
+    rstn = new Electrical
+    """TPL5010 RSTn node. Also connects to MCU NRST (wired in top-level)."""
+
+    pgood = new Electrical
+    """PGOOD signal from buck converter. Gates latch arming via RC delay."""
+
+    # --- Power FET and flyback ---
+    q1 = new XCH_XCHS3N12_package
+    """120V/3A N-FET heater switch."""
+
+    d4 = new MDD_Microdiode_Electronics_SS36_package
+    """60V/3A flyback Schottky across heater."""
+
+    # --- Bulk decoupling on 24V ---
+    c4 = new Honor_Elec_VP1H101M0607_package
+    """100uF 50V electrolytic. Absorbs heater switching transients."""
+
+    # --- TPL5010 watchdog ---
+    u_wdt = new Texas_Instruments_TPL5010DDCR_package
+
+    c_wd = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF bypass on TPL5010 VDD."""
+
+    r_delay = new Resistor
+    r_delay.resistance = 11kohm +/- 1%
+    r_delay.package = "0603"
+
+    # --- Gate control resistors ---
+    r_gate = new Resistor
+    r_gate.resistance = 1kohm +/- 1%
+    r_gate.package = "0603"
+
+    r4 = new Resistor
+    r4.resistance = 10kohm +/- 1%
+    r4.package = "0603"
+
+    # --- SCR latch components ---
+    q2_inv = new Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
+    """PNP inverter. Inverts RSTn to drive gate clamp."""
+
+    q_wd = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET gate clamp. Pulls Q1 gate to GND on fault."""
+
+    q_latch = new Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
+    """NPN latch. Cross-coupled with Q2_INV for permanent lockout."""
+
+    d_iso = new Changjiang_Electronics_Tech_1N4148WS_package
+    """Isolation diode. Prevents latch from holding MCU in reset."""
+
+    r_base = new Resistor
+    r_base.resistance = 10kohm +/- 1%
+    r_base.package = "0603"
+
+    r_wd_pd = new Resistor
+    r_wd_pd.resistance = 10kohm +/- 1%
+    r_wd_pd.package = "0603"
+
+    r_wd_pu = new Resistor
+    r_wd_pu.resistance = 100kohm +/- 1%
+    r_wd_pu.package = "0603"
+
+    r_fb = new Resistor
+    r_fb.resistance = 100kohm +/- 1%
+    r_fb.package = "0603"
+
+    r_latch_pd = new Resistor
+    r_latch_pd.resistance = 1Mohm +/- 1%
+    r_latch_pd.package = "0603"
+
+    r_pnp_base = new Resistor
+    r_pnp_base.resistance = 100kohm +/- 1%
+    r_pnp_base.package = "0603"
+    """PNP base-emitter pull-up. Defines OFF state when D_ISO is reverse-biased
+    and Q_LATCH is off (normal operation). Without this, the PNP base floats
+    and leakage/noise could cause spurious heater lockout. 100kΩ gives 140×
+    margin over worst-case transistor leakage at 85°C, while still allowing
+    easy latch trigger (hFE needed = 1.4 vs MMBT3904 min 100)."""
+
+    # --- PGOOD-gated latch arm circuit ---
+    q_arm = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET in R_FB path. Breaks latch feedback loop until PGOOD charges
+    arm_node above Vgs(th). Prevents TPL5010 power-on reset from triggering
+    permanent heater lockout."""
+
+    r_arm = new Resistor
+    r_arm.resistance = 1Mohm +/- 1%
+    r_arm.package = "0603"
+    """Slow-charge resistor for arm RC delay. τ = 1MΩ × 1µF = 1s.
+    Arming delay ≥361ms (Vgs(th) min) vs 100ms max TPL5010 tRST."""
+
+    c_arm = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1µF arm delay cap. Holds arm_node low during power-on reset,
+    preventing latch feedback until RC charges past Q_ARM threshold."""
+
+    # --- Internal nodes ---
+    gate_node = new Electrical
+    """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
+
+    pnp_coll_node = new Electrical
+    """Q2_INV collector: R_WD_PD top, Q_WD gate, R_FB input."""
+
+    pnp_base_node = new Electrical
+    """Q2_INV base: R_BASE output, Q_LATCH collector."""
+
+    d_iso_anode_node = new Electrical
+    """D_ISO anode: R_BASE input (between D_ISO and PNP base)."""
+
+    fb_out_node = new Electrical
+    """R_FB output / Q_ARM drain junction."""
+
+    latch_base_node = new Electrical
+    """Q_LATCH base: Q_ARM source, R_LATCH_PD top."""
+
+    arm_node = new Electrical
+    """PGOOD-delayed arm signal. RC charges from PGOOD through R_ARM."""
+
+    # === Heater power path ===
+
+    # 24V → heater_hi, heater_lo → Q1 → GND
+    heater_hi ~ power_24v.hv
+    heater_lo ~ q1.D
+    q1.S ~ power_24v.lv
+
+    # Flyback diode across heater (anode at Q1 drain, cathode at 24V)
+    d4.A ~ heater_lo
+    d4.K ~ heater_hi
+
+    # Bulk cap on 24V rail
+    power_24v.hv ~ c4.p1
+    c4.p2 ~ power_24v.lv
+
+    # === Gate drive path ===
+
+    # MCU timer → R_GATE → gate_node → R4 → GND
+    gate_drive ~> r_gate ~> gate_node
+    gate_node ~> r4 ~> power_24v.lv
+
+    # Q1 gate
+    gate_node ~ q1.G
+
+    # Q_WD clamps gate to GND on fault
+    q_wd.D ~ gate_node
+    q_wd.S ~ power_24v.lv
+
+    # === TPL5010 watchdog ===
+
+    u_wdt.VDD ~ power_3v3.hv
+    u_wdt.GND ~ power_3v3.lv
+
+    # Bypass cap
+    power_3v3.hv ~ c_wd.p1
+    c_wd.p2 ~ power_3v3.lv
+
+    # Timeout resistor (11k → ~9.6s period)
+    u_wdt.DELAY_M_RST ~> r_delay ~> power_3v3.lv
+
+    # MCU interface
+    u_wdt.WAKE ~ wake
+    u_wdt.DONE ~ done
+
+    # DONE pull-down: keeps DONE low when MCU is in reset/unpowered,
+    # preventing floating input from confusing TPL5010
+    r_done_pd = new Resistor
+    r_done_pd.resistance = 100kohm +/- 1%
+    r_done_pd.package = "0603"
+    done ~> r_done_pd ~> power_3v3.lv
+
+    # RSTn with pull-up
+    u_wdt.RSTn ~ rstn
+    rstn ~> r_wd_pu ~> power_3v3.hv
+
+    # === SCR latch circuit ===
+
+    # PNP inverter (Q2_INV): emitter → 3.3V, base via R_BASE/D_ISO
+    q2_inv.E ~ power_3v3.hv
+    q2_inv.B ~ pnp_base_node
+    q2_inv.C ~ pnp_coll_node
+
+    # PNP collector drives Q_WD gate + feedback (through PGOOD-gated Q_ARM)
+    pnp_coll_node ~ q_wd.G
+    pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
+    pnp_coll_node ~> r_fb ~> fb_out_node
+
+    # Q_ARM gates the feedback path: latch can't sustain until armed
+    q_arm.D ~ fb_out_node
+    q_arm.S ~ latch_base_node
+    q_arm.G ~ arm_node
+
+    # D_ISO: cathode at RSTn, anode → R_BASE → PNP base
+    d_iso.K ~ rstn
+    d_iso.A ~ d_iso_anode_node
+    d_iso_anode_node ~> r_base ~> pnp_base_node
+
+    # NPN latch (Q_LATCH): collector → PNP base node, emitter → GND
+    q_latch.C ~ pnp_base_node
+    q_latch.E ~ power_3v3.lv
+    q_latch.B ~ latch_base_node
+
+    # PNP base-emitter pull-up (defines OFF state in normal operation)
+    pnp_base_node ~> r_pnp_base ~> power_3v3.hv
+
+    # === PGOOD-gated latch arm ===
+
+    # RC delay: PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
+    # τ = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max tRST.
+    # At power-on: arm_node low → Q_ARM off → R_FB disconnected → latch disabled.
+    # After ~400-800ms: arm_node charged → Q_ARM on → latch armed for real faults.
+    pgood ~> r_arm ~> arm_node
+    arm_node ~ c_arm.p1
+    c_arm.p2 ~ power_3v3.lv
+
+    # Latch base pull-down (noise immunity)
+    latch_base_node ~> r_latch_pd ~> power_3v3.lv
+
+--- FILE: elec/led.ato ---
+"""
+Status RGB LED: common-anode, MCU sinks current through resistors.
+
+  3.3V → LED anode
+  LED R cathode → R_R (680 ohm) → MCU GPIO (sink)
+  LED G cathode → R_G (200 ohm) → MCU GPIO (sink)
+  LED B cathode → R_B (220 ohm) → MCU GPIO (sink)
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/XINGLIGHT_XL_B1212RGBA_HF/XINGLIGHT_XL_B1212RGBA_HF.ato" import XINGLIGHT_XL_B1212RGBA_HF_package
+
+module StatusLED:
+    """Common-anode RGB LED with current-limiting resistors."""
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply (anode connection)."""
+
+    red = new Electrical
+    """MCU GPIO sink for red LED."""
+
+    green = new Electrical
+    """MCU GPIO sink for green LED."""
+
+    blue = new Electrical
+    """MCU GPIO sink for blue LED."""
+
+    # --- LED ---
+    led = new XINGLIGHT_XL_B1212RGBA_HF_package
+
+    # --- Current-limiting resistors ---
+    r_r = new Resistor
+    r_r.resistance = 680ohm +/- 1%
+    r_r.package = "0603"
+
+    r_g = new Resistor
+    r_g.resistance = 200ohm +/- 1%
+    r_g.package = "0603"
+
+    r_b = new Resistor
+    r_b.resistance = 220ohm +/- 1%
+    r_b.package = "0603"
+
+    # --- Wiring ---
+    # Anode to 3.3V
+    led.A ~ power.hv
+
+    # Cathodes through resistors to MCU GPIOs
+    led.R ~> r_r ~> red
+    led.G ~> r_g ~> green
+    led.B ~> r_b ~> blue
+
+--- FILE: elec/main.ato ---
+"""
+Sap Flux Sensor Adapter Board — atopile implementation.
+24V battery/solar powered, RS-485 comms, STM32G0B1 MCU,
+2x ADS1115 ADCs, heater driver with TPL5010 watchdog.
+
+Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
+wires connectors, and establishes shared buses (I2C, power rails).
+
+MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
+  PA0: RS-485 ~RE         PA8: TIM1_CH1 (heater gate)
+  PA1: RS-485 DE          PA13: SWDIO
+  PA2: USART2_TX          PA14: SWCLK / BOOT0
+  PA3: USART2_RX          PB0: ADC1 ALERT/DRDY
+  PA4: TPL5010 WAKE       PB1: ADC2 ALERT/DRDY
+  PA5: TPL5010 DONE       PB3: LED R (sink)
+  PB4: LED G (sink)       PB6: I2C1_SCL
+  PB5: LED B (sink)       PB7: I2C1_SDA
+  PC6: Excitation GPIO    PC7: PGOOD input
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import ElectricPower
+import Electrical
+import Resistor
+
+from "protection.ato" import InputProtection
+from "buck.ato" import BuckConverter
+from "mcu.ato" import MCU
+from "adc.ato" import ADCFrontEnd
+from "rs485.ato" import RS485Bus
+from "heater.ato" import HeaterDriver
+from "led.ato" import StatusLED
+from "connectors.ato" import Connectors
+from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module SapFluxAdapter:
+    """Top-level module for the sap flux sensor adapter board."""
+
+    # === Power rails ===
+    power_24v_raw = new ElectricPower
+    power_24v_protected = new ElectricPower
+    power_3v3 = new ElectricPower
+
+    # === Shared I2C bus nodes ===
+    sda = new Electrical
+    scl = new Electrical
+
+    # === Subsystem instances ===
+
+    # Connectors (J1 M8 upstream, J2 10-pin sensor)
+    connectors = new Connectors
+    power_24v_raw ~ connectors.power_24v
+
+    # Input protection (PTC + TVS + Schottky)
+    input_protection = new InputProtection
+    power_24v_raw ~ input_protection.power_in
+    input_protection.power_out ~ power_24v_protected
+
+    # Buck converter (24V -> 3.3V)
+    buck = new BuckConverter
+    power_24v_protected ~ buck.power_in
+    buck.power_out ~ power_3v3
+
+    # MCU
+    mcu = new MCU
+    power_3v3 ~ mcu.power
+
+    # ADC front-end (2x ADS1115 + input protection + excitation filter)
+    adc = new ADCFrontEnd
+    power_3v3 ~ adc.power
+
+    # RS-485 transceiver
+    rs485 = new RS485Bus
+    power_3v3 ~ rs485.power
+
+    # Heater driver + TPL5010 watchdog + SCR latch
+    heater = new HeaterDriver
+    power_24v_protected ~ heater.power_24v
+    power_3v3 ~ heater.power_3v3
+
+    # Status LED
+    led = new StatusLED
+    power_3v3 ~ led.power
+
+    # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
+    eeprom = new onsemi_CAT24C32WI_GT3_package
+    c_eeprom = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
+
+    # === EEPROM wiring ===
+    # Power + decoupling
+    eeprom.VCC ~ power_3v3.hv
+    eeprom.VSS ~ power_3v3.lv
+    c_eeprom.p1 ~ power_3v3.hv
+    c_eeprom.p2 ~ power_3v3.lv
+    # I2C
+    sda ~ eeprom.SDA
+    scl ~ eeprom.SCL
+    # Address = 0x50 (A0=A1=A2=GND)
+    eeprom.A0 ~ power_3v3.lv
+    eeprom.A1 ~ power_3v3.lv
+    eeprom.A2 ~ power_3v3.lv
+    # WP tied to GND (writes always allowed)
+    eeprom.WP ~ power_3v3.lv
+
+    # === I2C bus wiring ===
+    # ADC front-end I2C
+    sda ~ adc.sda
+    scl ~ adc.scl
+
+    # MCU I2C1 (PB7=SDA, PB6=SCL)
+    sda ~ mcu.package.PB7
+    scl ~ mcu.package.PB6
+
+    # === RS-485 wiring ===
+    # USART2 (PA2=TX, PA3=RX)
+    mcu.package.PA2 ~ rs485.uart_tx
+    mcu.package.PA3 ~ rs485.uart_rx
+    # Control GPIOs (PA1=DE, PA0=~RE)
+    mcu.package.PA1 ~ rs485.de
+    mcu.package.PA0 ~ rs485.n_re
+    # Bus lines to M8 connector
+    rs485.rs485_a ~ connectors.rs485_a
+    rs485.rs485_b ~ connectors.rs485_b
+
+    # === Heater wiring ===
+    # Gate drive from MCU timer (PA8 = TIM1_CH1, one-pulse mode)
+    mcu.package.PA8 ~ heater.gate_drive
+    # Watchdog I/O
+    mcu.package.PA4 ~ heater.wake
+    mcu.package.PA5 ~ heater.done
+    # RSTn shared with MCU NRST
+    mcu.nrst ~ heater.rstn
+    # Heater terminals to J2 connector
+    connectors.heater_hi ~ heater.heater_hi
+    connectors.heater_lo ~ heater.heater_lo
+
+    # === ADC wiring ===
+    # Excitation GPIO (PC6)
+    mcu.package.PC6 ~ adc.excitation_gpio
+    # Excitation output to J2 connector
+    adc.excitation_out ~ connectors.excitation
+    # Thermistor lines from J2 to ADC
+    connectors.thermistor_1 ~ adc.thermistor_1
+    connectors.thermistor_2 ~ adc.thermistor_2
+    connectors.thermistor_3 ~ adc.thermistor_3
+    connectors.thermistor_4 ~ adc.thermistor_4
+    connectors.thermistor_5 ~ adc.thermistor_5
+    connectors.thermistor_6 ~ adc.thermistor_6
+    # ALERT/DRDY to MCU (PB0=ADC1, PB1=ADC2)
+    mcu.package.PB0 ~ adc.alert1
+    mcu.package.PB1 ~ adc.alert2
+
+    # === LED wiring ===
+    # MCU sinks current (GPIOs drive low to turn on)
+    mcu.package.PB3 ~ led.red
+    mcu.package.PB4 ~ led.green
+    mcu.package.PB5 ~ led.blue
+
+    # === PGOOD monitoring ===
+    # LM5165 PGOOD (open-drain) with 10k pull-up to 3.3V
+    # Also gates SCR latch arming (prevents power-on reset from triggering latch)
+    r_pgood = new Resistor
+    r_pgood.resistance = 10kohm +/- 1%
+    r_pgood.package = "0603"
+    mcu.package.PC7 ~ buck.pgood.line
+    buck.pgood.line ~> r_pgood ~> power_3v3.hv
+    buck.pgood.line ~ heater.pgood
+
+--- FILE: elec/mcu.ato ---
+"""
+STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, and VDDA filtering.
+
+Power topology:
+  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VBAT, VREFpos
+  Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
+
+Note: LQFP-48 merges VDD and VDDA into one pin (VDD_VDDA). Ferrite bead
+filters ALL MCU power. 200mA rating is ample for ~20mA MCU draw.
+
+BOOT0: 10k pull-down to GND (normal boot from flash).
+NRST: 100nF filter cap to GND. Exposed for TPL5010 RSTn connection.
+
+GPIO assignments are made in the top-level module via package pin access.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.ato" import STMicroelectronics_STM32G0B1CBT6_package
+from "parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato" import Sunlord_GZ1608D601TF_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module MCU:
+    """
+    STM32G0B1CBT6 with power filtering, decoupling, BOOT0 pull-down,
+    and NRST filter cap.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply rail (from buck converter)."""
+
+    nrst = new Electrical
+    """NRST node — exposed for TPL5010 RSTn + SCR latch connection."""
+
+    # --- Package (exposed for GPIO wiring in top-level) ---
+    package = new STMicroelectronics_STM32G0B1CBT6_package
+
+    # --- VDDA ferrite bead ---
+    fb_vdda = new Sunlord_GZ1608D601TF_package
+    """600 ohm @ 100MHz. Filters digital noise from MCU power pins."""
+
+    # --- Internal filtered rail node ---
+    vdd_filtered = new Electrical
+    """MCU-side of ferrite bead. All MCU power pins connect here."""
+
+    # --- Bulk cap on VDDA (1uF, after ferrite bead) ---
+    c_vdda = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+    # --- Bypass caps (4x 100nF, after ferrite bead) ---
+    c_mcu1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu4 = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- NRST filter cap ---
+    c_nrst = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- BOOT0 pull-down ---
+    r_boot0 = new Resistor
+    r_boot0.resistance = 10kohm +/- 1%
+    r_boot0.package = "0603"
+
+    # === Power path: 3.3V -> ferrite bead -> MCU pins ===
+    power.hv ~ fb_vdda.p1
+    fb_vdda.p2 ~ vdd_filtered
+
+    # MCU power pins (all on filtered side)
+    vdd_filtered ~ package.VDD_VDDA
+    vdd_filtered ~ package.VBAT
+    vdd_filtered ~ package.VREFpos
+    power.lv ~ package.VSS_VSSA
+
+    # === Bypass caps (after ferrite bead) ===
+    vdd_filtered ~ c_mcu1.p1
+    c_mcu1.p2 ~ power.lv
+
+    vdd_filtered ~ c_mcu2.p1
+    c_mcu2.p2 ~ power.lv
+
+    vdd_filtered ~ c_mcu3.p1
+    c_mcu3.p2 ~ power.lv
+
+    vdd_filtered ~ c_mcu4.p1
+    c_mcu4.p2 ~ power.lv
+
+    # === VDDA bulk cap (after ferrite bead) ===
+    vdd_filtered ~ c_vdda.p1
+    c_vdda.p2 ~ power.lv
+
+    # === NRST ===
+    package.PF2_NRST ~ nrst
+    nrst ~ c_nrst.p1
+    c_nrst.p2 ~ power.lv
+
+    # === BOOT0 pull-down ===
+    package.PA14_BOOT0 ~> r_boot0 ~> power.lv
+
+--- FILE: elec/parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component CAZN_M8_P4A_GPL_M8_JD_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C19108968", date="2026-02-19T02:25:44.567671+00:00", checksum="4b9136b4c80ef32688cb1777f923e8a0e48107ad3e35fcb5c95a25bf1e06f344">
+
+    trait is_atomic_part<manufacturer="CAZN", partnumber="M8-P4A-GPL M8-JD", footprint="CONN-TH_M8-P4A-GPL-M8-JD.kicad_mod", symbol="M8-P4A-GPLM8-JD.kicad_sym", model="CONN-TH_M8-P4A-GPL-M8-JD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C19108968", manufacturer="CAZN", partno="M8-P4A-GPL M8-JD">
+    trait has_designator_prefix<prefix="CN">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2311011001_CAZN-M8-P4A-GPL-M8-JD_C19108968.pdf">
+
+    # pins (M8 4-pin A-coded, right-angle male)
+    signal V24 ~ pin 1
+    signal RS485_A ~ pin 2
+    signal GND ~ pin 3
+    signal RS485_B ~ pin 4
+    signal SHELL1 ~ pin 5
+    signal SHELL2 ~ pin 6
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4148WS.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_1N4148WS_package:
+    """1N4148WS T4"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2128", date="2026-02-19T02:25:39.470637+00:00", checksum="eef67aa31f800c776ae46946e19100def5d34938098f11384cfd1750db4c8a31">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="1N4148WS", footprint="SOD-323_L1.8-W1.3-LS2.5-RD.kicad_mod", symbol="1N4148WST4.kicad_sym", model="2.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2128", manufacturer="Changjiang Electronics Tech ", partno="1N4148WS">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1810101110_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--1N4148WS_C2128.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_2N7002_package:
+    """2N7002 7002"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8545", date="2026-02-19T02:25:18.745238+00:00", checksum="bc0bf605e69da4ded3641ed36e2257d5c1c20876e489dc4cc6a35b7beb318153">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="2N7002", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="2N7002.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8545", manufacturer="Changjiang Electronics Tech ", partno="2N7002">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--2N7002_C8545.pdf">
+
+    # pins
+    signal D ~ pin 3
+    signal G ~ pin 1
+    signal S ~ pin 2
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package:
+    """MMBT3904 1AM 100-300"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C20526", date="2026-02-19T02:25:41.677622+00:00", checksum="fa9608125b9fa576a968c3256d8885a63ab833e20da2f54b8df58affffbd7b9a">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="MMBT3904(RANGE:100-300)", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="MMBT3904-C20526.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C20526", manufacturer="Changjiang Electronics Tech ", partno="MMBT3904(RANGE:100-300)">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2207041900_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--MMBT3904-RANGE-100-300_C20526.pdf">
+
+    # pins
+    signal B ~ pin 1
+    signal C ~ pin 3
+    signal E ~ pin 2
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package:
+    """SS8550 Y2 200-350"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8542", date="2026-02-19T02:25:16.471587+00:00", checksum="9430444a6815926d9ae1fa180751769e6c95cbdce935626f2e22e9e02d16f56c">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="SS8550 Y2(RANGE:200-350)", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="SS8550_C8542.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8542", manufacturer="Changjiang Electronics Tech ", partno="SS8550 Y2(RANGE:200-350)">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1810161212_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--SS8550-Y2-RANGE-200-350_C8542.pdf">
+
+    # pins
+    signal B ~ pin 1
+    signal C ~ pin 3
+    signal E ~ pin 2
+
+--- FILE: elec/parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C441318", date="2026-02-19T02:25:48.209512+00:00", checksum="bfccf92e9f8ee49479214f88fe3c924424d2c32907f1e67ed71935114ff1e4d7">
+
+    trait is_atomic_part<manufacturer="Cixi Kefa Elec", partnumber="KF2EDGV-3.5-10P", footprint="CONN-TH_10P-P3.50_KF2EDGV-3.5-10P.kicad_mod", symbol="KF2EDGV-3.5-10P.kicad_sym", model="CONN-TH_10P-P3.50_KF2EDGV-3.5-10P.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C441318", manufacturer="Cixi Kefa Elec", partno="KF2EDGV-3.5-10P">
+    trait has_designator_prefix<prefix="CN">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2303311930_Cixi-Kefa-Elec-KF2EDGV-3-5-10P_C441318.pdf">
+
+    # pins (10-pin pluggable terminal block, 3.5mm pitch)
+    signal HEATER_A ~ pin 1
+    signal HEATER_B ~ pin 2
+    signal GND ~ pin 3
+    signal EXCITATION ~ pin 4
+    signal DATA1 ~ pin 5
+    signal DATA2 ~ pin 6
+    signal DATA3 ~ pin 7
+    signal DATA4 ~ pin 8
+    signal DATA5 ~ pin 9
+    signal DATA6 ~ pin 10
+
+--- FILE: elec/parts/FH_1206B475K500NT/FH_1206B475K500NT.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component FH_1206B475K500NT_package:
+    """4.7uF (475) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C29823", date="2026-02-19T02:25:50.357176+00:00", checksum="3f5685005c4463ab1b17bcf6157439520cd30dc3121088ffbb93097d441bae22">
+
+    trait is_atomic_part<manufacturer="FH", partnumber="1206B475K500NT", footprint="C1206.kicad_mod", symbol="1206B475K500NT.kicad_sym", model="C1206_L3.2-W1.6-H1.3.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C29823", manufacturer="FH", partno="1206B475K500NT">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_FH--Guangdong-Fenghua-Advanced-Tech-1206B475K500NT_C29823.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/FTR_SMAJ33A/FTR_SMAJ33A.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component FTR_SMAJ33A_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C693627", date="2026-02-19T02:12:05.283849+00:00", checksum="f37b75617fe9022947f29af911791ea747e85e5ab8116c52cb32abd303ad073e">
+
+    trait is_atomic_part<manufacturer="FTR", partnumber="SMAJ33A", footprint="SMA_L4.3-W2.6-LS5.0-RD.kicad_mod", symbol="SMAJ33A_C693627.kicad_sym", model="SMA_L4.3-W2.6-LS5.0-RD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C693627", manufacturer="FTR", partno="SMAJ33A">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2008311005_FTR-SMAJ33A_C693627.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal C ~ pin 1
+
+--- FILE: elec/parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Honor_Elec_VP1H101M0607_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C4054386", date="2026-02-19T02:25:37.021502+00:00", checksum="9a9352fa829b79cc0c56aeed1dc2f52620a36116dfd9e4e90f06ac658b9a1384">
+
+    trait is_atomic_part<manufacturer="Honor Elec", partnumber="VP1H101M0607", footprint="CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.kicad_mod", symbol="VP1H101M0607.kicad_sym", model="CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C4054386", manufacturer="Honor Elec", partno="VP1H101M0607">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2208181800_Honor-Elec-VP1H101M0607_C4054386.pdf">
+
+    # pins (electrolytic capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Littelfuse_2920L110_60MR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C315903", date="2026-02-19T02:11:58.297497+00:00", checksum="009f29de0d74cb2b2aab416bef67e099078d75e01fd580792e4107597191e583">
+
+    trait is_atomic_part<manufacturer="Littelfuse", partnumber="2920L110/60MR", footprint="F2920.kicad_mod", symbol="2920L110_60MR.kicad_sym", model="F2920-1.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C315903", manufacturer="Littelfuse", partno="2920L110/60MR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Littelfuse-2920L110-60MR_C315903.pdf">
+
+    # pins
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component MDD_Microdiode_Electronics_SS36_package:
+    """SS36"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C16015", date="2026-02-19T02:12:07.709248+00:00", checksum="73759f76687dff7e5430b490d90c08447bdd92e62198302295a0923bce581c0c">
+
+    trait is_atomic_part<manufacturer="MDD（Microdiode Electronics）", partnumber="SS36", footprint="SMA_L4.3-W2.6-LS5.2-RD.kicad_mod", symbol="SS36.kicad_sym", model="SMA_L4.3-W2.6-LS5.2-RD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C16015", manufacturer="MDD（Microdiode Electronics）", partno="SS36">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2408051031_MDD-Microdiode-Semiconductor-SS36_C16015.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1
+
+--- FILE: elec/parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component STMicroelectronics_STM32G0B1CBT6_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2847904", date="2026-02-19T02:25:09.495731+00:00", checksum="a9bfaa7e07948e87c86db616a045e335c9563fe07369f33b15632ab52835df01">
+
+    trait is_atomic_part<manufacturer="STMicroelectronics", partnumber="STM32G0B1CBT6", footprint="LQFP-48_L7.0-W7.0-P0.50-LS9.0-BL.kicad_mod", symbol="STM32G0B1CBT6.kicad_sym", model="LQFP-48_L7.0-W7.0-H1.4-LS9.0-P0.50.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2847904", manufacturer="STMicroelectronics", partno="STM32G0B1CBT6">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2108142230_STMicroelectronics-STM32G0B1CBT6_C2847904.pdf">
+
+    # pins
+    signal PA0 ~ pin 11
+    signal PA1 ~ pin 12
+    signal PA2 ~ pin 13
+    signal PA3 ~ pin 14
+    signal PA4 ~ pin 15
+    signal PA5 ~ pin 16
+    signal PA6 ~ pin 17
+    signal PA7 ~ pin 18
+    signal PA8 ~ pin 28
+    signal PA9 ~ pin 29
+    signal PA10 ~ pin 32
+    signal PA11PA9 ~ pin 33
+    signal PA12PA10 ~ pin 34
+    signal PA13 ~ pin 35
+    signal PA14_BOOT0 ~ pin 36
+    signal PA15 ~ pin 37
+    signal PB0 ~ pin 19
+    signal PB1 ~ pin 20
+    signal PB2 ~ pin 21
+    signal PB3 ~ pin 42
+    signal PB4 ~ pin 43
+    signal PB5 ~ pin 44
+    signal PB6 ~ pin 45
+    signal PB7 ~ pin 46
+    signal PB8 ~ pin 47
+    signal PB9 ~ pin 48
+    signal PB10 ~ pin 22
+    signal PB11 ~ pin 23
+    signal PB12 ~ pin 24
+    signal PB13 ~ pin 25
+    signal PB14 ~ pin 26
+    signal PB15 ~ pin 27
+    signal PC6 ~ pin 30
+    signal PC7 ~ pin 31
+    signal PC13 ~ pin 1
+    signal PC14_OSC32_IN ~ pin 2
+    signal PC15_OSC32_OUT ~ pin 3
+    signal PD0 ~ pin 38
+    signal PD1 ~ pin 39
+    signal PD2 ~ pin 40
+    signal PD3 ~ pin 41
+    signal PF0_OSC_IN ~ pin 8
+    signal PF1_OSC_OUT ~ pin 9
+    signal PF2_NRST ~ pin 10
+    signal VBAT ~ pin 4
+    signal VDD_VDDA ~ pin 6
+    signal VREFpos ~ pin 5
+    signal VSS_VSSA ~ pin 7
+
+--- FILE: elec/parts/Samsung_Electro_Mechanics_CL05B104KO5NNNC/Samsung_Electro_Mechanics_CL05B104KO5NNNC.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Samsung_Electro_Mechanics_CL05B104KO5NNNC_package:
+    """100nF (104) ±10% 16V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C1525", date="2026-02-19T02:45:12.734455+00:00", checksum="143f8f201b0b2dd6d5b41a0eb8ad1d5af5f9c872dcfb394ded4d86758b6bb3de">
+
+    trait is_atomic_part<manufacturer="Samsung Electro-Mechanics", partnumber="CL05B104KO5NNNC", footprint="C0402.kicad_mod", symbol="CL05B104KO5NNNC.kicad_sym", model="C0402_L1.0-W0.5-H0.5.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C1525", manufacturer="Samsung Electro-Mechanics", partno="CL05B104KO5NNNC">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Samsung-Electro-Mechanics-CL05B104KO5NNNC_C1525.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Samsung_Electro_Mechanics_CL10A105KB8NNNC_package:
+    """1uF (105) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C15849", date="2026-02-19T02:33:38.587534+00:00", checksum="cd0255d50bcdd1cb782e0d891d41285cb424e560ca11a1a010c68f8e43dfef71">
+
+    trait is_atomic_part<manufacturer="Samsung Electro-Mechanics", partnumber="CL10A105KB8NNNC", footprint="C0603.kicad_mod", symbol="CL10A105KB8NNNC.kicad_sym", model="C0603_L1.6-W0.8-H0.8.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C15849", manufacturer="Samsung Electro-Mechanics", partno="CL10A105KB8NNNC">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Samsung-Electro-Mechanics-CL10A105KB8NNNC_C15849.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Sunlord_GZ1608D601TF_package:
+    """600Ω ±25% 100MHz"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C1002", date="2026-02-19T02:25:34.177444+00:00", checksum="a8119cc46357c1907e2cb1b1fefb9b8863878032f96758710d9a8da3f0650812">
+
+    trait is_atomic_part<manufacturer="Sunlord", partnumber="GZ1608D601TF", footprint="L0603.kicad_mod", symbol="GZ1608D601TF.kicad_sym", model="L0603_L1.6-W0.8-H0.5_BEAD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C1002", manufacturer="Sunlord", partno="GZ1608D601TF">
+    trait has_designator_prefix<prefix="L">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2310301640_Sunlord-GZ1608D601TF_C1002.pdf">
+
+    # pins (ferrite bead, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component TDK_C2012X5R1A226KT000N_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C76634", date="2026-02-19T02:25:52.624111+00:00", checksum="b02f0f75b0e76412d994b32f941764abe4710e7f92d4512fb8e1b6d57a6eff96">
+
+    trait is_atomic_part<manufacturer="TDK", partnumber="C2012X5R1A226KT000N", footprint="C0805.kicad_mod", symbol="C2012X5R1A226KT000N.kicad_sym", model="C0805_L2.0-W1.3-H1.3.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C76634", manufacturer="TDK", partno="C2012X5R1A226KT000N">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2304140030_TDK-C2012X5R1A226KT000N_C76634.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/TECH_PUBLIC_PRTR5V0U4D_TP/TECH_PUBLIC_PRTR5V0U4D_TP.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component TECH_PUBLIC_PRTR5V0U4D_TP_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2835429", date="2026-02-19T02:25:14.186067+00:00", checksum="51d9977f19f589bacb268243ec597de45dbd02e59abd64d3393eb48088c3e702">
+
+    trait is_atomic_part<manufacturer="TECH PUBLIC", partnumber="PRTR5V0U4D-TP", footprint="SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR.kicad_mod", symbol="PRTR5V0U4D-TP.kicad_sym", model="SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2835429", manufacturer="TECH PUBLIC", partno="PRTR5V0U4D-TP">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2105251936_TECH-PUBLIC-PRTR5V0U4D-TP_C2835429.pdf">
+
+    # pins
+    signal ESD1 ~ pin 4
+    signal ESD2 ~ pin 6
+    signal ESD3 ~ pin 1
+    signal ESD4 ~ pin 3
+    signal GND ~ pin 2
+    signal VCC ~ pin 5
+
+--- FILE: elec/parts/Texas_Instruments_LM5165YDRCR/Texas_Instruments_LM5165YDRCR.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Texas_Instruments_LM5165YDRCR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2071924", date="2026-02-19T02:25:03.476930+00:00", checksum="5c67e3cb2a35aab6b9428f4031586cbe661c15743d63ebea95d5acbf02cfb197">
+
+    trait is_atomic_part<manufacturer="Texas Instruments", partnumber="LM5165YDRCR", footprint="VSON-10_L3.0-W3.0-P0.50-TL-EP.kicad_mod", symbol="LM5165YDRCR.kicad_sym", model="VSON-10_L3.0-W3.0-H0.6-P0.50.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2071924", manufacturer="Texas Instruments", partno="LM5165YDRCR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2303011930_Texas-Instruments-LM5165YDRCR_C2071924.pdf">
+
+    # pins
+    signal EN ~ pin 7
+    signal EP ~ pin 11
+    signal GND ~ pin 10
+    signal HYS ~ pin 9
+    signal ILIM ~ pin 3
+    signal PGOOD ~ pin 6
+    signal RT ~ pin 5
+    signal SS ~ pin 4
+    signal SW ~ pin 1
+    signal VIN ~ pin 2
+    signal VOUT ~ pin 8
+
+--- FILE: elec/parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Texas_Instruments_TPL5010DDCR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C473912", date="2026-02-19T02:25:23.708222+00:00", checksum="2e8369c712287f542e1af78fcd7b355873361e4d0c7642624d2219e3ad24f110">
+
+    trait is_atomic_part<manufacturer="Texas Instruments", partnumber="TPL5010DDCR", footprint="SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR.kicad_mod", symbol="TPL5010DDCR.kicad_sym", model="SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C473912", manufacturer="Texas Instruments", partno="TPL5010DDCR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2002291407_Texas-Instruments-TPL5010DDCR_C473912.pdf">
+
+    # pins
+    signal DELAY_M_RST ~ pin 3
+    signal DONE ~ pin 4
+    signal GND ~ pin 2
+    signal RSTn ~ pin 6
+    signal VDD ~ pin 1
+    signal WAKE ~ pin 5
+
+--- FILE: elec/parts/UNI_ROYAL_0402WGF1002TCE/UNI_ROYAL_0402WGF1002TCE.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0402WGF1002TCE_package:
+    """10KΩ (1002) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25744", date="2026-02-19T02:45:13.372738+00:00", checksum="ec0ab747d59342791bdf72069c7d9b7565e7d52ecf24d6b6dffd281eac8d772c">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0402WGF1002TCE", footprint="R0402.kicad_mod", symbol="0402WGF1002TCE.kicad_sym", model="R0402_L1.0-W0.5-H0.4.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25744", manufacturer="UNI-ROYAL", partno="0402WGF1002TCE">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2411221126_UNI-ROYAL-Uniroyal-Elec-0402WGF1002TCE_C25744.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1001T5E/UNI_ROYAL_0603WAF1001T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1001T5E_package:
+    """1KΩ (1001) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C21190", date="2026-02-19T02:45:48.856266+00:00", checksum="374b7f2f2b274299c2cb90737efc41b95ed68254db7028925b020990e8008195">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1001T5E", footprint="R0603.kicad_mod", symbol="0603WAF1001T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C21190", manufacturer="UNI-ROYAL", partno="0603WAF1001T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1001T5E_C21190.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1002T5E/UNI_ROYAL_0603WAF1002T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1002T5E_package:
+    """10KΩ (1002) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25804", date="2026-02-19T02:38:17.107058+00:00", checksum="d859cc50bed38cf44141ccf8a993e40326d36a73d49364a9fd0e61e668885142">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1002T5E", footprint="R0603.kicad_mod", symbol="0603WAF1002T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25804", manufacturer="UNI-ROYAL", partno="0603WAF1002T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1002T5E_C25804.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1003T5E/UNI_ROYAL_0603WAF1003T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1003T5E_package:
+    """100KΩ (1003) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25803", date="2026-02-19T02:51:21.005421+00:00", checksum="a339d7e7e29c72301612b3336ee63a474a29657398925a68ea08766954ecfedb">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1003T5E", footprint="R0603.kicad_mod", symbol="0603WAF1003T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25803", manufacturer="UNI-ROYAL", partno="0603WAF1003T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1003T5E_C25803.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1004T5E/UNI_ROYAL_0603WAF1004T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1004T5E_package:
+    """1MΩ (1004) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22935", date="2026-02-19T02:57:05.417440+00:00", checksum="0031b0ac6c7ed01740acd65586b3484f0901b609a3ddabfc04a7cd7ba2519a90">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1004T5E", footprint="R0603.kicad_mod", symbol="0603WAF1004T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22935", manufacturer="UNI-ROYAL", partno="0603WAF1004T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1004T5E_C22935.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1102T5E/UNI_ROYAL_0603WAF1102T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1102T5E_package:
+    """11KΩ (1102) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25950", date="2026-02-19T02:57:06.201336+00:00", checksum="91ef7e52b930459b9005cc26c8bfecb3754c9e471edf4623004bbb4b3bf0fed6">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1102T5E", footprint="R0603.kicad_mod", symbol="0603WAF1102T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25950", manufacturer="UNI-ROYAL", partno="0603WAF1102T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1102T5E_C25950.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1200T5E/UNI_ROYAL_0603WAF1200T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1200T5E_package:
+    """120Ω (1200) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22787", date="2026-02-19T02:51:21.641484+00:00", checksum="058aa6951909a6cc12bf0856fba03a09c52a1cc29d0306ca2b2f142e4600a8fe">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1200T5E", footprint="R0603.kicad_mod", symbol="0603WAF1200T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22787", manufacturer="UNI-ROYAL", partno="0603WAF1200T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1200T5E_C22787.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF2000T5E/UNI_ROYAL_0603WAF2000T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF2000T5E_package:
+    """200Ω (2000) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8218", date="2026-02-19T03:02:59.603779+00:00", checksum="e1dae7bd6735f1b33050349f70f401114f8bdf3a388b0c855960835b9ec8284f">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF2000T5E", footprint="R0603.kicad_mod", symbol="0603WAF2000T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8218", manufacturer="UNI-ROYAL", partno="0603WAF2000T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010216_UNI-ROYAL-Uniroyal-Elec-0603WAF2000T5E_C8218.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF2200T5E/UNI_ROYAL_0603WAF2200T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF2200T5E_package:
+    """220Ω (2200) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22962", date="2026-02-19T03:02:58.583539+00:00", checksum="a50e2d53a23a800b54d82c306763abef5e5c7b584211a52ec51ab08a8f2da177">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF2200T5E", footprint="R0603.kicad_mod", symbol="0603WAF2200T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22962", manufacturer="UNI-ROYAL", partno="0603WAF2200T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF2200T5E_C22962.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF5600T5E/UNI_ROYAL_0603WAF5600T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF5600T5E_package:
+    """560Ω (5600) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C23204", date="2026-02-19T02:49:08.956569+00:00", checksum="1d6ba60a79296e3521f3cede9cb394577e23febb21c9dd24cc48898f2df239b6">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF5600T5E", footprint="R0603.kicad_mod", symbol="0603WAF5600T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C23204", manufacturer="UNI-ROYAL", partno="0603WAF5600T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010116_UNI-ROYAL-Uniroyal-Elec-0603WAF5600T5E_C23204.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF5602T5E/UNI_ROYAL_0603WAF5602T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF5602T5E_package:
+    """56KΩ (5602) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C23206", date="2026-02-19T02:35:21.207515+00:00", checksum="af3636635b6b96bb447959af3bd4d0214afe34d46da6167072c49e9f105b3c0e">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF5602T5E", footprint="R0603.kicad_mod", symbol="0603WAF5602T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C23206", manufacturer="UNI-ROYAL", partno="0603WAF5602T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010116_UNI-ROYAL-Uniroyal-Elec-0603WAF5602T5E_C23206.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF6800T5E/UNI_ROYAL_0603WAF6800T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF6800T5E_package:
+    """680Ω (6800) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C23228", date="2026-02-19T03:03:00.375853+00:00", checksum="ec82994343d4950d673c448656ade775afcdda01f45ef8d4c332ba11ef3a595c">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF6800T5E", footprint="R0603.kicad_mod", symbol="0603WAF6800T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C23228", manufacturer="UNI-ROYAL", partno="0603WAF6800T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010100_UNI-ROYAL-Uniroyal-Elec-0603WAF6800T5E_C23228.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/XCH_XCHS3N12/XCH_XCHS3N12.ato ---
+#pragma experiment("TRAITS")
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XCH_XCHS3N12_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C48928121", date="2026-02-19T02:25:21.351673+00:00", checksum="4f855a7348212e4b5849f6785d572ed3fd88adcaf263436f185302201b2e7ff2">
+
+    trait is_atomic_part<manufacturer="XCH", partnumber="XCHS3N12", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="XCHS3N12.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C48928121", manufacturer="XCH", partno="XCHS3N12">
+    trait has_designator_prefix<prefix="Q">
+
+    # pins
+    signal D ~ pin 3
+    signal G ~ pin 1
+    signal S ~ pin 2
+
+--- FILE: elec/parts/XINGLIGHT_XL_B1212RGBA_HF/XINGLIGHT_XL_B1212RGBA_HF.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XINGLIGHT_XL_B1212RGBA_HF_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22461780", date="2026-02-19T02:25:31.709829+00:00", checksum="125ab94ef5e2b5af9c04d02fcddbc8ac7a64d0bb8e043c2cabcd7ac925f8c119">
+
+    trait is_atomic_part<manufacturer="XINGLIGHT", partnumber="XL-B1212RGBA-HF", footprint="LED-SMD_4P-L1.2-W1.2_BR.kicad_mod", symbol="XL-B1212RGBA-HF.kicad_sym", model="LED-SMD_4P-L1.2-W1.2_BR.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22461780", manufacturer="XINGLIGHT", partno="XL-B1212RGBA-HF">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2406131539_XINGLIGHT-XL-B1212RGBA-HF_C22461780.pdf">
+
+    # pins (common-anode RGB)
+    signal A ~ pin 2
+    signal R ~ pin 1
+    signal G ~ pin 3
+    signal B ~ pin 4
+
+--- FILE: elec/parts/XR_XRNR4018_68uH_M/XR_XRNR4018_68uH_M.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XR_XRNR4018_68uH_M_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C5289353", date="2026-02-19T02:25:06.147204+00:00", checksum="684b0efbc87412a12cb684c6cbbff7a0e6bdd1660ee9b229cc1ed6283242900e">
+
+    trait is_atomic_part<manufacturer="XR", partnumber="XRNR4018-68uH/M", footprint="IND-SMD_L4.0-W4.0.kicad_mod", symbol="XRNR4018-68UH_M.kicad_sym", model="IND-SMD_L4.0-W4.0-H1.9.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C5289353", manufacturer="XR", partno="XRNR4018-68uH/M">
+    trait has_designator_prefix<prefix="L">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2211290930_XR-XRNR4018-68uH-M_C5289353.pdf">
+
+    # pins (inductor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component YAGEO_CC0603KRX7R9BB104_package:
+    """100nF (104) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C14663", date="2026-02-19T02:33:34.771374+00:00", checksum="b141163ed83c86a7ff58f4a5c2f5bdd47ee19db36e9ac59583c2c74bdad1f50d">
+
+    trait is_atomic_part<manufacturer="YAGEO", partnumber="CC0603KRX7R9BB104", footprint="C0603.kicad_mod", symbol="CC0603KRX7R9BB104.kicad_sym", model="C0603_L1.6-W0.8-H0.8.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C14663", manufacturer="YAGEO", partno="CC0603KRX7R9BB104">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2211101700_YAGEO-CC0603KRX7R9BB104_C14663.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/hongjiacheng_SM712/hongjiacheng_SM712.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_SM712_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C7420375", date="2026-02-19T02:25:11.761916+00:00", checksum="5a2acc190c7ecd69b6c89cf53e51b84e39a6d72cf9bb5570b89d8c76aeb668a4">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="SM712", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="SM712_C7420375.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C7420375", manufacturer="hongjiacheng", partno="SM712">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2308281515_hongjiacheng-SM712_C7420375.pdf">
+
+    # pins (SM712: asymmetric dual TVS for RS-485)
+    signal A ~ pin 1
+    signal GND ~ pin 2
+    signal B ~ pin 3
+
+--- FILE: elec/parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component onsemi_CAT24C32WI_GT3_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C81193", date="2026-02-19T03:34:13.724821+00:00", checksum="ed2d5e156f21b57ad7670ae0ef57c33e512f1d19e7eb07e1f5aca3f629b909b0">
+
+    trait is_atomic_part<manufacturer="onsemi", partnumber="CAT24C32WI-GT3", footprint="SOIC-8_L5.0-W4.0-P1.27-LS6.0-BL.kicad_mod", symbol="CAT24C32WI-GT3.kicad_sym", model="SOIC-8_L4.9-W3.9-H1.7-LS6.0-P1.27.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C81193", manufacturer="onsemi", partno="CAT24C32WI-GT3">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1809291220_onsemi-CAT24C32WI-GT3_C81193.pdf">
+
+    # pins
+    signal A0 ~ pin 1
+    signal A1 ~ pin 2
+    signal A2 ~ pin 3
+    signal SCL ~ pin 6
+    signal SDA ~ pin 5
+    signal VCC ~ pin 8
+    signal VSS ~ pin 4
+    signal WP ~ pin 7
+
+--- FILE: elec/protection.ato ---
+"""
+Input protection circuit: PTC fuse + TVS clamp + Schottky reverse polarity.
+
+Topology:
+  J1 (24V) --> F1 (PTC) --> node_a --> D1 (Schottky, anode->cathode) --> +24V Protected
+                                |
+                              D2 (TVS, cathode to node_a, anode to GND)
+                                |
+                               GND
+"""
+
+import Electrical
+import ElectricPower
+
+from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
+from "parts/FTR_SMAJ33A/FTR_SMAJ33A.ato" import FTR_SMAJ33A_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+
+module InputProtection:
+    """
+    24V input protection: PTC fuse (1.1A hold, 60V),
+    TVS clamp (33V standoff, ~53V clamp), Schottky reverse polarity (60V/3A).
+    """
+
+    # External interfaces
+    power_in = new ElectricPower
+    power_out = new ElectricPower
+
+    # Components
+    f1 = new Littelfuse_2920L110_60MR_package
+    d2_tvs = new FTR_SMAJ33A_package
+    d1_schottky = new MDD_Microdiode_Electronics_SS36_package
+
+    # Internal node between fuse output and diodes
+    node_a = new Electrical
+
+    # F1: series fuse from input to node_a
+    power_in.hv ~ f1.p1
+    f1.p2 ~ node_a
+
+    # D2: TVS clamp, cathode to node_a, anode to GND
+    d2_tvs.C ~ node_a
+    d2_tvs.A ~ power_in.lv
+
+    # D1: Schottky, anode to node_a, cathode to output
+    d1_schottky.A ~ node_a
+    d1_schottky.K ~ power_out.hv
+
+    # Ground passthrough
+    power_in.lv ~ power_out.lv
 
 --- FILE: elec/rs485.ato ---
 """
@@ -789,393 +2191,6 @@ module RS485Bus:
     d_rs485.A ~ rs485_a
     d_rs485.B ~ rs485_b
     d_rs485.GND ~ power.lv
-
-
---- FILE: elec/heater.ato ---
-"""
-Heater driver + TPL5010 watchdog + SCR latch safety circuit.
-
-Q1 (XCHS3N12 N-FET) switches 24V heater current. TPL5010 external watchdog
-provides MCU-independent kill via PNP/NPN SCR latch. D_ISO isolates latch
-from NRST so MCU can still boot and report fault.
-
-Gate-kill circuit:
-  MCU timer → R_GATE (1k) → gate_node → R4 (10k) → GND
-                                  ↑
-                             Q_WD drain
-                             Q_WD source → GND
-                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_LATCH base
-                                            ↑                                   ↑
-                                      R_WD_PD (10k) → GND              R_LATCH_PD (1M) → GND
-                                      Q2_INV emitter → 3.3V            Q_LATCH emitter → GND
-                                      Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
-                                            ↑  ↑          (anode)   (cathode)    ↑
-                                            |  R_PNP_BASE (100k) → 3.3V
-                                      Q_LATCH collector                  R_WD_PU (100k) → 3.3V
-"""
-
-#pragma experiment("BRIDGE_CONNECT")
-
-import Resistor
-import ElectricPower
-import Electrical
-
-from "parts/XCH_XCHS3N12/XCH_XCHS3N12.ato" import XCH_XCHS3N12_package
-from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
-from "parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato" import Texas_Instruments_TPL5010DDCR_package
-from "parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato" import Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
-from "parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato" import Changjiang_Electronics_Tech_2N7002_package
-from "parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4148WS.ato" import Changjiang_Electronics_Tech_1N4148WS_package
-from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato" import Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
-from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
-from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
-
-module HeaterDriver:
-    """
-    24V heater driver with 4-layer safety: hardware timer, IWDG, external
-    watchdog (TPL5010), and thermistor interlock. SCR latch provides
-    permanent lockout on watchdog fault.
-    """
-
-    # --- External interfaces ---
-    power_24v = new ElectricPower
-    """24V protected rail (heater power + bulk cap)."""
-
-    power_3v3 = new ElectricPower
-    """3.3V rail (watchdog, PNP emitter, pull-ups)."""
-
-    heater_hi = new Electrical
-    """Heater positive terminal (from J2, connects to 24V)."""
-
-    heater_lo = new Electrical
-    """Heater negative terminal (from J2, connects to Q1 drain)."""
-
-    gate_drive = new Electrical
-    """MCU timer output (into R_GATE)."""
-
-    wake = new Electrical
-    """TPL5010 WAKE output → MCU EXTI input."""
-
-    done = new Electrical
-    """TPL5010 DONE input ← MCU GPIO output."""
-
-    rstn = new Electrical
-    """TPL5010 RSTn node. Also connects to MCU NRST (wired in top-level)."""
-
-    # --- Power FET and flyback ---
-    q1 = new XCH_XCHS3N12_package
-    """120V/3A N-FET heater switch."""
-
-    d4 = new MDD_Microdiode_Electronics_SS36_package
-    """60V/3A flyback Schottky across heater."""
-
-    # --- Bulk decoupling on 24V ---
-    c4 = new Honor_Elec_VP1H101M0607_package
-    """100uF 50V electrolytic. Absorbs heater switching transients."""
-
-    # --- TPL5010 watchdog ---
-    u_wdt = new Texas_Instruments_TPL5010DDCR_package
-
-    c_wd = new YAGEO_CC0603KRX7R9BB104_package
-    """100nF bypass on TPL5010 VDD."""
-
-    r_delay = new Resistor
-    r_delay.resistance = 11kohm +/- 1%
-    r_delay.package = "0603"
-
-    # --- Gate control resistors ---
-    r_gate = new Resistor
-    r_gate.resistance = 1kohm +/- 1%
-    r_gate.package = "0603"
-
-    r4 = new Resistor
-    r4.resistance = 10kohm +/- 1%
-    r4.package = "0603"
-
-    # --- SCR latch components ---
-    q2_inv = new Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
-    """PNP inverter. Inverts RSTn to drive gate clamp."""
-
-    q_wd = new Changjiang_Electronics_Tech_2N7002_package
-    """N-FET gate clamp. Pulls Q1 gate to GND on fault."""
-
-    q_latch = new Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
-    """NPN latch. Cross-coupled with Q2_INV for permanent lockout."""
-
-    d_iso = new Changjiang_Electronics_Tech_1N4148WS_package
-    """Isolation diode. Prevents latch from holding MCU in reset."""
-
-    r_base = new Resistor
-    r_base.resistance = 10kohm +/- 1%
-    r_base.package = "0603"
-
-    r_wd_pd = new Resistor
-    r_wd_pd.resistance = 10kohm +/- 1%
-    r_wd_pd.package = "0603"
-
-    r_wd_pu = new Resistor
-    r_wd_pu.resistance = 100kohm +/- 1%
-    r_wd_pu.package = "0603"
-
-    r_fb = new Resistor
-    r_fb.resistance = 100kohm +/- 1%
-    r_fb.package = "0603"
-
-    r_latch_pd = new Resistor
-    r_latch_pd.resistance = 1Mohm +/- 1%
-    r_latch_pd.package = "0603"
-
-    r_pnp_base = new Resistor
-    r_pnp_base.resistance = 100kohm +/- 1%
-    r_pnp_base.package = "0603"
-    """PNP base-emitter pull-up. Defines OFF state when D_ISO is reverse-biased
-    and Q_LATCH is off (normal operation). Without this, the PNP base floats
-    and leakage/noise could cause spurious heater lockout. 100kΩ gives 140×
-    margin over worst-case transistor leakage at 85°C, while still allowing
-    easy latch trigger (hFE needed = 1.4 vs MMBT3904 min 100)."""
-
-    # --- Internal nodes ---
-    gate_node = new Electrical
-    """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
-
-    pnp_coll_node = new Electrical
-    """Q2_INV collector: R_WD_PD top, Q_WD gate, R_FB input."""
-
-    pnp_base_node = new Electrical
-    """Q2_INV base: R_BASE output, Q_LATCH collector."""
-
-    d_iso_anode_node = new Electrical
-    """D_ISO anode: R_BASE input (between D_ISO and PNP base)."""
-
-    latch_base_node = new Electrical
-    """Q_LATCH base: R_FB output, R_LATCH_PD top."""
-
-    # === Heater power path ===
-
-    # 24V → heater_hi, heater_lo → Q1 → GND
-    heater_hi ~ power_24v.hv
-    heater_lo ~ q1.D
-    q1.S ~ power_24v.lv
-
-    # Flyback diode across heater (anode at Q1 drain, cathode at 24V)
-    d4.A ~ heater_lo
-    d4.K ~ heater_hi
-
-    # Bulk cap on 24V rail
-    power_24v.hv ~ c4.p1
-    c4.p2 ~ power_24v.lv
-
-    # === Gate drive path ===
-
-    # MCU timer → R_GATE → gate_node → R4 → GND
-    gate_drive ~> r_gate ~> gate_node
-    gate_node ~> r4 ~> power_24v.lv
-
-    # Q1 gate
-    gate_node ~ q1.G
-
-    # Q_WD clamps gate to GND on fault
-    q_wd.D ~ gate_node
-    q_wd.S ~ power_24v.lv
-
-    # === TPL5010 watchdog ===
-
-    u_wdt.VDD ~ power_3v3.hv
-    u_wdt.GND ~ power_3v3.lv
-
-    # Bypass cap
-    power_3v3.hv ~ c_wd.p1
-    c_wd.p2 ~ power_3v3.lv
-
-    # Timeout resistor (11k → ~9.6s period)
-    u_wdt.DELAY_M_RST ~> r_delay ~> power_3v3.lv
-
-    # MCU interface
-    u_wdt.WAKE ~ wake
-    u_wdt.DONE ~ done
-
-    # DONE pull-down: keeps DONE low when MCU is in reset/unpowered,
-    # preventing floating input from confusing TPL5010
-    r_done_pd = new Resistor
-    r_done_pd.resistance = 100kohm +/- 1%
-    r_done_pd.package = "0603"
-    done ~> r_done_pd ~> power_3v3.lv
-
-    # RSTn with pull-up
-    u_wdt.RSTn ~ rstn
-    rstn ~> r_wd_pu ~> power_3v3.hv
-
-    # === SCR latch circuit ===
-
-    # PNP inverter (Q2_INV): emitter → 3.3V, base via R_BASE/D_ISO
-    q2_inv.E ~ power_3v3.hv
-    q2_inv.B ~ pnp_base_node
-    q2_inv.C ~ pnp_coll_node
-
-    # PNP collector drives Q_WD gate + feedback
-    pnp_coll_node ~ q_wd.G
-    pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
-    pnp_coll_node ~> r_fb ~> latch_base_node
-
-    # D_ISO: cathode at RSTn, anode → R_BASE → PNP base
-    d_iso.K ~ rstn
-    d_iso.A ~ d_iso_anode_node
-    d_iso_anode_node ~> r_base ~> pnp_base_node
-
-    # NPN latch (Q_LATCH): collector → PNP base node, emitter → GND
-    q_latch.C ~ pnp_base_node
-    q_latch.E ~ power_3v3.lv
-    q_latch.B ~ latch_base_node
-
-    # PNP base-emitter pull-up (defines OFF state in normal operation)
-    pnp_base_node ~> r_pnp_base ~> power_3v3.hv
-
-    # Latch base pull-down (noise immunity)
-    latch_base_node ~> r_latch_pd ~> power_3v3.lv
-
-
---- FILE: elec/led.ato ---
-"""
-Status RGB LED: common-anode, MCU sinks current through resistors.
-
-  3.3V → LED anode
-  LED R cathode → R_R (680 ohm) → MCU GPIO (sink)
-  LED G cathode → R_G (200 ohm) → MCU GPIO (sink)
-  LED B cathode → R_B (220 ohm) → MCU GPIO (sink)
-"""
-
-#pragma experiment("BRIDGE_CONNECT")
-
-import Resistor
-import ElectricPower
-import Electrical
-
-from "parts/XINGLIGHT_XL_B1212RGBA_HF/XINGLIGHT_XL_B1212RGBA_HF.ato" import XINGLIGHT_XL_B1212RGBA_HF_package
-
-module StatusLED:
-    """Common-anode RGB LED with current-limiting resistors."""
-
-    # --- External interfaces ---
-    power = new ElectricPower
-    """3.3V supply (anode connection)."""
-
-    red = new Electrical
-    """MCU GPIO sink for red LED."""
-
-    green = new Electrical
-    """MCU GPIO sink for green LED."""
-
-    blue = new Electrical
-    """MCU GPIO sink for blue LED."""
-
-    # --- LED ---
-    led = new XINGLIGHT_XL_B1212RGBA_HF_package
-
-    # --- Current-limiting resistors ---
-    r_r = new Resistor
-    r_r.resistance = 680ohm +/- 1%
-    r_r.package = "0603"
-
-    r_g = new Resistor
-    r_g.resistance = 200ohm +/- 1%
-    r_g.package = "0603"
-
-    r_b = new Resistor
-    r_b.resistance = 220ohm +/- 1%
-    r_b.package = "0603"
-
-    # --- Wiring ---
-    # Anode to 3.3V
-    led.A ~ power.hv
-
-    # Cathodes through resistors to MCU GPIOs
-    led.R ~> r_r ~> red
-    led.G ~> r_g ~> green
-    led.B ~> r_b ~> blue
-
-
---- FILE: elec/connectors.ato ---
-"""
-Connectors: M8 upstream (J1) + 10-pin sensor header (J2) + shield cap.
-
-J1 (M8 4-pin A-coded):
-  Pin 1: 24V power input
-  Pin 2: RS-485 A (+)
-  Pin 3: GND
-  Pin 4: RS-485 B (-)
-  Shell: C5 (100nF) to GND
-
-J2 (KF2EDGV 10-pin 3.5mm):
-  Pin 1-2: Heater A/B (24V, non-polar)
-  Pin 3: Ground
-  Pin 4: Excitation (filtered 3.3V)
-  Pin 5-10: Data 1-6 (thermistors)
-"""
-
-import ElectricPower
-import Electrical
-
-from "parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato" import CAZN_M8_P4A_GPL_M8_JD_package
-from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
-from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
-
-module Connectors:
-    """M8 upstream connector, 10-pin sensor header, and shield cap."""
-
-    # --- External interfaces ---
-    power_24v = new ElectricPower
-    """24V raw power from M8 connector."""
-
-    rs485_a = new Electrical
-    """RS-485 A line."""
-
-    rs485_b = new Electrical
-    """RS-485 B line."""
-
-    heater_hi = new Electrical
-    """Heater positive terminal."""
-
-    heater_lo = new Electrical
-    """Heater negative terminal."""
-
-    excitation = new Electrical
-    """Filtered excitation output to sensor."""
-
-    thermistor_1 = new Electrical
-    thermistor_2 = new Electrical
-    thermistor_3 = new Electrical
-    thermistor_4 = new Electrical
-    thermistor_5 = new Electrical
-    thermistor_6 = new Electrical
-
-    # --- J1: M8 upstream connector ---
-    j1 = new CAZN_M8_P4A_GPL_M8_JD_package
-
-    j1.V24 ~ power_24v.hv
-    j1.GND ~ power_24v.lv
-    j1.RS485_A ~ rs485_a
-    j1.RS485_B ~ rs485_b
-
-    # Shield cap (100nF, blocks ground loop DC, passes HF EMI)
-    c5 = new YAGEO_CC0603KRX7R9BB104_package
-    j1.SHELL1 ~ c5.p1
-    c5.p2 ~ power_24v.lv
-    j1.SHELL2 ~ c5.p1
-
-    # --- J2: 10-pin sensor header ---
-    j2 = new Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
-
-    j2.HEATER_A ~ heater_hi
-    j2.HEATER_B ~ heater_lo
-    j2.GND ~ power_24v.lv
-    j2.EXCITATION ~ excitation
-    j2.DATA1 ~ thermistor_1
-    j2.DATA2 ~ thermistor_2
-    j2.DATA3 ~ thermistor_3
-    j2.DATA4 ~ thermistor_4
-    j2.DATA5 ~ thermistor_5
-    j2.DATA6 ~ thermistor_6
-
 
 --- FILE: riley_design.md ---
 # Sap Flux Sensor Adapter Board
@@ -1298,6 +2313,9 @@ MCU fires a 24V heater through an N-channel MOSFET for 1-2 second pulses (~0.6A)
 | R_FB | Latch Feedback | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | Q2_INV collector → Q_LATCH base. Provides positive feedback to sustain latch. 24µA base drive gives 8× margin over required 0.31mA collector sink. Same part as R_WD_PU. |
 | R_LATCH_PD | Latch Base Pulldown | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | Q_LATCH base to GND. Prevents noise from triggering latch when PNP is off. 1MΩ ≫ R_FB (100kΩ) so it doesn't interfere with trigger. |
 | R_PNP_BASE | PNP Base-Emitter Pull-up | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | PNP base to 3.3V (emitter). Defines OFF state when D_ISO is reverse-biased and Q_LATCH is off. Without this, PNP base floats → leakage/noise could cause spurious heater lockout. 140× margin over transistor leakage at 85°C. Same part as R_WD_PU. |
+| Q_ARM | Latch Arm FET | C8545 | CJ 2N7002 | 60V/115mA, SOT-23 | $0.014 | **Basic** | N-FET in series with R_FB. Breaks latch feedback loop until PGOOD charges arm_node. Prevents TPL5010 power-on reset (~60ms) from triggering permanent heater lockout at every boot. Same part as Q_WD. |
+| R_ARM | Arm Delay Resistor | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | PGOOD → arm_node charge resistor. τ = 1MΩ × 1µF = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max TPL5010 tRST = 3.6× margin. Same part as R_LATCH_PD. |
+| C_ARM | Arm Delay Cap | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.003 | **Basic** | Holds arm_node low during power-on, preventing latch feedback until RC charges past Q_ARM Vgs(th). Same part as C_EXC. |
 | R_DONE_PD | DONE Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | TPL5010 DONE pin to GND. Keeps DONE low when MCU is in reset/unpowered, preventing floating input from confusing the watchdog. Same part as R_WD_PU. |
 | C_WD | Watchdog Bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | TPL5010 VDD to GND decoupling. Same part as other 100nF caps. |
 
@@ -1313,25 +2331,33 @@ MCU timer ──→ R_GATE (1kΩ) ──→ Q1 gate ──→ R4 (10kΩ) ──�
                                    ↑
                               Q_WD drain
                               Q_WD source → GND
-                              Q_WD gate ←── Q2_INV collector ──→ R_FB (100kΩ) ──→ Q_LATCH base
-                                              ↑                                       ↑
-                                        R_WD_PD (10kΩ) → GND                  R_LATCH_PD (1MΩ) → GND
-                                        Q2_INV emitter → 3.3V                 Q_LATCH emitter → GND
+                              Q_WD gate ←── Q2_INV collector ──→ R_FB (100kΩ) ──→ Q_ARM ──→ Q_LATCH base
+                                              ↑                                     ↑            ↑
+                                        R_WD_PD (10kΩ) → GND                  arm_node    R_LATCH_PD (1MΩ) → GND
+                                        Q2_INV emitter → 3.3V                              Q_LATCH emitter → GND
                                         Q2_INV base ←── R_BASE (10kΩ) ←── D_ISO ←── RSTn
                                               ↑  ↑           (anode)    (cathode)      ↑
                                               |  R_PNP_BASE (100kΩ) → 3.3V
                                         Q_LATCH collector                        R_WD_PU (100kΩ) → 3.3V
                                                                                  TPL5010 RSTn (open-drain)
                                                                                  MCU NRST
+
+Latch arm circuit:
+  PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
+                            ↑
+                       Q_ARM gate
 ```
-Normal: RSTn HIGH → D_ISO reverse-biased → R_PNP_BASE holds PNP base at 3.3V → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power.
-Fault: RSTn LOW (200ms pulse) → D_ISO forward-biased → PNP ON → collector HIGH → R_FB drives NPN base (26µA) → NPN ON → pulls PNP base LOW via collector → **latched permanently**. D_ISO reverse-biased when latched → RSTn stays HIGH → MCU NRST is NOT held low — MCU boots normally and can report fault via RS-485. Heater stays locked out until power cycle.
+Power-on: PGOOD LOW → arm_node at 0V → Q_ARM OFF → R_FB can't reach Q_LATCH → latch disabled. PNP still activates during TPL5010 POR → Q_WD clamps gate (heater off during reset, good). After ~60ms, TPL5010 releases RSTn → PNP off → heater gate free. Then PGOOD goes HIGH → RC charges → after ≥361ms, Q_ARM turns on → latch armed.
+Normal: RSTn HIGH → D_ISO reverse-biased → R_PNP_BASE holds PNP base at 3.3V → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power. Q_ARM is on (armed) but no current flows.
+Fault: RSTn LOW → D_ISO forward-biased → PNP ON → collector HIGH → R_FB → Q_ARM (on) → Q_LATCH ON → pulls PNP base LOW → **latched permanently**. D_ISO reverse-biased when latched → RSTn stays HIGH → MCU NRST not held low — MCU boots and reports fault via RS-485. Heater locked out until power cycle.
 Latch power: 0.64mA from 3.3V (0.1mA from 24V battery). Only during fault — irrelevant.
 RSTn also connects to MCU NRST for belt-and-suspenders reset.
 
+**PGOOD-gated arming is critical:** Without the arm gate, the TPL5010 power-on reset (RSTn LOW for ~60ms at every boot, per datasheet section 7.3.1) would trigger the SCR latch, permanently locking out the heater before the MCU even boots. Q_ARM (N-FET in R_FB path) breaks the feedback loop until PGOOD charges arm_node through a 1MΩ/1µF RC (τ=1s). Worst-case arming delay is 361ms (Vgs(th)=1.0V) vs 100ms max tRST — 3.6× safety margin. All three arm components (2N7002, 1MΩ, 1µF) use existing BOM part numbers.
+
 **D_ISO is critical:** Without the isolation diode, Q_LATCH (when latched) pulls the PNP base to 0.2V. R_BASE (10kΩ) forms a voltage divider with R_WD_PU (100kΩ) → RSTn = 0.48V, which is below the STM32 NRST LOW threshold (~1.1V). The MCU would be stuck in permanent reset and unable to report the fault. D_ISO (1N4148WS) blocks this reverse current path. At -40°C with hFE=50, trigger still has 29× margin.
 
-**TPL5010 RSTn + SCR latch:** The TPL5010 RSTn output is a pulse (~200ms), not sustained. The cross-coupled PNP/NPN latch (Q2_INV + Q_LATCH) converts this pulse into a permanent hold: one RSTn LOW pulse triggers the latch, which keeps the PNP saturated and Q_WD gate clamped indefinitely — even after RSTn returns HIGH. The latch can only be cleared by a power cycle (removing battery/solar). D_ISO (1N4148WS, in series with R_BASE) isolates the latch from the RSTn/NRST net: when latched, D_ISO is reverse-biased, so the MCU still resets and boots normally — it can report the fault via RS-485, but cannot fire the heater until manually power-cycled. This is intentional: TPL5010 only fires when layers 1 (timer) and 2 (IWDG) have both failed, indicating a serious fault. Permanent lockout is the appropriate response.
+**TPL5010 RSTn + SCR latch:** The TPL5010 RSTn output is a pulse (~60ms typ, 100ms max), not sustained. The cross-coupled PNP/NPN latch (Q2_INV + Q_LATCH) converts this pulse into a permanent hold: one RSTn LOW pulse triggers the latch (when armed), which keeps the PNP saturated and Q_WD gate clamped indefinitely — even after RSTn returns HIGH. The latch can only be cleared by a power cycle (removing battery/solar). D_ISO (1N4148WS, in series with R_BASE) isolates the latch from the RSTn/NRST net: when latched, D_ISO is reverse-biased, so the MCU still resets and boots normally — it can report the fault via RS-485, but cannot fire the heater until manually power-cycled. This is intentional: TPL5010 only fires when layers 1 (timer) and 2 (IWDG) have both failed, indicating a serious fault. Permanent lockout is the appropriate response.
 
 ### ADC Input Protection
 
@@ -1619,157 +2645,7 @@ Adapter PCB between an East30 sap flux sensor probe (6 thermistor channels + hea
 - JLCPCB 4-layer specs: min 0.127mm trace/clearance, 0.3mm via drill, 0.2mm annular ring
 
 
---- FILE: memory/atopile.md (atopile syntax reference + gotchas) ---
-# Atopile Best Practices & Learnings
-
-## Documentation Links
-- **Official docs:** https://docs.atopile.io
-- **LLM-friendly full docs:** https://docs.atopile.io/llms-full.txt (component API, syntax, patterns)
-- **LLM index:** https://docs.atopile.io/llms.txt
-- **GitHub:** https://github.com/atopile/atopile
-- **Package registry:** https://packages.atopile.io
-- **Quickstart:** https://docs.atopile.io/atopile/quickstart
-
-## Installation
-- Requires Python 3.14+ for v0.14.x (`uv tool install atopile --python 3.14`)
-- v0.12.x works with Python 3.13 but is outdated
-- KiCad plugin auto-installs on first run; restart KiCad after
-
-## Project Structure
-```
-elec/
-  ato.yaml              # Project manifest (entry point, deps, paths)
-  main.ato              # Top-level module
-  protection.ato        # Subsystem modules
-  buck.ato
-  ...
-  parts/                # Imported LCSC parts (ato create part)
-    FTR_SMAJ33A/
-      FTR_SMAJ33A.ato
-      *.kicad_mod
-      *.kicad_sym
-      *.step
-  layouts/
-    default/
-      default.kicad_pcb # Generated by ato build, edited in KiCad for layout
-  build/                # Build artifacts (BOM, reports, caches)
-```
-
-## Part Import (`ato create part`)
-- `ato create part -s "C315903" -a -p .` — search by LCSC, auto-accept, specify project dir
-- Creates `parts/<MFR_PartName>/` with .ato + footprint + symbol + 3D model
-- **Unnamed pins:** Some parts (fuses, simple passives) generate bare `pin N` without signal names.
-  You CANNOT reference these as `component.pin 1` — the space breaks the parser.
-  **Fix:** Edit the generated .ato to add signal names: `signal p1 ~ pin 1`
-- **Designator prefix:** Auto-generated parts may get wrong prefix (e.g., fuse gets "U" instead of "F").
-  Can edit the trait: `trait has_designator_prefix<prefix="F">`
-- Imports footprint + 3D model from EasyEDA (same source as `just add <LCSC>` / JLC2KiCad)
-
-## Auto-Pick Passives
-- Resistors: `r1.resistance = 10kohm +/- 1%` with optional `r1.package = "0603"`
-- Capacitors: `c1.capacitance = 100nF +/- 20%` with optional `c1.package = "0603"`
-- Solver searches JLCPCB at build time and picks matching parts
-- **Voltage ratings:** Not well-documented for auto-pick. For specific voltage (e.g., 50V caps),
-  safer to use `lcsc_id = "C14663"` or manual pick to ensure correct rating.
-
-## Language Syntax Quick Reference
-```ato
-import Resistor, Capacitor, ElectricPower, Electrical, I2C
-from "path/to/part.ato" import SomeComponent_package
-
-module MyModule:
-    """Docstring"""
-    power = new ElectricPower       # Interface with .hv and .lv
-    node = new Electrical           # Single electrical node
-    r1 = new Resistor
-    caps = new Capacitor[4]         # Array
-
-    # Connect same-type interfaces
-    power.hv ~ r1.unnamed[0]       # Unnamed pin access
-    r1.p1 ~ some_signal            # Named signal access
-    power_a ~ power_b              # Connects .hv↔.hv and .lv↔.lv
-
-    # Bridge connect (series component between two nodes)
-    #pragma experiment("BRIDGE_CONNECT")
-    power.hv ~> resistor ~> power.lv
-
-    # For loops
-    #pragma experiment("FOR_LOOP")
-    for cap in caps:
-        cap.capacitance = 100nF +/- 20%
-
-    # Assertions (checked every build)
-    assert power.voltage within 3V to 3.6V
-```
-
-## Key Interfaces
-- `ElectricPower` — .hv (high voltage), .lv (low voltage/ground)
-- `Electrical` — single node (like a wire/net)
-- `ElectricSignal` — .line (signal), .reference (ElectricPower for return)
-- `I2C` — .sda, .scl (ElectricLogic), .power (ElectricPower)
-- `RS485HalfDuplex` — .a, .b (differential pair), .power
-- `UART` — .tx, .rx
-- `SWD` — .swdio, .swclk
-
-## Registry Packages (available for this project)
-- `atopile/ti-ads1115` — ADS1115 with I2C, address config, decoupling, ALERT pull-up
-- `atopile/maxlinear-sp3485` — SP3485 with UART/RS-485 interfaces
-- `atopile/microchip-24lc32` — 24LC32 EEPROM (pinout similar to CAT24C32)
-- Install: `ato add atopile/ti-ads1115`
-
-## Build & Verify
-- `ato build` — compile, pick parts, generate PCB
-- `ato build --open` — build then open KiCad
-- Assertions are checked every build (schematic-level DRC)
-- KiCad DRC is separate (layout-level: clearances, trace widths, etc.)
-- BOM output: `build/builds/default/default.bom.csv` (JLCPCB format)
-
-## Gotchas Discovered
-1. `f1.pin 1` syntax error — can't use dot notation on bare pins. Add signal names.
-2. Fuse got "U" prefix instead of "F" — auto-generated designators may be wrong.
-3. `ElectricPower` connects both .hv and .lv when you do `a ~ b`. Don't double-connect.
-4. Build outputs go to `build/` (gitignored). PCB layout goes to `layouts/` (tracked).
-5. The `#pragma experiment()` directives must be at file top level, before any module definitions.
-6. ato.yaml `requires-atopile` uses semver — `"^0.14.0"` allows 0.14.x.
-7. **Addressor address lines:** Do NOT manually wire `addressor.address_lines[0].line ~ power.hv`
-   to set an I2C address. The Addressor internally connects the line to GND as a default —
-   manually connecting to VDD creates a VDD↔GND short. Instead, override the address value:
-   `adc2.addressor.address = 0x49`. The Addressor handles the physical ADDR pin wiring.
-8. **Registry package imports:** Use full path: `from "atopile/ti-ads1115/ti-ads1115.ato" import TI_ADS1115`.
-   Not just `from "ti-ads1115.ato"`. The `.ato/modules/` prefix is implicit.
-9. **I2C bus sharing:** When connecting multiple devices to a shared I2C bus, connect SDA/SCL
-   lines directly: `sda ~ adc1.i2c.sda.line`. Don't use interface-level `i2c ~ adc1.i2c` as
-   it propagates power references that may cause merge issues.
-10. **Generic Resistor has no p1/p2:** You CANNOT do `r.p1 ~ node`. Use bridge connect `~>`:
-    `node_a ~> resistor ~> node_b`. Requires `#pragma experiment("BRIDGE_CONNECT")`.
-11. **EasyEDA RGB LED pins:** XL-B1212RGBA-HF symbol has all cathodes as "C" — they're
-    shorted in the symbol. Must manually rename pins: R (pin 1), A (pin 2), G (pin 3), B (pin 4).
-12. **Registry packages add their own pull-ups/decoupling:** Each ADS1115 adds 10k I2C pull-ups +
-    100nF decoupling (0402). SP3485 adds 100nF decoupling (0402). With 2 ADS1115 devices,
-    effective I2C pull-up = 5kΩ (2x 10k in parallel). Don't add external pull-ups on top.
-13. **ElectricLogic for open-drain:** Use `ElectricLogic` with `.line` and `.reference` for
-    open-drain signals (PGOOD, ALERT). Pull-up via bridge connect: `signal.line ~> r_pu ~> power.hv`.
-14. **EEPROM WP pin:** Tie to GND for write-enabled: `eeprom.write_protect.line ~ power.lv`.
-
-## Experimental Features Needed
-- `BRIDGE_CONNECT` — for `~>` series connections (resistor in series between nodes)
-- `FOR_LOOP` — for iterating over arrays (`for cap in caps:`)
-- `TRAITS` — auto-generated parts already use this
-
-## File Organization Strategy
-One .ato file per subsystem module:
-- `protection.ato` — InputProtection (PTC + TVS + Schottky)
-- `buck.ato` — BuckConverter (LM5165Y + passives)
-- `mcu.ato` — MCU (STM32G0B1 + decoupling + BOOT0 + NRST + ferrite)
-- `adc.ato` — ADCFrontEnd (2x ADS1115 + input protection + excitation filter)
-- `rs485.ato` — RS485Bus (SP3485 + termination + TVS + boot pullups)
-- `heater.ato` — HeaterDriver (MOSFET + gate + flyback + watchdog + latch)
-- `connectors.ato` — Connectors (M8 + 10-pin header + shield cap)
-- `led.ato` — StatusLED (RGB LED + resistors)
-- `main.ato` — SapFluxAdapter (top-level wiring)
-
-
---- FILE: atopile_llms_full.txt (official atopile component API docs) ---
+--- FILE: atopile_llms_full.txt ---
 # Battery
 Source: https://docs.atopile.io/atopile/api-reference/components/battery
 
@@ -10220,3 +11096,151 @@ In the [tutorial](./essentials/1-the-ato-language) we continue with a real circu
 
 
 
+--- FILE: memory/atopile.md ---
+# Atopile Best Practices & Learnings
+
+## Documentation Links
+- **Official docs:** https://docs.atopile.io
+- **LLM-friendly full docs:** https://docs.atopile.io/llms-full.txt (component API, syntax, patterns)
+- **LLM index:** https://docs.atopile.io/llms.txt
+- **GitHub:** https://github.com/atopile/atopile
+- **Package registry:** https://packages.atopile.io
+- **Quickstart:** https://docs.atopile.io/atopile/quickstart
+
+## Installation
+- Requires Python 3.14+ for v0.14.x (`uv tool install atopile --python 3.14`)
+- v0.12.x works with Python 3.13 but is outdated
+- KiCad plugin auto-installs on first run; restart KiCad after
+
+## Project Structure
+```
+elec/
+  ato.yaml              # Project manifest (entry point, deps, paths)
+  main.ato              # Top-level module
+  protection.ato        # Subsystem modules
+  buck.ato
+  ...
+  parts/                # Imported LCSC parts (ato create part)
+    FTR_SMAJ33A/
+      FTR_SMAJ33A.ato
+      *.kicad_mod
+      *.kicad_sym
+      *.step
+  layouts/
+    default/
+      default.kicad_pcb # Generated by ato build, edited in KiCad for layout
+  build/                # Build artifacts (BOM, reports, caches)
+```
+
+## Part Import (`ato create part`)
+- `ato create part -s "C315903" -a -p .` — search by LCSC, auto-accept, specify project dir
+- Creates `parts/<MFR_PartName>/` with .ato + footprint + symbol + 3D model
+- **Unnamed pins:** Some parts (fuses, simple passives) generate bare `pin N` without signal names.
+  You CANNOT reference these as `component.pin 1` — the space breaks the parser.
+  **Fix:** Edit the generated .ato to add signal names: `signal p1 ~ pin 1`
+- **Designator prefix:** Auto-generated parts may get wrong prefix (e.g., fuse gets "U" instead of "F").
+  Can edit the trait: `trait has_designator_prefix<prefix="F">`
+- Imports footprint + 3D model from EasyEDA (same source as `just add <LCSC>` / JLC2KiCad)
+
+## Auto-Pick Passives
+- Resistors: `r1.resistance = 10kohm +/- 1%` with optional `r1.package = "0603"`
+- Capacitors: `c1.capacitance = 100nF +/- 20%` with optional `c1.package = "0603"`
+- Solver searches JLCPCB at build time and picks matching parts
+- **Voltage ratings:** Not well-documented for auto-pick. For specific voltage (e.g., 50V caps),
+  safer to use `lcsc_id = "C14663"` or manual pick to ensure correct rating.
+
+## Language Syntax Quick Reference
+```ato
+import Resistor, Capacitor, ElectricPower, Electrical, I2C
+from "path/to/part.ato" import SomeComponent_package
+
+module MyModule:
+    """Docstring"""
+    power = new ElectricPower       # Interface with .hv and .lv
+    node = new Electrical           # Single electrical node
+    r1 = new Resistor
+    caps = new Capacitor[4]         # Array
+
+    # Connect same-type interfaces
+    power.hv ~ r1.unnamed[0]       # Unnamed pin access
+    r1.p1 ~ some_signal            # Named signal access
+    power_a ~ power_b              # Connects .hv↔.hv and .lv↔.lv
+
+    # Bridge connect (series component between two nodes)
+    #pragma experiment("BRIDGE_CONNECT")
+    power.hv ~> resistor ~> power.lv
+
+    # For loops
+    #pragma experiment("FOR_LOOP")
+    for cap in caps:
+        cap.capacitance = 100nF +/- 20%
+
+    # Assertions (checked every build)
+    assert power.voltage within 3V to 3.6V
+```
+
+## Key Interfaces
+- `ElectricPower` — .hv (high voltage), .lv (low voltage/ground)
+- `Electrical` — single node (like a wire/net)
+- `ElectricSignal` — .line (signal), .reference (ElectricPower for return)
+- `I2C` — .sda, .scl (ElectricLogic), .power (ElectricPower)
+- `RS485HalfDuplex` — .a, .b (differential pair), .power
+- `UART` — .tx, .rx
+- `SWD` — .swdio, .swclk
+
+## Registry Packages (available for this project)
+- `atopile/ti-ads1115` — ADS1115 with I2C, address config, decoupling, ALERT pull-up
+- `atopile/maxlinear-sp3485` — SP3485 with UART/RS-485 interfaces
+- `atopile/microchip-24lc32` — 24LC32 EEPROM (pinout similar to CAT24C32)
+- Install: `ato add atopile/ti-ads1115`
+
+## Build & Verify
+- `ato build` — compile, pick parts, generate PCB
+- `ato build --open` — build then open KiCad
+- Assertions are checked every build (schematic-level DRC)
+- KiCad DRC is separate (layout-level: clearances, trace widths, etc.)
+- BOM output: `build/builds/default/default.bom.csv` (JLCPCB format)
+
+## Gotchas Discovered
+1. `f1.pin 1` syntax error — can't use dot notation on bare pins. Add signal names.
+2. Fuse got "U" prefix instead of "F" — auto-generated designators may be wrong.
+3. `ElectricPower` connects both .hv and .lv when you do `a ~ b`. Don't double-connect.
+4. Build outputs go to `build/` (gitignored). PCB layout goes to `layouts/` (tracked).
+5. The `#pragma experiment()` directives must be at file top level, before any module definitions.
+6. ato.yaml `requires-atopile` uses semver — `"^0.14.0"` allows 0.14.x.
+7. **Addressor address lines:** Do NOT manually wire `addressor.address_lines[0].line ~ power.hv`
+   to set an I2C address. The Addressor internally connects the line to GND as a default —
+   manually connecting to VDD creates a VDD↔GND short. Instead, override the address value:
+   `adc2.addressor.address = 0x49`. The Addressor handles the physical ADDR pin wiring.
+8. **Registry package imports:** Use full path: `from "atopile/ti-ads1115/ti-ads1115.ato" import TI_ADS1115`.
+   Not just `from "ti-ads1115.ato"`. The `.ato/modules/` prefix is implicit.
+9. **I2C bus sharing:** When connecting multiple devices to a shared I2C bus, connect SDA/SCL
+   lines directly: `sda ~ adc1.i2c.sda.line`. Don't use interface-level `i2c ~ adc1.i2c` as
+   it propagates power references that may cause merge issues.
+10. **Generic Resistor has no p1/p2:** You CANNOT do `r.p1 ~ node`. Use bridge connect `~>`:
+    `node_a ~> resistor ~> node_b`. Requires `#pragma experiment("BRIDGE_CONNECT")`.
+11. **EasyEDA RGB LED pins:** XL-B1212RGBA-HF symbol has all cathodes as "C" — they're
+    shorted in the symbol. Must manually rename pins: R (pin 1), A (pin 2), G (pin 3), B (pin 4).
+12. **Registry packages add their own pull-ups/decoupling:** Each ADS1115 adds 10k I2C pull-ups +
+    100nF decoupling (0402). SP3485 adds 100nF decoupling (0402). With 2 ADS1115 devices,
+    effective I2C pull-up = 5kΩ (2x 10k in parallel). Don't add external pull-ups on top.
+13. **ElectricLogic for open-drain:** Use `ElectricLogic` with `.line` and `.reference` for
+    open-drain signals (PGOOD, ALERT). Pull-up via bridge connect: `signal.line ~> r_pu ~> power.hv`.
+14. **EEPROM WP pin:** Tie to GND for write-enabled: `eeprom.write_protect.line ~ power.lv`.
+
+## Experimental Features Needed
+- `BRIDGE_CONNECT` — for `~>` series connections (resistor in series between nodes)
+- `FOR_LOOP` — for iterating over arrays (`for cap in caps:`)
+- `TRAITS` — auto-generated parts already use this
+
+## File Organization Strategy
+One .ato file per subsystem module:
+- `protection.ato` — InputProtection (PTC + TVS + Schottky)
+- `buck.ato` — BuckConverter (LM5165Y + passives)
+- `mcu.ato` — MCU (STM32G0B1 + decoupling + BOOT0 + NRST + ferrite)
+- `adc.ato` — ADCFrontEnd (2x ADS1115 + input protection + excitation filter)
+- `rs485.ato` — RS485Bus (SP3485 + termination + TVS + boot pullups)
+- `heater.ato` — HeaterDriver (MOSFET + gate + flyback + watchdog + latch)
+- `connectors.ato` — Connectors (M8 + 10-pin header + shield cap)
+- `led.ato` — StatusLED (RGB LED + resistors)
+- `main.ato` — SapFluxAdapter (top-level wiring)
