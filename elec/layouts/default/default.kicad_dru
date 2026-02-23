@@ -1,0 +1,100 @@
+(version 1)
+
+# =============================================================================
+# JLCPCB 4-Layer Design Rules for KiCad 9
+# Board: saptest1 sap flux sensor adapter
+# Stackup: JLC7628 (1oz outer / 0.5oz inner, 1.6mm FR4)
+#
+# Sources:
+#   https://jlcpcb.com/capabilities/pcb-capabilities
+#   https://github.com/labtroll/KiCad-DesignRules
+# =============================================================================
+
+# --- Trace width minimums ---
+# Outer layers (1oz copper): 0.127mm (5 mil)
+# Inner layers (0.5oz copper): 0.09mm (3.5 mil)
+
+(rule "Minimum Trace Width - Outer"
+    (layer outer)
+    (constraint track_width (min 0.127mm))
+    (condition "A.Type == 'track'"))
+
+(rule "Minimum Trace Width - Inner"
+    (layer inner)
+    (constraint track_width (min 0.09mm))
+    (condition "A.Type == 'track'"))
+
+# --- Copper clearance ---
+
+(rule "Minimum Copper Clearance"
+    (constraint clearance (min 0.127mm)))
+
+# --- Via drill size ---
+
+(rule "Via Minimum Drill"
+    (condition "A.Type == 'via'")
+    (constraint hole_size (min 0.3mm)))
+
+# --- PTH rules ---
+
+(rule "PTH Minimum Hole Size"
+    (condition "A.Type == 'pad' && A.isPlated()")
+    (constraint hole_size (min 0.2mm)))
+
+(rule "PTH Pad Annular Ring"
+    (condition "A.Type == 'pad' && A.isPlated()")
+    (constraint annular_width (min 0.25mm)))
+
+# --- NPTH rules ---
+
+(rule "NPTH Minimum Hole Size"
+    (condition "A.Type == 'pad' && !A.isPlated()")
+    (constraint hole_size (min 0.5mm)))
+
+# --- Hole-to-hole clearances ---
+
+(rule "Hole to Hole - Different Nets"
+    (condition "A.Net != B.Net")
+    (constraint hole_to_hole (min 0.5mm)))
+
+(rule "Hole to Hole - Same Net"
+    (condition "A.Net == B.Net")
+    (constraint hole_to_hole (min 0.254mm)))
+
+# --- Via clearances ---
+
+(rule "Via to Track Clearance"
+    (condition "A.Type == 'via' && B.Type == 'track'")
+    (constraint hole_clearance (min 0.254mm)))
+
+# --- PTH pad clearances ---
+
+(rule "PTH to Track Clearance"
+    (condition "A.isPlated() && A.Type != 'via' && B.Type == 'track'")
+    (constraint hole_clearance (min 0.33mm)))
+
+# --- Board edge clearance ---
+
+(rule "Copper to Board Edge"
+    (constraint edge_clearance (min 0.3mm)))
+
+# --- Silkscreen rules ---
+
+(rule "Silkscreen Minimum Text Height"
+    (layer "F.Silkscreen")
+    (constraint text_height (min 1.0mm)))
+
+(rule "Silkscreen Minimum Text Height Back"
+    (layer "B.Silkscreen")
+    (constraint text_height (min 1.0mm)))
+
+(rule "Silkscreen Minimum Stroke Width"
+    (layer "F.Silkscreen")
+    (constraint text_thickness (min 0.15mm)))
+
+(rule "Silkscreen Minimum Stroke Width Back"
+    (layer "B.Silkscreen")
+    (constraint text_thickness (min 0.15mm)))
+
+(rule "Silkscreen to Pad Clearance"
+    (constraint silk_clearance (min 0.14mm)))
