@@ -346,15 +346,19 @@
     "netclass_patterns": [
       {
         "netclass": "Power_3V3",
-        "pattern": "hv"
+        "pattern": "V3V3"
+      },
+      {
+        "netclass": "Power_3V3",
+        "pattern": "VDDA_FILT"
       },
       {
         "netclass": "Power_24V",
-        "pattern": "power_in-hv"
+        "pattern": "V24_RAW"
       },
       {
         "netclass": "Power_24V",
-        "pattern": "power_out-hv"
+        "pattern": "V24_PROT"
       },
       {
         "netclass": "Power_24V",
@@ -363,10 +367,6 @@
       {
         "netclass": "Power_24V",
         "pattern": "node_a"
-      },
-      {
-        "netclass": "Power_3V3",
-        "pattern": "mcu-1"
       },
       {
         "netclass": "Analog",
@@ -394,7 +394,7 @@
       },
       {
         "netclass": "GND",
-        "pattern": "lv"
+        "pattern": "GND"
       }
     ]
   },

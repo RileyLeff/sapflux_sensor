@@ -67,6 +67,7 @@ module MCU:
     # === Power path: 3.3V -> ferrite bead -> MCU pins ===
     power.hv ~ fb_vdda.p1
     signal VDDA_FILT ~ fb_vdda.p2
+    VDDA_FILT.override_net_name = "VDDA_FILT"
 
     # MCU power pins (all on filtered side)
     VDDA_FILT ~ package.VDD_VDDA

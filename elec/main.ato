@@ -167,3 +167,19 @@ module SapFluxAdapter:
     mcu.package.PC7 ~ buck.pgood.line
     buck.pgood.line ~> r_pgood ~> power_3v3.hv
     buck.pgood.line ~ heater.pgood
+
+    # === Net name overrides (readable names in KiCad) ===
+    # Workaround for atopile bug: override_net_name on ElectricPower.hv/.lv
+    # is shadowed by the class's pre-existing SUGGESTED trait (try_get_trait
+    # returns first match by insertion order). Standalone signals with
+    # override_net_name are found by the net naming algorithm's hierarchy walk.
+    signal V3V3 ~ power_3v3.hv
+    V3V3.override_net_name = "V3V3"
+    signal GND ~ power_3v3.lv
+    GND.override_net_name = "GND"
+    signal V24_RAW ~ power_24v_raw.hv
+    V24_RAW.override_net_name = "V24_RAW"
+    signal V24_PROT ~ power_24v_protected.hv
+    V24_PROT.override_net_name = "V24_PROT"
+    sda.override_net_name = "SDA"
+    scl.override_net_name = "SCL"
