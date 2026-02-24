@@ -345,12 +345,16 @@
     "netclass_assignments": null,
     "netclass_patterns": [
       {
-        "netclass": "Power_24V",
+        "netclass": "Power_3V3",
         "pattern": "hv"
       },
       {
         "netclass": "Power_24V",
         "pattern": "power_in-hv"
+      },
+      {
+        "netclass": "Power_24V",
+        "pattern": "power_out-hv"
       },
       {
         "netclass": "Power_24V",
@@ -362,7 +366,7 @@
       },
       {
         "netclass": "Power_3V3",
-        "pattern": "power_out-hv"
+        "pattern": "mcu-1"
       },
       {
         "netclass": "Analog",

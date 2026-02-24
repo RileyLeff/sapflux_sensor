@@ -60,10 +60,11 @@ module Connectors:
     j1.RS485_B ~ rs485_b
 
     # Shield cap (100nF, blocks ground loop DC, passes HF EMI)
+    signal M8_SHIELD ~ j1.SHELL1
     c5 = new YAGEO_CC0603KRX7R9BB104_package
-    j1.SHELL1 ~ c5.p1
+    M8_SHIELD ~ c5.p1
     c5.p2 ~ power_24v.lv
-    j1.SHELL2 ~ c5.p1
+    j1.SHELL2 ~ M8_SHIELD
 
     # --- J2: 10-pin sensor header ---
     j2 = new Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package

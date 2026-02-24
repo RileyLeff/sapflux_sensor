@@ -90,7 +90,9 @@ module RS485Bus:
     c_term = new YAGEO_CC0603KRX7R9BB104_package
     """100nF 50V. Blocks DC, terminates signal edges. |Z| = 123 ohm at 115200 baud."""
 
-    rs485_a ~> r_term ~> c_term.p1
+    signal RS485_TERM
+    rs485_a ~> r_term ~> RS485_TERM
+    RS485_TERM ~ c_term.p1
     c_term.p2 ~ rs485_b
 
     # --- SM712 TVS (asymmetric dual, purpose-built for RS-485) ---

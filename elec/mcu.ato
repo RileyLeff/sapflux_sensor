@@ -45,9 +45,7 @@ module MCU:
     fb_vdda = new Sunlord_GZ1608D601TF_package
     """600 ohm @ 100MHz. Filters digital noise from MCU power pins."""
 
-    # --- Internal filtered rail node ---
-    vdd_filtered = new Electrical
-    """MCU-side of ferrite bead. All MCU power pins connect here."""
+    # --- Internal filtered rail node (named signal for readable net name) ---
 
     # --- Bulk cap on VDDA (1uF, after ferrite bead) ---
     c_vdda = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
@@ -68,29 +66,29 @@ module MCU:
 
     # === Power path: 3.3V -> ferrite bead -> MCU pins ===
     power.hv ~ fb_vdda.p1
-    fb_vdda.p2 ~ vdd_filtered
+    signal VDDA_FILT ~ fb_vdda.p2
 
     # MCU power pins (all on filtered side)
-    vdd_filtered ~ package.VDD_VDDA
-    vdd_filtered ~ package.VBAT
-    vdd_filtered ~ package.VREFpos
+    VDDA_FILT ~ package.VDD_VDDA
+    VDDA_FILT ~ package.VBAT
+    VDDA_FILT ~ package.VREFpos
     power.lv ~ package.VSS_VSSA
 
     # === Bypass caps (after ferrite bead) ===
-    vdd_filtered ~ c_mcu1.p1
+    VDDA_FILT ~ c_mcu1.p1
     c_mcu1.p2 ~ power.lv
 
-    vdd_filtered ~ c_mcu2.p1
+    VDDA_FILT ~ c_mcu2.p1
     c_mcu2.p2 ~ power.lv
 
-    vdd_filtered ~ c_mcu3.p1
+    VDDA_FILT ~ c_mcu3.p1
     c_mcu3.p2 ~ power.lv
 
-    vdd_filtered ~ c_mcu4.p1
+    VDDA_FILT ~ c_mcu4.p1
     c_mcu4.p2 ~ power.lv
 
     # === VDDA bulk cap (after ferrite bead) ===
-    vdd_filtered ~ c_vdda.p1
+    VDDA_FILT ~ c_vdda.p1
     c_vdda.p2 ~ power.lv
 
     # === NRST ===
@@ -99,4 +97,5 @@ module MCU:
     c_nrst.p2 ~ power.lv
 
     # === BOOT0 pull-down ===
-    package.PA14_BOOT0 ~> r_boot0 ~> power.lv
+    signal BOOT0 ~ package.PA14_BOOT0
+    BOOT0 ~> r_boot0 ~> power.lv
