@@ -1,0 +1,7 @@
+{
+  "enabledMcpjsonServers": [
+    "kicad",
+    "pcbparts"
+  ],
+  "enableAllProjectMcpServers": true
+}
