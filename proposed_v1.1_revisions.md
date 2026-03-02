@@ -251,7 +251,7 @@ parallel = 5.25 ohm = 4.57 A total.
 **Thermistor/signal block (36-40 pin):** dual or triple-row connector.
 - 32 thermistor inputs
 - GND (thermistor ground return)
-- Excitation (GPIO-switched 3.3V via 560 ohm filter)
+- Excitation (GPIO-switched 3.3V via 270 ohm filter)
 - Spare pins for: unused GPIOs, SPI bus, I2C bus, etc.
 
 (Exact connector part TBD -- see Open Items.)
@@ -278,10 +278,15 @@ existing 24V rail, dropping Rds(on) to spec-sheet values.
                   R_GATE_PULL (100k)
 V24_PROT ────────┬──────────────────── Q1 Gate
                  │
-                 ├── D_ZENER (10V) ──── GND
-                 │
-            Q_DRIVER (2N7002)
-                 │  Drain
+                 ├── D_ZENER (10V) ──┐
+                 │                   │
+              Q_PGOOD (2N7002)       │
+                 │  Drain            │
+                 │  Source ── GND    │
+                 │  Gate ── PGOOD (PC7, open-drain + 10k pull-up)
+                 │                   │
+            Q_DRIVER (2N7002)        │
+                 │  Drain ───────────┘
                  │
                  │  Source ── GND
                  │
@@ -290,28 +295,33 @@ V24_PROT ────────┬──────────────�
                  └── R_GATE_PD (100k) ── GND
 ```
 
-**How it works:**
+**How it works (normal operation, PGOOD = HIGH):**
 1. PA8 HIGH → Q_DRIVER ON → pulls Q1 gate to GND → **heater OFF**
 2. PA8 LOW → Q_DRIVER OFF → R_GATE_PULL pulls Q1 gate toward 24V →
-   D_ZENER clamps at 10V → **heater ON** with full Rds(on) spec
+   D_ZENER clamps at 10V (via Q_PGOOD, which is ON because PGOOD
+   is HIGH) → **heater ON** with full Rds(on) spec
 
 **Inverted logic (PA8 LOW = heater ON).** During normal operation,
 firmware drives PA8 HIGH to keep heater off, then briefly drives
 PA8 LOW for the 2-second heater pulse.
 
-**Boot behavior:** During MCU reset, PA8 is high-Z. R_GATE_PD
-holds Q_DRIVER gate at GND → Q_DRIVER off → R_GATE_PULL charges
-Q1 gate to 10V → **heater is briefly ON for ~2 ms** until MCU
-boots and drives PA8 HIGH. Gate reaches Vgs(th) in ~49 us (100k x
-3nF), well before the MCU initializes (~2 ms).
+**PGOOD gating eliminates boot glitch:** Q_PGOOD is in series with
+D_ZENER. Until the buck converter's output is stable and PGOOD goes
+HIGH, Q_PGOOD is OFF → R_GATE_PULL cannot pull Q1 gate above GND →
+**heater stays OFF during boot**. Sequence:
 
-**Why this is acceptable:** 2 ms at 4.57A into 8 heater needles
-deposits 0.027 J per needle → 0.027°C temperature rise per boot.
-Thermally negligible. The 4-layer safety system (timer, IWDG,
-TPL5010 + SCR latch, thermistor interlock) handles real faults.
-A non-inverting high-side gate driver would avoid this glitch but
-adds complexity (charge pump or P-FET level shifter) for zero
-practical benefit.
+1. Power applied. V24_PROT rises. Buck starts up.
+2. PGOOD is LOW (open-drain, pulled up by 10k to 3.3V — but 3.3V
+   doesn't exist yet). Q_PGOOD OFF. Q1 gate stays at 0V.
+3. Buck output reaches regulation. PGOOD goes HIGH (~3.3V).
+4. MCU boots (~2 ms). Firmware drives PA8 HIGH → Q_DRIVER ON →
+   Q1 gate held at GND. Heater OFF.
+5. Only after firmware explicitly drives PA8 LOW can heater turn ON.
+
+**Zero boot glitch.** The heater never sees power during startup
+because PGOOD gates the pull-up path. This is strictly better than
+the original design (which had a ~2 ms heater-ON glitch at every
+boot).
 
 **MCU crash behavior:** If firmware locks up with PA8 LOW (heater
 stuck on), the TPL5010 watchdog fires within 9.6 seconds, the SCR
@@ -321,12 +331,14 @@ latch easily overrides R_GATE_PULL (100k): Q_WD sinks only
 
 **Parts:**
 - Q_DRIVER: 2N7002 (C8545, already in BOM) -- N-channel, SOT-23
+- Q_PGOOD: 2N7002 (C8545, already in BOM) -- gates the pull-up path
 - D_ZENER: 10V zener, SOT-23 or SOD-323 (part TBD -- see Open Items)
 - R_GATE_PULL: 100k (C25803, already in BOM)
 - R_GATE_DRV: 10k (C25804, already in BOM)
 - R_GATE_PD: 100k (C25803, already in BOM)
 
-Net new unique parts: 1 (zener diode). All resistors are existing values.
+Net new unique parts: 1 (zener diode). Q_PGOOD uses existing 2N7002
+(C8545). All resistors are existing values.
 
 ### MOSFET upgrade
 
@@ -887,13 +899,14 @@ PC6, PC7, PC13, PC14, PC15 (no PC0-PC5 or PC8-PC12) and PD0-PD3
 EXC_B eliminated (single excitation on PC6). All with appropriate
 boot-state pull resistors.
 
-### Gate driver boot glitch: documented and accepted
+### Gate driver boot glitch: eliminated by PGOOD gating
 
-Heater is briefly ON (~2 ms) during every MCU boot/reset until
-firmware asserts PA8 HIGH. Thermally negligible (0.027°C per needle
-per boot). Accurate behavior now documented in Section 4. A non-
-inverting topology would avoid this but adds complexity for zero
-practical benefit given the 4-layer safety system.
+Originally the heater was briefly ON (~2 ms) during every MCU
+boot/reset. External review flagged repeated brown-out cycling risk
+and suggested PGOOD-gating the pull-up path. Solution: Q_PGOOD
+(2N7002) in series with D_ZENER, gate driven by PGOOD. Until the
+buck output is stable, Q_PGOOD is OFF and R_GATE_PULL cannot charge
+Q1 gate. Zero boot glitch, zero added cost (uses existing 2N7002).
 
 ---
 
