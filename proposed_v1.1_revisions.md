@@ -323,11 +323,26 @@ because PGOOD gates the pull-up path. This is strictly better than
 the original design (which had a ~2 ms heater-ON glitch at every
 boot).
 
-**MCU crash behavior:** If firmware locks up with PA8 LOW (heater
-stuck on), the TPL5010 watchdog fires within 9.6 seconds, the SCR
-latch engages, and Q_WD pulls Q1 gate to GND permanently. The
-latch easily overrides R_GATE_PULL (100k): Q_WD sinks only
-0.1 mA, pulling gate to ~0.5 mV.
+**MCU crash behavior (SCR latch kill path):** If firmware locks up
+with PA8 LOW (heater stuck on), the TPL5010 watchdog fires within
+9.6 seconds. The kill sequence:
+
+1. TPL5010 asserts RST (active low) on MCU NRST pin
+2. D_ISO (1N4148WS) blocks RST from reaching the SCR latch directly
+   (latch only triggers through the watchdog path, not MCU resets)
+3. Q_LATCH (MMBT3904 NPN + SS8550 PNP cross-coupled) latches ON
+4. Q_WD (2N7002, driven by latch output) pulls Q1 gate to GND
+   **permanently** — heater OFF until power cycle
+5. Latch overrides R_GATE_PULL (100k): Q_WD sinks only 0.1 mA,
+   pulling gate to ~0.5 mV
+6. MCU still boots and can report the fault via RS-485 (D_ISO
+   isolates latch from NRST so MCU reset works normally)
+
+**Recovery:** Power cycle only. The SCR latch is self-sustaining
+once triggered — R_FB (100k) provides base current to maintain the
+cross-coupled state. R_LATCH_PD (1M) bleeds the latch when VDD
+is removed. This is intentional: a latched heater fault should
+require human intervention, not auto-recover.
 
 **Parts:**
 - Q_DRIVER: 2N7002 (C8545, already in BOM) -- N-channel, SOT-23
@@ -377,6 +392,17 @@ impedance at 2s is ~30% of steady-state Rth(j-a): junction rise
 30 minutes (average power: 0.003W). In extreme heat (>50°C ambient),
 margin narrows to ~20°C -- monitor D1 temp on first field boards.
 
+**Layout mitigation:** Place 4-6 thermal vias (0.3mm drill) under
+D1's SMA anode pad, connected to the GND plane (In1.Cu). Add a
+copper pour on B.Cu under the diode for additional heat spreading.
+This reduces Rth(j-a) by ~30-40%, improving the hot-ambient margin.
+
+**Fallback:** If thermal testing at 8 heaters in >50°C ambient
+shows Tj approaching limits, the SMA pad footprint is compatible
+with SMC package diodes (same pad center, wider body). An SMC-rated
+Schottky (e.g., SS56 in SMC) has ~2x the thermal mass. No board
+respin needed — just a BOM substitution.
+
 ### PTC fuse split topology
 
 **Problem:** v1.0 PTC (1.1A hold) is in the series path before both the
@@ -392,10 +418,12 @@ J1 → TVS → Schottky → V24_PROT ─┤
 - PTC moves from the main series input path (v1.0: before TVS/Schottky)
   to the buck-only branch (v1.1: after the V24_PROT split). It now
   protects only the electronics path (20 mA steady), not the heater.
-- Heater path gets a **dedicated fuse footprint** (6A fast-blow, 5x20mm
-  or equivalent board fuse). Populated or bridged at user's choice.
-- The 4-layer watchdog/latch system is the real heater protection. The
-  fuse is belt-and-suspenders for catastrophic shorts.
+- Heater path gets a **dedicated fuse** (6A fast-blow, 5x20mm).
+  Populated by default — not optional. The fuse is the last line of
+  defense for catastrophic shorts (e.g., cable insulation failure in
+  the field). User-supplied: any 5-6A fast-blow 5x20mm glass fuse.
+- The 4-layer watchdog/latch system handles normal fault modes. The
+  fuse handles wiring faults that bypass the electronics entirely.
 - Combined input (TVS + Schottky) sees full current (heater + buck)
   during pulses. The TVS only conducts during transients (microamp
   leakage in steady state). The SS56 Schottky handles 4.57A -- see
