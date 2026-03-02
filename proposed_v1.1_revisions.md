@@ -511,7 +511,7 @@ from coupling noise.
 | PD3 | Mux select S3 | GPIO | |
 | PA9 | Mux A enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
 | PA10 | Mux B enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
-| PA11 | (spare) | -- | Freed by single excitation |
+| PA12 | EEPROM WP | GPIO | Active high = write protect. 10k pull-up (boot-safe: writes blocked until firmware enables) |
 | PC14 | RTC crystal | OSC32_IN | Dedicated |
 | PC15 | RTC crystal | OSC32_OUT | Dedicated |
 
@@ -524,9 +524,9 @@ from coupling noise.
 
 - PB1: was ADC2 ALERT/DRDY (2nd ADS1115 removed)
 
-### Spare GPIOs (14 total)
+### Spare GPIOs (13 total)
 
-PA6, PA7, PA11, PA12, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13,
+PA6, PA7, PA11, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13,
 PF0, PF1
 
 **LQFP-48 port availability (verified):** PA0-PA15, PB0-PB15,
@@ -572,13 +572,14 @@ Evaluate after first field deployment.
 | 270 ohm 0603 (R_EXC, replaces 560 ohm) | C22966 | 1 | $0.001 | $0.001 | basic |
 | 100 nF decoupling (mux x2, flash x1) | C14663 | (counted above) | -- | -- | basic |
 | 1k resistors (AIN2, AIN3 tie to AGND) | C21190 | (counted above) | -- | -- | basic |
-| 10k pull-ups (mux ~E x2, flash CS x1) | C25804 | 3 | $0.01 | $0.03 | basic |
+| 10k pull-ups (mux ~E x2, flash CS x1, EEPROM WP x1) | C25804 | 4 | $0.01 | $0.04 | basic |
+| 1 uF VBAT buffer cap | C15849 | (counted above) | -- | -- | basic |
 
-**Note:** Gate driver resistors (100k x2, 10k x1) and 2N7002 are
-existing BOM parts/values -- no new line items for those. The 3x 10k
-boot-state pull-ups use existing C25804 (no new line item). The 270 ohm
-R_EXC (C22966) replaces the v1.0 560 ohm R_EXC (C23204) — net change
-is one value swap, not a new line item.
+**Note:** Gate driver resistors (100k x2, 10k x1) and 2N7002 (Q_DRIVER
++ Q_PGOOD) are existing BOM parts/values -- no new line items. The 4x
+10k pull-ups use existing C25804. The 270 ohm R_EXC (C22966) replaces
+the v1.0 560 ohm R_EXC (C23204) — value swap, not a new line item.
+The VBAT 1 uF cap uses existing C15849.
 
 ### Parts removed
 
@@ -595,9 +596,9 @@ is one value swap, not a new line item.
 
 | | Per board | Notes |
 |---|----------|-------|
-| Parts added | +$7.07 | |
+| Parts added | +$7.08 | |
 | Parts removed | -$1.71 | |
-| **Net parts delta** | **+$5.36** | |
+| **Net parts delta** | **+$5.37** | |
 | Extended part fees | +$21.00 | 7 new unique extended parts x $3 |
 | | | (flash, mux, MOSFET, fuse clips, 48P header, 2P heater, CR2032) |
 
@@ -681,13 +682,20 @@ VDD (3.3V) ─── Anode 1 ──┐
 CR2032+ ────── Anode 2 ──┘
 CR2032- ────── GND
 
-Plus 100nF decoupling cap on VBAT pin.
+Plus 100nF + 1uF decoupling caps on VBAT pin.
 ```
 
 **Parts:**
 - BAT54S (C7420333) -- dual series Schottky, SOT-23, preferred, $0.012
 - BS-CR2032-8 (C7498149) -- SMD coin cell holder, $0.21, extended
 - 100 nF decoupling cap -- C14663, already in BOM
+- 1 uF buffer cap -- C15849 (1uF 50V X5R 0603, basic, $0.01)
+
+The 1 uF cap provides bulk charge during VBAT domain switchover
+(VDD drops, BAT54S commutates to CR2032). Without it, a brief
+voltage dip on VBAT during the transition could glitch the RTC
+counter. The 100 nF handles high-frequency decoupling; the 1 uF
+handles the transient current spike.
 
 ### Cold weather performance
 
@@ -852,8 +860,9 @@ mux group's cable bundle).
   21-40. Mirrored layout.
 - GND fences every 8-10 pins. Double-GND at mux boundary (11/12)
   and mid-group (31/32) for crosstalk isolation.
-- Dual excitation: EXC_A powers sensors 1-4 (mux A), EXC_B powers
-  sensors 5-8 (mux B). Each drives max 16 half-bridges (1.82 mA).
+- Single excitation: one PC6 GPIO drives all 32 half-bridges through
+  270 ohm filter (3.7 mA steady). Pin 2 and pin 22 are the same net
+  — two physical pins for cable routing convenience.
 - Auxiliary block (41-48): I2C for external sensors, 4 spare GPIOs,
   extra GND pair.
 - No 3.3V export (buck only has 3 mA headroom during peak loads).
@@ -935,6 +944,51 @@ and suggested PGOOD-gating the pull-up path. Solution: Q_PGOOD
 (2N7002) in series with D_ZENER, gate driven by PGOOD. Until the
 buck output is stable, Q_PGOOD is OFF and R_GATE_PULL cannot charge
 Q1 gate. Zero boot glitch, zero added cost (uses existing 2N7002).
+
+---
+
+## Firmware Notes (from external review)
+
+### LSE drive strength (LSEDRV)
+
+The STM32G0B1 RTC_CR register includes LSEDRV[1:0] bits that control
+the LSE oscillator drive current. Default is lowest drive (0b00).
+At cold temperatures (<-20°C) and with the 32.768 kHz crystal's
+increased ESR, the oscillator may fail to start or take >2 seconds.
+
+**Action:** Set LSEDRV = 0b11 (highest drive) during LSE init.
+Measure startup time on first boards across temperature range. If
+startup is reliable at 0b10 or 0b01, reduce drive to save ~0.1 uA.
+
+### Flash erase scheduling
+
+W25Q256 sector erases (4 KB) take up to 400 ms. Page programs take
+up to 3 ms. During erase, SPI is busy and cannot be interrupted.
+
+**Action:** Schedule flash erases during heater-off periods (the
+30-minute inter-measurement gap). Never erase during a measurement
+scan. Use the W25Q256's suspend/resume feature if an urgent ADC
+read is needed mid-erase.
+
+### ADC health monitoring
+
+The ADS1115 ALERT/DRDY pin can signal conversion-ready. If a
+conversion doesn't complete within the expected window (2x the
+nominal conversion time), the firmware should:
+
+1. Log the timeout to flash
+2. Reset the ADS1115 (I2C general-call reset, 0x06)
+3. Retry the conversion
+4. If 3 consecutive failures: flag the channel as faulted, skip it,
+   report via RS-485
+
+### EEPROM write protection
+
+PA12 controls CAT24C32 WP pin (active high = protected). Boot-safe:
+10k pull-up holds WP HIGH during reset, blocking all EEPROM writes.
+Firmware must drive PA12 LOW before writing config/calibration data,
+then drive HIGH immediately after. This prevents accidental EEPROM
+corruption during brown-outs or firmware crashes.
 
 ---
 
