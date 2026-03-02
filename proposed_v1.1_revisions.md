@@ -90,39 +90,44 @@ Enable toggling prevents crosstalk: the disabled mux's output is
 high-impedance, so charge injection from its channels can't corrupt
 the active measurement.
 
-### Dual excitation (one per mux group)
+### Single excitation line
 
-Two GPIO pins drive excitation, one per mux group:
-- EXC_A (PC6): powers sensors 1-4 (mux A, up to 16 half-bridges)
-- EXC_B (PA11): powers sensors 5-8 (mux B, up to 16 half-bridges)
+One GPIO pin (PC6) drives all 32 thermistor half-bridges through a
+single RC filter:
 
-Each pin drives through its own 560 ohm R_EXC filter. At 4 sensors
-per group (16 half-bridges): V_exc = 2.28V, I = 1.82 mA. Well within
-STM32 20 mA GPIO limit.
+- R_EXC = 270 ohm (C22966, UNI-ROYAL 0603WAF2700T5E, basic, $0.001)
+- C_EXC = 1 uF (C15849, existing BOM)
+- Filter cutoff: fc = 1 / (2 * pi * 270 * 1e-6) = 589 Hz
 
-Firmware scanning pattern: enable EXC_A, scan mux A channels, disable
-EXC_A, enable EXC_B, scan mux B channels, disable EXC_B. This halves
-the excitation current vs single-pin and aligns naturally with the
-dual-mux architecture.
+At 8 sensors (32 half-bridges, ~20k each): R_load = 625 ohm.
+V_exc = 3.3 * 625 / (625 + 270) = 2.30V. I_steady = 3.7 mA.
+I_inrush = 3.3 / 270 = 12.2 mA (safe, under STM32 20 mA GPIO limit).
 
-### Excitation sense: single-ended on AIN1
+Firmware: enable PC6 before scan, read all 32 mux channels across
+both muxes, disable PC6. Simpler than dual-excitation (no per-group
+enable/disable sequencing).
 
-Both EXC_A and EXC_B connect to AIN1 through a resistor network.
-Since only one excitation GPIO is active at a time, the inactive
-line is at 0V (GPIO driven low or high-Z with pull-down). The
-active excitation voltage appears on AIN1 through its 1k series
-filter resistor (matching the thermistor path impedance).
+### Excitation sense: ratiometric on AIN1
 
+The single excitation line connects to AIN1 through a 1k series
+resistor + 100 nF filter cap (matching the thermistor path protection).
 Firmware reads excitation as a **separate single-ended conversion**
-(AINp=AIN1, AINn=GND) once per mux group scan, then divides
-thermistor readings by excitation to get ratiometric values. This
-loses hardware differential CMRR vs v1.0, but:
+(AINp=AIN1, AINn=GND) once per scan cycle, then divides each
+thermistor reading by excitation to get ratiometric values:
+
+  T = steinhart_hart(V_therm / V_exc)
+
+Ratiometric measurement cancels excitation voltage uncertainty
+(GPIO output variation, R_EXC voltage divider, supply noise). The
+2.30V excitation is not a problem — only the ratio matters.
+
+This loses hardware differential CMRR vs v1.0, but:
 
 - Ground bounce is already managed (no ADC during heater pulses)
 - Common-mode noise during quiescent reads is minimal (no switching)
 - Avoids adding an analog switch IC (saves BOM complexity)
-- Excitation doesn't consume a mux time slot (1 extra conversion
-  per mux group, not per channel)
+- Temperature differencing (heated - reference) cancels remaining
+  systematic errors
 
 AIN2, AIN3: tied to AGND through 1k resistors (prevent noise coupling).
 
@@ -403,7 +408,7 @@ lines (32 thermistors + 1 excitation).
 Each line gets three protection stages:
 
 1. **TVS array (PRTR5V0U4D):** ESD clamp at connector side. Each IC
-   protects 4 lines. 33 lines / 4 = 9 arrays (1 spare channel).
+   protects 4 lines. 33 lines / 4 = 9 arrays (3 spare channels).
    - v1.0: 2 arrays. v1.1: 9 arrays. Add 7x PRTR5V0U4D (C2835429, $0.06 each).
 
 2. **1k ohm series resistor:** Current limiter + RC filter partner.
@@ -415,10 +420,11 @@ Each line gets three protection stages:
    - v1.0: 7 caps. v1.1: 33. Add 26x 100 nF 0603 (C14663, $0.01 each).
 
 **Zero measurement impact:** The 1k ohm series resistance appears on
-BOTH thermistor sense lines AND excitation sense. In the ratiometric
-calculation (V_therm / V_excitation), voltage dividers formed by
-1k + mux Ron drop out. AIN1 excitation path has matching 1k series
-resistor for symmetry.
+BOTH thermistor sense lines AND the excitation sense line (AIN1). In
+the ratiometric calculation (V_therm / V_exc), identical voltage
+dividers formed by 1k + ADS1115 input impedance (>1 GOhm) cancel.
+Mux Ron (~80 ohm) appears only in the thermistor path, but with >1 GOhm
+load, the voltage drop is negligible (16 uV from input leakage).
 
 **Unused mux channels:** Tie to GND. Prevents floating CMOS inputs
 from coupling noise.
@@ -465,7 +471,7 @@ from coupling noise.
 | PD3 | Mux select S3 | GPIO | |
 | PA9 | Mux A enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
 | PA10 | Mux B enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
-| PA11 | Excitation B enable | GPIO | Drives EXC_B (sensors 5-8) |
+| PA11 | (spare) | -- | Freed by single excitation |
 | PC14 | RTC crystal | OSC32_IN | Dedicated |
 | PC15 | RTC crystal | OSC32_OUT | Dedicated |
 
@@ -478,9 +484,9 @@ from coupling noise.
 
 - PB1: was ADC2 ALERT/DRDY (2nd ADS1115 removed)
 
-### Spare GPIOs (13 total)
+### Spare GPIOs (14 total)
 
-PA6, PA7, PA12, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13,
+PA6, PA7, PA11, PA12, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13,
 PF0, PF1
 
 **LQFP-48 port availability (verified):** PA0-PA15, PB0-PB15,
@@ -523,14 +529,16 @@ Evaluate after first field deployment.
 | 100 nF 0603 | C14663 | 28 | $0.01 | $0.28 | basic |
 | CR2032 holder (SMD) | C7498149 | 1 | $0.21 | $0.21 | extended |
 | BAT54S Schottky | C7420333 | 1 | $0.01 | $0.01 | preferred |
-| 560 ohm 0603 (R_EXC_B) | C23204 | 1 | $0.001 | $0.001 | basic |
+| 270 ohm 0603 (R_EXC, replaces 560 ohm) | C22966 | 1 | $0.001 | $0.001 | basic |
 | 100 nF decoupling (mux x2, flash x1) | C14663 | (counted above) | -- | -- | basic |
 | 1k resistors (AIN2, AIN3 tie to AGND) | C21190 | (counted above) | -- | -- | basic |
 | 10k pull-ups (mux ~E x2, flash CS x1) | C25804 | 3 | $0.01 | $0.03 | basic |
 
 **Note:** Gate driver resistors (100k x2, 10k x1) and 2N7002 are
 existing BOM parts/values -- no new line items for those. The 3x 10k
-boot-state pull-ups use existing C25804 (no new line item).
+boot-state pull-ups use existing C25804 (no new line item). The 270 ohm
+R_EXC (C22966) replaces the v1.0 560 ohm R_EXC (C23204) — net change
+is one value swap, not a new line item.
 
 ### Parts removed
 
@@ -763,7 +771,7 @@ terminal, rated 10A. Carries up to 4.57A (8 heaters in parallel) for
 ```
 Pin    Row A (odd)  |  Row B (even)    Pin
 --- --------------  |  -------------- ---
-  1            GND  |  EXC_A            2     Sensor 1
+  1            GND  |  EXC              2     Sensor 1
   3        Therm 1  |  Therm 2          4
   5        Therm 3  |  Therm 4          6
   7        Therm 5  |  Therm 6          8     Sensor 2
@@ -774,7 +782,7 @@ Pin    Row A (odd)  |  Row B (even)    Pin
  17       Therm 13  |  Therm 14        18     Sensor 4
  19       Therm 15  |  Therm 16        20
  --- -- mux A/B boundary ------------ ---
- 21            GND  |  EXC_B           22     Sensor 5
+ 21            GND  |  EXC             22     Sensor 5
  23       Therm 17  |  Therm 18        24
  25       Therm 19  |  Therm 20        26
  27       Therm 21  |  Therm 22        28     Sensor 6
@@ -791,7 +799,10 @@ Pin    Row A (odd)  |  Row B (even)    Pin
  47     GPIO (PB1)  |  GPIO (PB2)      48
 ```
 
-**Signal summary:** 32 thermistors, 2 excitation, 8 GND, 2 I2C, 4 GPIO.
+**Signal summary:** 32 thermistors, 2 excitation (same net, pin 2+22),
+8 GND, 2 I2C, 4 GPIO. Both EXC pins carry the same signal — wired to
+the same filtered excitation line. Two pins for convenience (one per
+mux group's cable bundle).
 
 **Design rationale:**
 - Thermistors grouped in blocks of 4 (one sensor per block). Each
@@ -855,22 +866,26 @@ $3.92 flash chip.
 
 ## Resolved Items (second batch)
 
-### AIN1 excitation routing: single-ended read
+### Excitation simplified to single line
 
-Resolved as option 3: firmware reads excitation as a separate
-single-ended conversion (AINp=AIN1, AINn=GND) once per mux group
-scan. Both EXC_A and EXC_B connect to AIN1 through 1k series
-resistors. The inactive excitation pin is at 0V, so only the active
-voltage appears. Loses hardware differential CMRR but avoids adding
-an analog switch IC. Ground bounce is already managed by not reading
-ADCs during heater pulses.
+Originally proposed as dual excitation (EXC_A on PC6, EXC_B on PA11)
+with both connected to AIN1 through resistors. External review found
+that the dual-line AIN1 topology created a summing node — when the
+inactive GPIO was low, AIN1 read ~2.0V instead of the expected
+excitation voltage.
+
+**Fix:** Single excitation line (PC6 only, 270 ohm R_EXC). Eliminates
+the AIN1 summing bug entirely. Frees PA11 as spare GPIO. R_EXC reduced
+from 560 to 270 ohm to maintain adequate V_exc (2.30V) at 32 bridges.
+Ratiometric measurement (V_therm / V_exc) cancels the voltage divider.
 
 ### Pin availability: PD4, PD5, PC8 do not exist on LQFP-48
 
 Verified against atopile package definition. LQFP-48 has only:
 PC6, PC7, PC13, PC14, PC15 (no PC0-PC5 or PC8-PC12) and PD0-PD3
-(no PD4+). Reassigned: PD4→PA9 (mux A ~E), PD5→PA10 (mux B ~E),
-PC8→PA11 (EXC_B). All with appropriate boot-state pull resistors.
+(no PD4+). Reassigned: PD4→PA9 (mux A ~E), PD5→PA10 (mux B ~E).
+EXC_B eliminated (single excitation on PC6). All with appropriate
+boot-state pull resistors.
 
 ### Gate driver boot glitch: documented and accepted
 
