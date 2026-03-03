@@ -448,8 +448,13 @@ At 40°C ambient: Tj = 71°C. At 50°C: Tj = 81°C. Max Tj = 175°C —
 comfortable margin. Not trivial dissipation (1.57W), but well within
 DPAK capability for 2-second pulses every 30 minutes.
 
-DPAK thermal pad: exposed drain tab must be soldered to copper pour
-with thermal vias to inner layers. Standard DPAK practice.
+**Layout requirement (DPAK thermal management):** The DPAK exposed
+drain tab is the sole heat dissipation path — there is no heatsink,
+only PCB copper. Place 4-6 thermal vias (0.3mm drill) under the
+drain pad, stitched to a bottom-layer copper pour. At 8 heaters
+(1.57W for 2s pulses), transient Rth is ~30% of steady-state: Tj
+rise ~9°C per pulse. Without adequate copper/vias, steady-state Rth
+can exceed 40°C/W and Tj will approach limits in hot enclosures.
 
 ### D1 (reverse polarity Schottky) upgrade
 
