@@ -204,13 +204,18 @@ a logger.
 - 100K erase cycles, 20-year retention
 - $3.92, 28K stock, extended
 
-**Pin notes:**
-- /HOLD (pin 7): tie to VCC (we never need mid-transaction freeze)
-- /WP (pin 5): tie to VCC (no hardware write-protect needed)
-- IO2 (pin 3), IO3 (pin 8): tie to VCC (quad-SPI not used)
-- /CS (PB12): 10k pull-up to VCC (boot-safe: flash deselected while
-  MCU GPIOs are high-Z during reset)
-- 100 nF decoupling cap on VCC (C14663, existing part)
+**Pin notes (SOIC-16):**
+- Pin 1 RESET#/IO3: tie to VCC (quad-SPI not used; also serves as /HOLD)
+- Pin 2 VCC: 3.3V + 100 nF decoupling cap (C14663, existing part)
+- Pin 3 RESET#: tie to VCC (active-low reset, keep deasserted)
+- Pins 4-6, 11-14: N/C
+- Pin 7 CS#: PB12 + 10k pull-up to VCC (boot-safe: flash deselected
+  while MCU GPIOs are high-Z during reset)
+- Pin 8 DO/IO1: PB14 (MISO)
+- Pin 9 WP#/IO2: tie to VCC (no hardware write-protect needed)
+- Pin 10 GND
+- Pin 15 DI/IO0: PB15 (MOSI)
+- Pin 16 CLK: PB13 (SCK)
 
 **Data budget (int16 storage, adaptive scan for 120 s after each 2 s
 heater pulse, 30-min intervals, 32 channels):**
@@ -371,16 +376,22 @@ Q_DRIVER replaces both functions.
 ### MOSFET upgrade
 
 **Current (v1.0):** XCHS3N12 (C48928121), 120V/3A, SOT-23, $0.03
-**New:** TM15N10D (C7422818), 100V/15A, DPAK (TO-252-2L), $0.087
+**New:** TM15N10D (C7422818), 100V/15A, DPAK (TO-252-3L), $0.087
 
 | Parameter | v1.0 (3.3V gate) | v1.1 (10V gate via driver) |
 |-----------|------------------|---------------------------|
 | Vgs(th) | 0.5-1.5V | 1.0-2.0V |
-| Rds(on) | ~267 mohm @ 3.3V (est.) | 12 mohm @ 10V (spec) |
-| Pdiss @ 8 heaters | 5.6 W (unsafe) | 0.25 W (trivial) |
-| Pdiss @ 1 heater | 87 mW | 3.9 mW |
-| Safe indefinitely? | No (thermal runaway) | Yes (any duration) |
-| Package | SOT-23 | DPAK |
+| Rds(on) | ~267 mohm @ 3.3V (est.) | 75 mohm @ 10V (spec) |
+| Pdiss @ 1 heater | 87 mW | 24 mW |
+| Pdiss @ 2 heaters | 350 mW | 98 mW |
+| Pdiss @ 4 heaters | 1.4 W | 391 mW |
+| Pdiss @ 8 heaters | 5.6 W (unsafe) | 1,565 mW |
+| Package | SOT-23 | DPAK (TO-252-3L) |
+
+**Thermal at 8 heaters:** 1.57W × 20°C/W (DPAK Rth,j-a) = 31°C rise.
+At 40°C ambient: Tj = 71°C. At 50°C: Tj = 81°C. Max Tj = 175°C —
+comfortable margin. Not trivial dissipation (1.57W), but well within
+DPAK capability for 2-second pulses every 30 minutes.
 
 DPAK thermal pad: exposed drain tab must be soldered to copper pour
 with thermal vias to inner layers. Standard DPAK practice.
@@ -444,12 +455,12 @@ J1 → TVS → Schottky → V24_PROT ─┤
 
 ### Multi-heater table
 
-| Heaters | Total current | MOSFET Pdiss (10V gate) | D1 load | Status |
-|---------|--------------|------------------------|---------|--------|
-| 1 | 0.57 A | 3.9 mW | 11% | Trivial |
-| 2 | 1.14 A | 16 mW | 23% | Easy |
-| 4 | 2.29 A | 63 mW | 46% | Easy |
-| 8 | 4.57 A | 250 mW | 91% | Safe (any duration) |
+| Heaters | Total current | MOSFET Pdiss (75mΩ @ 10V) | D1 load | Status |
+|---------|--------------|---------------------------|---------|--------|
+| 1 | 0.57 A | 24 mW | 11% | Easy |
+| 2 | 1.14 A | 98 mW | 23% | Easy |
+| 4 | 2.29 A | 391 mW | 46% | OK (Tj rise ~8°C) |
+| 8 | 4.57 A | 1,565 mW | 91% | OK (Tj rise ~31°C) |
 
 ---
 
