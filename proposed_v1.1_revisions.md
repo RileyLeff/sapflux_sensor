@@ -280,8 +280,19 @@ Total connector edge footprint: ~70-80 mm. Fits on the board edge.
 The v1.0 design drives the heater MOSFET gate directly from a 3.3V
 MCU GPIO. At v1.1 currents (up to 4.57A for 8 heaters), even a
 low-Vgs(th) MOSFET at 3.3V gate has significant Rds(on) and wastes
-heat. A 6-component gate driver boosts gate voltage to 10V from the
-existing 24V rail, dropping Rds(on) to spec-sheet values.
+heat. A gate driver boosts gate voltage to 10V from the existing
+24V rail, dropping Rds(on) to spec-sheet values.
+
+**Critical safety requirement (buck-dead fail-safe):** If the 3.3V
+buck fails (IC failure, inductor open, output short) while 24V is
+still present, the heater MUST remain OFF. Earlier revisions biased
+Q_DRIVER from the 3.3V rail (R_PA8_PU), which made all four safety
+layers (MCU timer, IWDG, TPL5010, SCR latch) dependent on 3.3V.
+If the buck dies, all four fail simultaneously and R_GATE_PULL
+charges Q1 gate to 10V with nothing to stop it — heater ON
+indefinitely. The current design eliminates this by biasing Q_DRIVER
+from the 24V rail via a voltage divider, with PA8 isolated through
+Q_CTRL to avoid STM32 ESD clamp back-feed.
 
 **Circuit:**
 
@@ -293,61 +304,74 @@ V24_PROT ───────────────────────�
                                        │
                             Q_DRIVER (drain at A, source to GND)
 
-                                           R_PA8_PU (10k)
-                                                │
-Q_DRIVER gate path:                            V3V3
-    PA8 (MCU) ── R_GATE_DRV (10k) ── Q_DRIVER gate ── R_GATE_PD (100k) ── GND
+Q_DRIVER gate: 24V-biased always-on
+    V24_PROT ── R_BIAS (4.7M) ──┬── Q_DRIVER gate ── R_GATE_PD (1M) ── GND
+                                 │
+                            Q_CTRL drain
+                            Q_CTRL source ── GND
+
+Q_CTRL gate: MCU-controlled
+    PA8 (MCU) ── R_CTRL (10k) ── Q_CTRL gate ── R_CTRL_PD (100k) ── GND
 ```
 
 **How it works (normal operation):**
-1. PA8 HIGH → Q_DRIVER ON → drain at ~0V → Q1 gate at ~0V
-   (R_GATE_PULL sinks 24V/1M = 24µA through Q_DRIVER) → **heater OFF**
-2. PA8 LOW → Q_DRIVER OFF → R_GATE_PULL pulls Q1 gate toward 24V →
-   D_ZENER clamps at 10V (cathode at gate, anode to GND — zener
-   conducts 14µA at steady state) → **heater ON** at full Rds(on) spec
+1. PA8 LOW → Q_CTRL OFF → Q_DRIVER gate at 4.2V (24V divider) →
+   Q_DRIVER ON → drain at ~0V → Q1 gate at ~0V → **heater OFF**
+2. PA8 HIGH → Q_CTRL ON → Q_DRIVER gate pulled to ~0V → Q_DRIVER
+   OFF → R_GATE_PULL pulls Q1 gate toward 24V → D_ZENER clamps at
+   10V → **heater ON** at full Rds(on) spec
 
-**Inverted logic (PA8 LOW = heater ON).** During normal operation,
-firmware drives PA8 HIGH to keep heater off, then briefly drives
-PA8 LOW for the 2-second heater pulse.
+**Non-inverted logic (PA8 HIGH = heater ON).** Same polarity as
+v1.0. Firmware drives PA8 LOW (default) to keep heater off, then
+briefly drives PA8 HIGH for the 2-second heater pulse.
 
-**Why not N-channel PGOOD gating?** An earlier revision attempted to
-place a 2N7002 (Q_PGOOD) in series with R_GATE_PULL to disconnect
-the pull-up during boot. This doesn't work: in an N-channel MOSFET
-used as a high-side switch, the source voltage follows the output.
-As Q1 gate charges above ~2V, Vgs drops below threshold and the
-switch turns off — defeating the purpose. A P-channel high-side
-switch would work but adds complexity (level shifting for the 24V
-gate drive). The R_PA8_PU approach below is simpler and cheaper.
+**Why Q_CTRL isolation is required:** An earlier revision connected
+PA8 directly to Q_DRIVER gate through a resistor (R_GATE_DRV). The
+24V divider on Q_DRIVER gate works correctly in steady state, but
+during boot or buck-dead scenarios (V3V3 = 0V), the STM32's internal
+ESD protection diode on PA8 forward-biases to VDD, sinking current
+from the 24V divider node into the unpowered 3.3V rail. With
+R_GATE_DRV = 100k, this pulls Q_DRIVER gate below Vgs(th) (0.99V
+vs 1.5V threshold) — defeating the fail-safe in exactly the scenario
+it's meant to protect. Increasing R_GATE_DRV doesn't help: values
+large enough to limit ESD current (>470k) also prevent PA8 from
+overriding the divider to control Q_DRIVER. Q_CTRL breaks this
+impasse by isolating PA8 from the divider entirely.
 
-**Boot behavior (R_PA8_PU provides default-ON for Q_DRIVER):**
+**Boot behavior (24V divider provides fail-safe Q_DRIVER bias):**
 
-R_PA8_PU (10k from V3V3 to PA8 node) pulls Q_DRIVER gate HIGH as
-the 3.3V rail ramps during buck startup. This makes Q_DRIVER turn
-ON before R_GATE_PULL can charge Q1 gate to dangerous levels.
+R_BIAS (4.7M) and R_GATE_PD (1M) form a voltage divider from
+V24_PROT to GND. This is purely resistive — responds instantly to
+V24 rising, independent of the 3.3V rail.
 
-1. Power applied. V24_PROT rises. Buck starts up. R_GATE_PULL (1M)
-   begins charging Q1 gate (τ = 1MΩ × 1.8nF = 1.8 ms).
-2. V3V3 ramps from 0V to 3.3V (~2 ms soft-start). R_PA8_PU pulls
-   PA8 node toward V3V3. Through R_GATE_DRV (10k), Q_DRIVER gate
-   voltage = V3V3 × 100k/(10k+10k+100k) = V3V3 × 0.83.
-3. When V3V3 reaches ~1.8V (~1.1 ms into ramp): Q_DRIVER gate
-   exceeds Vgs(th) ~1.5V → Q_DRIVER turns ON → clamps Q1 gate
-   to ~0V. Any charge accumulated on Q1 gate discharges instantly
-   (Ciss × Rds(on) = 1.8nF × 5Ω = 9 ns).
-4. MCU boots (~2 ms after V3V3 stable). Firmware drives PA8 HIGH
-   (same state as pull-up) → seamless handoff.
-5. Only after firmware explicitly drives PA8 LOW can heater turn ON.
+1. Power applied. V24_PROT rises. Divider immediately biases
+   Q_DRIVER gate at V24 × 1M/5.7M. When V24 reaches ~8.6V (typ
+   Vgs(th) = 1.5V × 5.7), Q_DRIVER turns ON → Q1 gate clamped
+   to ~0V.
+2. R_CTRL_PD (100k) holds Q_CTRL gate at 0V → Q_CTRL OFF → does
+   not interfere with Q_DRIVER bias.
+3. Buck starts (V24 > ~3.5V UVLO). V3V3 ramps to 3.3V.
+4. MCU boots. PA8 defaults to input (high-Z) → Q_CTRL stays OFF →
+   Q_DRIVER stays ON → heater stays OFF. No glitch.
+5. Only after firmware explicitly drives PA8 HIGH can heater turn ON.
 
-**Boot glitch: ~1 ms at partial gate voltage.** Between t≈116µs
-(Q1 gate reaches Vgs(th) = 1.5V through 1M) and t≈1.1ms (Q_DRIVER
-turns ON via 3.3V ramp), the heater conducts briefly. Gate voltage
-reaches ~11V before Q_DRIVER clamps it. Worst case energy at 8
-heaters: ~106 mJ → 0.11°C wood temperature rise. Thermally
-negligible. This is comparable to the v1.0 ~2ms glitch but shorter
-due to the 1M pull-up slowing gate charge.
+**Boot glitch: none (battery hot-plug).** For step-function V24
+(battery connect), the resistive divider biases Q_DRIVER ON
+before R_GATE_PULL (1M, τ = 1.8ms) can charge Q1 gate past
+Vgs(th). No heater conduction during boot. This is an improvement
+over the previous ~1ms glitch.
+
+**Slow-ramp note (solar sunrise):** During a gradual V24 ramp (0V
+to 24V over minutes), there is a brief window between V24 ≈ 2.5V
+(Q1 Vgs(th)) and V24 ≈ 8.6-14.2V (Q_DRIVER turn-on, varies with
+Vgs(th) tolerance) where R_GATE_PULL could charge Q1 gate. At
+V24 < 8.6V, heater power is < 4.5W per probe (vs 14.4W nominal).
+Starting from cold wood at sunrise, this is not a fire risk.
+In practice, the buck starts at V24 ≈ 3.5V and the MCU boots within
+~5ms, at which point firmware holds PA8 LOW (heater off).
 
 **MCU crash behavior (SCR latch kill path):** If firmware locks up
-with PA8 LOW (heater stuck on), the TPL5010 watchdog fires within
+with PA8 HIGH (heater stuck on), the TPL5010 watchdog fires within
 9.6 seconds. The kill sequence:
 
 1. TPL5010 asserts RST (active low) on MCU NRST pin
@@ -361,19 +385,44 @@ with PA8 LOW (heater stuck on), the TPL5010 watchdog fires within
 6. MCU still boots and can report the fault via RS-485 (D_ISO
    isolates latch from NRST so MCU reset works normally)
 
+**Buck-dead behavior (the scenario that motivated this redesign):**
+If 24V is present but 3.3V is dead, the 24V divider holds Q_DRIVER
+gate at 4.2V → Q_DRIVER ON → Q1 gate at ~0V → heater OFF. No MCU,
+watchdog, or latch needed. The heater is OFF by physics alone.
+
 **Recovery:** Power cycle only. The SCR latch is self-sustaining
 once triggered — R_FB (100k) provides base current to maintain the
 cross-coupled state. R_LATCH_PD (1M) bleeds the latch when VDD
 is removed. This is intentional: a latched heater fault should
 require human intervention, not auto-recover.
 
+**State table:**
+
+| State | Q_CTRL | Q_DRIVER | Heater | Safe? |
+|-------|--------|----------|--------|-------|
+| Sleep (PA8 LOW) | OFF | ON | OFF | Yes |
+| Heater pulse (PA8 HIGH) | ON | OFF | ON | Controlled |
+| Boot (PA8 float) | OFF | ON | OFF | Yes |
+| Buck dead, 24V present | OFF | ON | OFF | Yes |
+| MCU crash, PA8 HIGH | ON | OFF | ON | SCR latch 9.6s |
+| MCU crash, PA8 LOW | OFF | ON | OFF | Yes |
+
+**Interaction analysis:** The Q_CTRL topology does not affect any
+other circuit path. SCR latch (Q_WD on Q1 gate) works unchanged —
+Q_WD sinks 24µA from R_GATE_PULL at Rds ~5Ω. PGOOD-gated latch
+arming is on a separate node. Sleep current: +4.2µA from 24V
+(divider) vs current design. Firmware polarity matches v1.0 (PA8
+HIGH = heater ON), simplifying the firmware port.
+
 **Parts:**
 - Q_DRIVER: 2N7002 (C8545, already in BOM) -- N-channel, SOT-23
+- Q_CTRL: 2N7002 (C8545, already in BOM) -- MCU isolation
 - D_ZENER: MM3Z10 (C19077459, preferred, $0.012) -- 10V, SOD-323
 - R_GATE_PULL: 1M (C22935, already in BOM)
-- R_GATE_DRV: 10k (C25804, already in BOM)
-- R_GATE_PD: 100k (C25803, already in BOM)
-- R_PA8_PU: 10k (C25804, already in BOM) -- boot-safe pull-up
+- R_BIAS: 4.7M (C23163, preferred, $0.0014) -- 24V divider
+- R_GATE_PD: 1M (C22935, already in BOM)
+- R_CTRL: 10k (C25804, already in BOM) -- PA8 to Q_CTRL gate
+- R_CTRL_PD: 100k (C25803, already in BOM) -- boot-safe pull-down
 
 Net new unique parts: 1 (zener diode). All resistors are existing
 values. v1.0's R_GATE (1k) and R4 (10k gate pulldown) are removed —
@@ -602,15 +651,19 @@ Evaluate after first field deployment.
 | 270 ohm 0603 (R_EXC, replaces 560 ohm) | C22966 | 1 | $0.001 | $0.001 | basic |
 | 100 nF decoupling (mux x2, flash x1) | C14663 | (counted above) | -- | -- | basic |
 | 1k resistors (AIN2, AIN3 tie to AGND) | C21190 | (counted above) | -- | -- | basic |
-| 10k pull-ups (mux ~E x2, flash CS, EEPROM WP, R_PA8_PU) | C25804 | 5 | $0.01 | $0.05 | basic |
+| 4.7M R_BIAS (gate driver 24V divider) | C23163 | 1 | $0.001 | $0.001 | preferred |
+| 100k R_CTRL_PD (Q_CTRL gate pull-down) | C25803 | (counted in 100k) | -- | -- | basic |
+| 10k pull-ups (mux ~E x2, flash CS, EEPROM WP) | C25804 | 4 | $0.01 | $0.04 | basic |
 | 1 uF VBAT buffer cap | C15849 | (counted above) | -- | -- | basic |
 
-**Note:** Gate driver resistors (1M x1, 100k x1, 10k x2) and Q_DRIVER
-(2N7002) are existing BOM parts/values -- no new line items. The 5x
-10k pull-ups (mux ~E x2, flash CS, EEPROM WP, PA8 gate driver) use
-existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0 560 ohm
-R_EXC (C23204) — value swap, not a new line item. The VBAT 1 uF cap
-uses existing C15849.
+**Note:** Gate driver uses Q_DRIVER + Q_CTRL (both 2N7002, C8545,
+existing BOM). R_GATE_PULL and R_GATE_PD are 1M (C22935, existing).
+R_CTRL is 10k (C25804, existing). R_CTRL_PD is 100k (C25803,
+existing). Only new part number: R_BIAS 4.7M (C23163, preferred,
+no setup fee). The 4x 10k pull-ups (mux ~E x2, flash CS, EEPROM WP)
+use existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0
+560 ohm R_EXC (C23204) — value swap, not a new line item. The VBAT
+1 uF cap uses existing C15849.
 
 ### Parts removed
 
@@ -842,13 +895,13 @@ v1.1 changes vs v1.0:
 - Add flash (deep power-down): +0.5 uA
 - Add 2x mux: +~0 uA (nA leakage)
 - Add crystal/LSE: on VBAT, not main supply
-- Gate driver quiescent: +24 uA from 24V (R_GATE_PULL 1M through
-  Q_DRIVER to GND — constant current whenever heater is OFF). This is
-  ~0.6 uA referred to 3.3V equivalent via buck efficiency.
-- Net change: ~+0.6 uA from 3.3V equivalent (wash)
+- Gate driver quiescent: +28.2 uA from 24V (24 uA through
+  R_GATE_PULL/Q_DRIVER + 4.2 uA through R_BIAS/R_GATE_PD divider).
+  This is ~0.7 uA referred to 3.3V equivalent via buck efficiency.
+- Net change: ~+0.7 uA from 3.3V equivalent (wash)
 
 Bottom line doesn't change materially from v1.0. The gate driver's
-24µA from the 24V rail is comparable to v1.0's ~20µA sleep budget.
+28µA from the 24V rail is comparable to v1.0's ~20µA sleep budget.
 
 ---
 
@@ -1056,19 +1109,24 @@ PC6, PC7, PC13, PC14, PC15 (no PC0-PC5 or PC8-PC12) and PD0-PD3
 EXC_B eliminated (single excitation on PC6). All with appropriate
 boot-state pull resistors.
 
-### Gate driver boot glitch: reduced to ~1 ms
+### Gate driver: buck-dead fail-safe + zero boot glitch
 
-Originally the heater was briefly ON (~2 ms) during every MCU
-boot/reset. An earlier revision attempted PGOOD-gating with an
-N-channel MOSFET (Q_PGOOD) in the pull-up path, but N-channel
-MOSFETs cannot gate high-side pull-ups (source follows output,
-Vgs goes negative → switch turns off). Redesigned with R_PA8_PU
-(10k pull-up from V3V3 to PA8), which makes Q_DRIVER default-ON
-as the 3.3V rail ramps. Combined with R_GATE_PULL increased to
-1MΩ (slows gate charge, τ = 1.8 ms), the boot glitch is reduced
-to ~1 ms at partial gate voltage. Energy: 106 mJ → 0.11°C wood
-temperature rise. Thermally negligible. Sleep current: 24 µA from
-24V (R_GATE_PULL through Q_DRIVER), comparable to v1.0 budget.
+Three design iterations:
+1. **R_PA8_PU from V3V3:** Q_DRIVER biased ON via 3.3V rail. Boot
+   glitch ~1ms (acceptable). BUT: if buck dies while 24V present,
+   all four safety layers (MCU, IWDG, TPL5010, SCR latch) die with
+   3.3V. R_GATE_PULL charges Q1 gate to 10V → heater ON indefinitely.
+   Safety regression vs v1.0.
+2. **Direct 24V divider on Q_DRIVER gate (PA8 connected):** Fixes
+   the buck-dead scenario but PA8's ESD protection diode clamps the
+   divider node below Vgs(th) when V3V3 = 0V, defeating the fail-safe.
+3. **Q_CTRL isolation (current design):** PA8 controls Q_CTRL (2N7002),
+   whose drain connects to Q_DRIVER gate. PA8 never sees the 24V
+   divider voltage. Buck-dead: Q_CTRL gate at 0V (R_CTRL_PD pulls
+   down), Q_DRIVER stays ON from 24V divider, heater OFF. Boot glitch:
+   zero (resistive divider responds instantly). Logic polarity restored
+   to match v1.0 (PA8 HIGH = heater ON). Sleep: 28µA from 24V
+   (+4.2µA vs R_PA8_PU design, from the 4.7M/1M divider).
 
 ---
 
