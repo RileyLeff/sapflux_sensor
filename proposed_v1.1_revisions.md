@@ -269,59 +269,71 @@ Total connector edge footprint: ~70-80 mm. Fits on the board edge.
 The v1.0 design drives the heater MOSFET gate directly from a 3.3V
 MCU GPIO. At v1.1 currents (up to 4.57A for 8 heaters), even a
 low-Vgs(th) MOSFET at 3.3V gate has significant Rds(on) and wastes
-heat. A 5-component gate driver boosts gate voltage to 10V from the
+heat. A 6-component gate driver boosts gate voltage to 10V from the
 existing 24V rail, dropping Rds(on) to spec-sheet values.
 
 **Circuit:**
 
 ```
-                  R_GATE_PULL (100k)
-V24_PROT ────────┬──────────────────── Q1 Gate
-                 │
-                 ├── D_ZENER (10V) ──┐
-                 │                   │
-              Q_PGOOD (2N7002)       │
-                 │  Drain            │
-                 │  Source ── GND    │
-                 │  Gate ── PGOOD (PC7, open-drain + 10k pull-up)
-                 │                   │
-            Q_DRIVER (2N7002)        │
-                 │  Drain ───────────┘
-                 │
-                 │  Source ── GND
-                 │
-                 │  Gate ──── R_GATE_DRV (10k) ──── PA8 (MCU)
-                 │
-                 └── R_GATE_PD (100k) ── GND
+                    R_GATE_PULL (1M)                            Node A
+V24_PROT ──────────────────────────────┬───────── Q1 Gate
+                                       │
+                            D_ZENER (10V, cathode at A, anode to GND)
+                                       │
+                            Q_DRIVER (drain at A, source to GND)
+
+                                           R_PA8_PU (10k)
+                                                │
+Q_DRIVER gate path:                            V3V3
+    PA8 (MCU) ── R_GATE_DRV (10k) ── Q_DRIVER gate ── R_GATE_PD (100k) ── GND
 ```
 
-**How it works (normal operation, PGOOD = HIGH):**
-1. PA8 HIGH → Q_DRIVER ON → pulls Q1 gate to GND → **heater OFF**
+**How it works (normal operation):**
+1. PA8 HIGH → Q_DRIVER ON → drain at ~0V → Q1 gate at ~0V
+   (R_GATE_PULL sinks 24V/1M = 24µA through Q_DRIVER) → **heater OFF**
 2. PA8 LOW → Q_DRIVER OFF → R_GATE_PULL pulls Q1 gate toward 24V →
-   D_ZENER clamps at 10V (via Q_PGOOD, which is ON because PGOOD
-   is HIGH) → **heater ON** with full Rds(on) spec
+   D_ZENER clamps at 10V (cathode at gate, anode to GND — zener
+   conducts 14µA at steady state) → **heater ON** at full Rds(on) spec
 
 **Inverted logic (PA8 LOW = heater ON).** During normal operation,
 firmware drives PA8 HIGH to keep heater off, then briefly drives
 PA8 LOW for the 2-second heater pulse.
 
-**PGOOD gating eliminates boot glitch:** Q_PGOOD is in series with
-D_ZENER. Until the buck converter's output is stable and PGOOD goes
-HIGH, Q_PGOOD is OFF → R_GATE_PULL cannot pull Q1 gate above GND →
-**heater stays OFF during boot**. Sequence:
+**Why not N-channel PGOOD gating?** An earlier revision attempted to
+place a 2N7002 (Q_PGOOD) in series with R_GATE_PULL to disconnect
+the pull-up during boot. This doesn't work: in an N-channel MOSFET
+used as a high-side switch, the source voltage follows the output.
+As Q1 gate charges above ~2V, Vgs drops below threshold and the
+switch turns off — defeating the purpose. A P-channel high-side
+switch would work but adds complexity (level shifting for the 24V
+gate drive). The R_PA8_PU approach below is simpler and cheaper.
 
-1. Power applied. V24_PROT rises. Buck starts up.
-2. PGOOD is LOW (open-drain, pulled up by 10k to 3.3V — but 3.3V
-   doesn't exist yet). Q_PGOOD OFF. Q1 gate stays at 0V.
-3. Buck output reaches regulation. PGOOD goes HIGH (~3.3V).
-4. MCU boots (~2 ms). Firmware drives PA8 HIGH → Q_DRIVER ON →
-   Q1 gate held at GND. Heater OFF.
+**Boot behavior (R_PA8_PU provides default-ON for Q_DRIVER):**
+
+R_PA8_PU (10k from V3V3 to PA8 node) pulls Q_DRIVER gate HIGH as
+the 3.3V rail ramps during buck startup. This makes Q_DRIVER turn
+ON before R_GATE_PULL can charge Q1 gate to dangerous levels.
+
+1. Power applied. V24_PROT rises. Buck starts up. R_GATE_PULL (1M)
+   begins charging Q1 gate (τ = 1MΩ × 1.8nF = 1.8 ms).
+2. V3V3 ramps from 0V to 3.3V (~2 ms soft-start). R_PA8_PU pulls
+   PA8 node toward V3V3. Through R_GATE_DRV (10k), Q_DRIVER gate
+   voltage = V3V3 × 100k/(10k+10k+100k) = V3V3 × 0.83.
+3. When V3V3 reaches ~1.8V (~1.1 ms into ramp): Q_DRIVER gate
+   exceeds Vgs(th) ~1.5V → Q_DRIVER turns ON → clamps Q1 gate
+   to ~0V. Any charge accumulated on Q1 gate discharges instantly
+   (Ciss × Rds(on) = 1.8nF × 5Ω = 9 ns).
+4. MCU boots (~2 ms after V3V3 stable). Firmware drives PA8 HIGH
+   (same state as pull-up) → seamless handoff.
 5. Only after firmware explicitly drives PA8 LOW can heater turn ON.
 
-**Zero boot glitch.** The heater never sees power during startup
-because PGOOD gates the pull-up path. This is strictly better than
-the original design (which had a ~2 ms heater-ON glitch at every
-boot).
+**Boot glitch: ~1 ms at partial gate voltage.** Between t≈116µs
+(Q1 gate reaches Vgs(th) = 1.5V through 1M) and t≈1.1ms (Q_DRIVER
+turns ON via 3.3V ramp), the heater conducts briefly. Gate voltage
+reaches ~11V before Q_DRIVER clamps it. Worst case energy at 8
+heaters: ~106 mJ → 0.11°C wood temperature rise. Thermally
+negligible. This is comparable to the v1.0 ~2ms glitch but shorter
+due to the 1M pull-up slowing gate charge.
 
 **MCU crash behavior (SCR latch kill path):** If firmware locks up
 with PA8 LOW (heater stuck on), the TPL5010 watchdog fires within
@@ -333,8 +345,8 @@ with PA8 LOW (heater stuck on), the TPL5010 watchdog fires within
 3. Q_LATCH (MMBT3904 NPN + SS8550 PNP cross-coupled) latches ON
 4. Q_WD (2N7002, driven by latch output) pulls Q1 gate to GND
    **permanently** — heater OFF until power cycle
-5. Latch overrides R_GATE_PULL (100k): Q_WD sinks only 0.1 mA,
-   pulling gate to ~0.5 mV
+5. Latch overrides R_GATE_PULL (1M): Q_WD sinks only 24 µA,
+   pulling gate to ~0.1 mV
 6. MCU still boots and can report the fault via RS-485 (D_ISO
    isolates latch from NRST so MCU reset works normally)
 
@@ -346,14 +358,15 @@ require human intervention, not auto-recover.
 
 **Parts:**
 - Q_DRIVER: 2N7002 (C8545, already in BOM) -- N-channel, SOT-23
-- Q_PGOOD: 2N7002 (C8545, already in BOM) -- gates the pull-up path
-- D_ZENER: 10V zener, SOT-23 or SOD-323 (part TBD -- see Open Items)
-- R_GATE_PULL: 100k (C25803, already in BOM)
+- D_ZENER: MM3Z10 (C19077459, preferred, $0.012) -- 10V, SOD-323
+- R_GATE_PULL: 1M (C22935, already in BOM)
 - R_GATE_DRV: 10k (C25804, already in BOM)
 - R_GATE_PD: 100k (C25803, already in BOM)
+- R_PA8_PU: 10k (C25804, already in BOM) -- boot-safe pull-up
 
-Net new unique parts: 1 (zener diode). Q_PGOOD uses existing 2N7002
-(C8545). All resistors are existing values.
+Net new unique parts: 1 (zener diode). All resistors are existing
+values. v1.0's R_GATE (1k) and R4 (10k gate pulldown) are removed —
+Q_DRIVER replaces both functions.
 
 ### MOSFET upgrade
 
@@ -575,11 +588,12 @@ Evaluate after first field deployment.
 | 10k pull-ups (mux ~E x2, flash CS x1, EEPROM WP x1) | C25804 | 4 | $0.01 | $0.04 | basic |
 | 1 uF VBAT buffer cap | C15849 | (counted above) | -- | -- | basic |
 
-**Note:** Gate driver resistors (100k x2, 10k x1) and 2N7002 (Q_DRIVER
-+ Q_PGOOD) are existing BOM parts/values -- no new line items. The 4x
-10k pull-ups use existing C25804. The 270 ohm R_EXC (C22966) replaces
-the v1.0 560 ohm R_EXC (C23204) — value swap, not a new line item.
-The VBAT 1 uF cap uses existing C15849.
+**Note:** Gate driver resistors (1M x1, 100k x1, 10k x2) and Q_DRIVER
+(2N7002) are existing BOM parts/values -- no new line items. The 5x
+10k pull-ups (mux ~E x2, flash CS, EEPROM WP, PA8 gate driver) use
+existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0 560 ohm
+R_EXC (C23204) — value swap, not a new line item. The VBAT 1 uF cap
+uses existing C15849.
 
 ### Parts removed
 
@@ -590,6 +604,8 @@ The VBAT 1 uF cap uses existing C15849.
 | XCHS3N12 MOSFET | C48928121 | 1 | $0.03 | $0.03 |
 | SS36 (D6 flyback) | C16015 | 1 | $0.05 | $0.05 |
 | SS36 (D1 reverse polarity) | C16015 | 1 | $0.04 | $0.04 |
+| R_GATE (1k, MCU→Q1 gate) | C21190 | 1 | $0.01 | $0.01 |
+| R4 (10k, Q1 gate pulldown) | C25804 | 1 | $0.01 | $0.01 |
 | KF2EDGV-3.5-10P | C441318 | 1 | $0.19 | $0.19 |
 
 ### Net cost delta
@@ -936,14 +952,19 @@ PC6, PC7, PC13, PC14, PC15 (no PC0-PC5 or PC8-PC12) and PD0-PD3
 EXC_B eliminated (single excitation on PC6). All with appropriate
 boot-state pull resistors.
 
-### Gate driver boot glitch: eliminated by PGOOD gating
+### Gate driver boot glitch: reduced to ~1 ms
 
 Originally the heater was briefly ON (~2 ms) during every MCU
-boot/reset. External review flagged repeated brown-out cycling risk
-and suggested PGOOD-gating the pull-up path. Solution: Q_PGOOD
-(2N7002) in series with D_ZENER, gate driven by PGOOD. Until the
-buck output is stable, Q_PGOOD is OFF and R_GATE_PULL cannot charge
-Q1 gate. Zero boot glitch, zero added cost (uses existing 2N7002).
+boot/reset. An earlier revision attempted PGOOD-gating with an
+N-channel MOSFET (Q_PGOOD) in the pull-up path, but N-channel
+MOSFETs cannot gate high-side pull-ups (source follows output,
+Vgs goes negative → switch turns off). Redesigned with R_PA8_PU
+(10k pull-up from V3V3 to PA8), which makes Q_DRIVER default-ON
+as the 3.3V rail ramps. Combined with R_GATE_PULL increased to
+1MΩ (slows gate charge, τ = 1.8 ms), the boot glitch is reduced
+to ~1 ms at partial gate voltage. Energy: 106 mJ → 0.11°C wood
+temperature rise. Thermally negligible. Sleep current: 24 µA from
+24V (R_GATE_PULL through Q_DRIVER), comparable to v1.0 budget.
 
 ---
 
