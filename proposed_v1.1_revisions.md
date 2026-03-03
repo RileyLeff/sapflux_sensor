@@ -590,13 +590,13 @@ Evaluate after first field deployment.
 | KF2EDGV-3.5-2P heater conn | C441321 | 1 | $0.06 | $0.06 | extended |
 | PRTR5V0U4D TVS | C2835429 | 7 | $0.06 | $0.42 | extended |
 | 1k ohm 0603 | C21190 | 26 | $0.01 | $0.26 | basic |
-| 100 nF 0603 | C14663 | 28 | $0.01 | $0.28 | basic |
+| 100 nF 0603 | C14663 | 29 | $0.01 | $0.29 | basic |
 | CR2032 holder (SMD) | C7498149 | 1 | $0.21 | $0.21 | extended |
 | BAT54S Schottky | C7420333 | 1 | $0.01 | $0.01 | preferred |
 | 270 ohm 0603 (R_EXC, replaces 560 ohm) | C22966 | 1 | $0.001 | $0.001 | basic |
 | 100 nF decoupling (mux x2, flash x1) | C14663 | (counted above) | -- | -- | basic |
 | 1k resistors (AIN2, AIN3 tie to AGND) | C21190 | (counted above) | -- | -- | basic |
-| 10k pull-ups (mux ~E x2, flash CS x1, EEPROM WP x1) | C25804 | 4 | $0.01 | $0.04 | basic |
+| 10k pull-ups (mux ~E x2, flash CS, EEPROM WP, R_PA8_PU) | C25804 | 5 | $0.01 | $0.05 | basic |
 | 1 uF VBAT buffer cap | C15849 | (counted above) | -- | -- | basic |
 
 **Note:** Gate driver resistors (1M x1, 100k x1, 10k x2) and Q_DRIVER
@@ -617,22 +617,28 @@ uses existing C15849.
 | SS36 (D1 reverse polarity) | C16015 | 1 | $0.04 | $0.04 |
 | R_GATE (1k, MCU→Q1 gate) | C21190 | 1 | $0.01 | $0.01 |
 | R4 (10k, Q1 gate pulldown) | C25804 | 1 | $0.01 | $0.01 |
+| R_EXC (560 ohm, replaced by 270 ohm) | C23204 | 1 | $0.001 | $0.001 |
 | KF2EDGV-3.5-10P | C441318 | 1 | $0.19 | $0.19 |
 
 ### Net cost delta
 
 | | Per board | Notes |
 |---|----------|-------|
-| Parts added | +$7.08 | |
+| Parts added | +$7.10 | |
 | Parts removed | -$1.71 | |
 | **Net parts delta** | **+$5.37** | |
-| Extended part fees | +$21.00 | 7 new unique extended parts x $3 |
-| | | (flash, mux, MOSFET, fuse clips, 48P header, 2P heater, CR2032) |
+| Extended part fees | +$24.00 | 8 new unique extended parts x $3 |
+| | | (flash, mux, MOSFET, fuse clips, 48P header, 2P heater, PRTR5V0U4D, CR2032) |
 
-**Per-board cost at 5 boards:** ~$5.36 + ($21/5) = **$9.56/board**
-**Per-board cost at 50 boards:** ~$5.36 + ($21/50) = **$5.78/board**
+**Per-board cost at 5 boards:** ~$5.37 + ($24/5) = **$10.17/board**
+**Per-board cost at 50 boards:** ~$5.37 + ($24/50) = **$5.85/board**
 
-**User-supplied (not in BOM):** CR2032 coin cell (~$0.30 retail).
+**Through-hole assembly note:** The M8 connector, 48-pin header, 2-pin
+heater terminal, and fuse clips are TH parts. JLCPCB charges extra for
+TH assembly (~$0.20/joint). Budget ~$2-3/board for TH assembly surcharge.
+
+**User-supplied (not in BOM):** CR2032 coin cell (~$0.30 retail),
+5x20mm fast-blow fuse (5-6A).
 5x20mm glass fuse for heater path (~$0.10, any 5-6A fast-blow).
 
 ---
@@ -821,10 +827,13 @@ v1.1 changes vs v1.0:
 - Add flash (deep power-down): +0.5 uA
 - Add 2x mux: +~0 uA (nA leakage)
 - Add crystal/LSE: on VBAT, not main supply
-- Gate driver quiescent: ~0 uA (2N7002 OFF, no current path)
-- Net change: ~0 uA (wash)
+- Gate driver quiescent: +24 uA from 24V (R_GATE_PULL 1M through
+  Q_DRIVER to GND — constant current whenever heater is OFF). This is
+  ~0.6 uA referred to 3.3V equivalent via buck efficiency.
+- Net change: ~+0.6 uA from 3.3V equivalent (wash)
 
-Bottom line doesn't change materially from v1.0.
+Bottom line doesn't change materially from v1.0. The gate driver's
+24µA from the 24V rail is comparable to v1.0's ~20µA sleep budget.
 
 ---
 
