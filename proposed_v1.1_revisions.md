@@ -56,7 +56,7 @@ channels) with a single ADS1115, using two cascaded 16:1 analog muxes.
 
 **Change:** Remove one ADS1115. Add 2x 74HC4067 16:1 analog muxes.
 All thermistor lines route through muxes into ADS1115 AIN0. Excitation
-sense goes directly to AIN1 (hardware differential mode).
+sense goes directly to AIN1 (single-ended ratiometric measurement).
 
 | | v1.0 (2x ADS1115) | v1.1 (1x ADS1115 + 2x mux) |
 |---|---|---|
@@ -171,11 +171,14 @@ flash capacity: ~2M measurement cycles = years of data.
 
 | Config | Thermistors | Mux A | Mux B | 860 SPS Rate |
 |--------|-------------|-------|-------|-------------|
-| 1x East30 (4-pin) | 4 | 4 ch | idle | 174 Hz |
-| 2x East30 | 8 | 8 ch | idle | 87 Hz |
-| 4x East30 | 16 | 16 ch | idle | 43 Hz |
-| 8x East30 | 32 | 16 ch | 16 ch | 13.4 Hz |
-| 6x 4-pin generic | 24 | 16 ch | 8 ch | 17.9 Hz |
+| 1x East30 (4-pin) | 4 | 4 ch | idle | 96 Hz |
+| 2x East30 | 8 | 8 ch | idle | 51 Hz |
+| 4x East30 | 16 | 16 ch | idle | 26 Hz |
+| 8x East30 | 32 | 16 ch | 16 ch | 13 Hz |
+| 6x 4-pin generic | 24 | 16 ch | 8 ch | 18 Hz |
+
+Rates assume 2 conversions per mux channel (dummy + real for settling)
+plus 1 excitation read per scan cycle.
 
 ### MCU pins for mux
 
@@ -202,7 +205,7 @@ a logger.
 - 1 uA typical standby / 10 uA max
 - Deep power-down: 0.5 uA typical (enter via SPI command between cycles)
 - 100K erase cycles, 20-year retention
-- $3.92, 28K stock, extended
+- $3.92 (qty 10+; $4.26 qty 1), 28K stock, extended
 
 **Pin notes (SOIC-16):**
 - Pin 1 RESET#/IO3: tie to VCC (quad-SPI not used; also serves as /HOLD)
@@ -223,12 +226,15 @@ heater pulse, 30-min intervals, 32 channels):**
 | Item | Size |
 |------|------|
 | Per sample | 32 ch x 2 bytes = 64 bytes |
-| Per measurement cycle | ~2,800 samples x 64 B + 8 B header = ~16 KB |
-| Per day (48 cycles) | ~770 KB |
-| 32 MB capacity | ~42 days at 32 ch |
-| With 4 channels (1 probe) | ~340 days |
+| Per measurement cycle (adaptive) | ~250 scans x 64 B + 8 B header = ~16 KB |
+| Per measurement cycle (860 SPS constant) | ~1,587 scans x 64 B = ~99 KB |
+| Per day (48 cycles, adaptive) | ~750 KB |
+| 32 MB capacity (adaptive) | ~44 days at 32 ch |
+| With 4 channels (1 probe, adaptive) | ~350 days |
 
-For longer deployments: reduce to 250 SPS (saves ~3x) or 64 SPS (~13x).
+Adaptive scan: 860 SPS x 5s (66 scans) + 250 SPS x 25s (96 scans) +
+64 SPS x 90s (89 scans) = ~250 scans per cycle. At constant 860 SPS:
+~1,587 scans/cycle (~99 KB) = ~7 days at 32 ch.
 
 **MCU pins:** SPI2 bus (PB13=SCK, PB14=MISO, PB15=MOSI) + PB12 (CS).
 SPI1 is blocked -- PA5 (SPI1_SCK) is already used by TPL5010 DONE.
@@ -253,13 +259,13 @@ Users wire 1-8 heater elements in parallel at the cable level. The
 board just provides switched 24V. Each heater is ~42 ohm, so 8 in
 parallel = 5.25 ohm = 4.57 A total.
 
-**Thermistor/signal block (36-40 pin):** dual or triple-row connector.
+**Thermistor/signal block:** 2x24 pin header (48P), XFCN PZ254V-12-48P
+(C22465947), $0.30, extended.
 - 32 thermistor inputs
 - GND (thermistor ground return)
 - Excitation (GPIO-switched 3.3V via 270 ohm filter)
 - Spare pins for: unused GPIOs, SPI bus, I2C bus, etc.
-
-(Exact connector part TBD -- see Open Items.)
+- See Section 11 for full pinout.
 
 Total connector edge footprint: ~70-80 mm. Fits on the board edge.
 
@@ -422,10 +428,10 @@ copper pour on B.Cu under the diode for additional heat spreading.
 This reduces Rth(j-a) by ~30-40%, improving the hot-ambient margin.
 
 **Fallback:** If thermal testing at 8 heaters in >50°C ambient
-shows Tj approaching limits, the SMA pad footprint is compatible
-with SMC package diodes (same pad center, wider body). An SMC-rated
-Schottky (e.g., SS56 in SMC) has ~2x the thermal mass. No board
-respin needed — just a BOM substitution.
+shows Tj approaching limits, upgrade to a higher-rated SMA Schottky
+(e.g., SS56 SMA with better thermal specs). Note: SMA and SMC
+footprints are NOT compatible (SMA: 4.3x2.6mm, SMC: 7.7x5.9mm).
+An SMC upgrade would require a board respin.
 
 ### PTC fuse split topology
 
@@ -637,6 +643,13 @@ uses existing C15849.
 heater terminal, and fuse clips are TH parts. JLCPCB charges extra for
 TH assembly (~$0.20/joint). Budget ~$2-3/board for TH assembly surcharge.
 
+**Stock warnings (as of 2026-03):**
+- PRTR5V0U4D (C2835429): 2,617 stock. At 7 per board, supports ~374
+  boards. Fine for prototyping but verify before production runs.
+  Backup: NXP PRTR5V0U4D (original, typically higher stock).
+- 48-pin header (C22465947): 817 stock. Fine for 5-50 boards. Backup:
+  any 2x24 2.54mm pin header (common form factor, many vendors).
+
 **User-supplied (not in BOM):** CR2032 coin cell (~$0.30 retail),
 5x20mm fast-blow fuse (5-6A).
 5x20mm glass fuse for heater path (~$0.10, any 5-6A fast-blow).
@@ -742,7 +755,9 @@ handles the transient current spike.
 ### MCU pin: VBAT (pin 1 on LQFP-48)
 
 Dedicated power pin. v1.1 disconnects VBAT from ferrite path and routes
-through BAT54S instead.
+through BAT54S instead. VBAT is protected from input transients:
+VDD comes from the regulated 3.3V buck output (already filtered), and
+the BAT54S provides reverse blocking from both paths.
 
 ---
 
@@ -901,7 +916,9 @@ mux group's cable bundle).
   — two physical pins for cable routing convenience.
 - Auxiliary block (41-48): I2C for external sensors, 4 spare GPIOs,
   extra GND pair.
-- No 3.3V export (buck only has 3 mA headroom during peak loads).
+- No 3.3V export (PFM-mode buck has ~23 mA headroom during scan but
+  ripple is unsuitable for external analog loads; unknown external
+  loads could also exceed 50 mA limit during flash writes).
 
 ### Physical interface
 
