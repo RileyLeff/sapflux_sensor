@@ -1,0 +1,19 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Xucheng_Elec_5x20_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C3130", date="2026-03-03T23:34:04.455681+00:00", checksum="70e940b6e0fe869ba34474a98927043a04e4175f8aea52615a4d8b710104c2c1">
+
+    trait is_atomic_part<manufacturer="Xucheng Elec", partnumber="5x20 环保 保险管夹/座", footprint="FUSE-TH_5X20RHOSFUSECLIP-SEAT.kicad_mod", symbol="5x20RHOSFuseclip_seat.kicad_sym", model="FUSE-TH_5X20.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C3130", manufacturer="Xucheng Elec", partno="5x20 环保 保险管夹/座">
+    trait has_designator_prefix<prefix="F">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2312261747_Xucheng-Elec-5x20---_C3130.pdf">
+
+    # pins (single fuse clip terminal)
+    signal p1 ~ pin 1

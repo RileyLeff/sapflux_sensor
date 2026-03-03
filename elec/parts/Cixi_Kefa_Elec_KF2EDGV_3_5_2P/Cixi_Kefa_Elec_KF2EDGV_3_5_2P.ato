@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C441321", date="2026-03-03T23:33:43.511256+00:00", checksum="6e1653fb207374103fbbdb37dfbac284039ad47a72d979fec1a864fca0b64fbf">
+
+    trait is_atomic_part<manufacturer="Cixi Kefa Elec", partnumber="KF2EDGV-3.5-2P", footprint="CONN-TH_P3.50_KF2EDGV-3.5-2P.kicad_mod", symbol="KF2EDGV-3.5-2P.kicad_sym", model="CONN-TH_P3.50_KF2EDGV-3.5-2P.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C441321", manufacturer="Cixi Kefa Elec", partno="KF2EDGV-3.5-2P">
+    trait has_designator_prefix<prefix="J">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2303311930_Cixi-Kefa-Elec-KF2EDGV-3-5-2P_C441321.pdf">
+
+    # pins (2-pin heater terminal block)
+    signal HEATER_HI ~ pin 1
+    signal HEATER_LO ~ pin 2

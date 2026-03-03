@@ -1,0 +1,21 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_BAT54S_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C7420333", date="2026-03-03T23:33:50.748496+00:00", checksum="1fcfdae59f54d38ae6ccd50e743be68ba068e8092b994caa1620fc160a183057">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="BAT54S", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="BAT54S_C7420333.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C7420333", manufacturer="hongjiacheng", partno="BAT54S">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2310171613_hongjiacheng-BAT54S_C7420333.pdf">
+
+    # pins
+    signal A ~ pin 3
+    signal K1 ~ pin 1
+    signal K2 ~ pin 2

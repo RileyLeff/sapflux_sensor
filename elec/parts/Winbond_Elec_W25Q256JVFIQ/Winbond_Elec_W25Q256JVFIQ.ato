@@ -1,0 +1,34 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Winbond_Elec_W25Q256JVFIQ_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C779876", date="2026-03-03T23:33:18.886253+00:00", checksum="f94ddb400b153b4b525af1237ab2992e9b9b20890ec24ae66016e0e50e93f96a">
+
+    trait is_atomic_part<manufacturer="Winbond Elec", partnumber="W25Q256JVFIQ", footprint="SOIC-16_L10.3-W7.5-P1.27-LS10.3-BL.kicad_mod", symbol="W25Q256JVFIQT.kicad_sym", model="SOIC-16_L10.3-W7.5-H2.7-LS10.3-P1.27.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C779876", manufacturer="Winbond Elec", partno="W25Q256JVFIQ">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Winbond-Elec-W25Q256JVFIQ_C779876.pdf">
+
+    # pins
+    signal CLK ~ pin 16
+    signal DIIO0 ~ pin 15
+    signal DOIO1 ~ pin 8
+    signal GND ~ pin 10
+    signal N_C ~ pin 4
+    N_C ~ pin 5
+    N_C ~ pin 6
+    N_C ~ pin 11
+    N_C ~ pin 12
+    N_C ~ pin 13
+    N_C ~ pin 14
+    signal RESEThIO3 ~ pin 1
+    signal VCC ~ pin 2
+    signal WPhIO2 ~ pin 9
+    signal nCS ~ pin 7
+    signal nRESET ~ pin 3

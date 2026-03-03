@@ -1,0 +1,130 @@
+(footprint "Tritech_MOS_TM15N10D:TO-252-2_L6.6-W6.2-P4.57-LS10.1-BR-CW"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "9286b643-1512-4413-a449-f4a2ee2e23a8")
+	(property "Reference" "REF**"
+		(at 0 -6.29)
+		(layer "F.SilkS")
+		(uuid "7c7b131a-e113-452d-b722-642d6a4afae0")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "TO-252-2_L6.6-W6.2-P4.57-LS10.1-BR-CW"
+		(at 0 6.29)
+		(layer "F.Fab")
+		(uuid "62bdaebe-d0c6-4cf6-a6f6-87e34d3bf1fa")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_circle
+		(center 4.12 3.3)
+		(end 4.15 3.3)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "f421e59a-e859-447e-8105-e2344a967544")
+	)
+	(fp_circle
+		(center 4.01 2.23)
+		(end 4.31 2.23)
+		(stroke
+			(width 0.6)
+			(type solid)
+		)
+		(layer "Cmts.User")
+		(locked no)
+		(uuid "ef5d3152-a0d7-46de-adb1-814b749232db")
+	)
+	(fp_line
+		(start -4.59 3.35)
+		(end 1.38 3.35)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "d1add221-a854-48a6-a5df-9971095b8fb4")
+	)
+	(fp_line
+		(start -4.59 -3.34)
+		(end 1.38 -3.34)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "8ca418b6-ee62-4cd2-abbc-418b2798ad55")
+	)
+	(fp_line
+		(start 1.38 3.35)
+		(end 1.38 -3.34)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f66921fc-067f-4c3b-a06e-7874045f5879")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "3c0b1c0a-4b41-4d26-8cc9-4fe9bcac7c8d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" smd rect
+		(at -3.42 0 0)
+		(size 6.2 5.8)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "fbf40367-a727-43d7-b18e-3e1e8a617115")
+	)
+	(pad "3" smd rect
+		(at 3.42 -2.29 0)
+		(size 3 1.4)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "9ffaf3f5-9671-4f6e-9b5a-fcae4e5b0079")
+	)
+	(pad "1" smd rect
+		(at 3.42 2.29 0)
+		(size 3 1.4)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "8c3ac314-42f7-49d4-98b3-14d5b8d72bab")
+	)
+	(model "${KIPRJMOD}/../../parts/Tritech_MOS_TM15N10D/TO-252-2_L6.6-W6.2-P4.57-LS10.1-BR-CW.step"
+		(offset
+			(xyz -0.8 -0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 270)
+		)
+	)
+	(embedded_fonts no)
+)

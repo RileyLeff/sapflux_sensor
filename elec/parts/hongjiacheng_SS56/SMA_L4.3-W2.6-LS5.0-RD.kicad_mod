@@ -1,0 +1,137 @@
+(footprint "hongjiacheng_SS56:SMA_L4.3-W2.6-LS5.0-RD"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "c55365a6-30ce-47c6-afef-c9a944082921")
+	(property "Reference" "REF**"
+		(at 0 -4.01)
+		(layer "F.SilkS")
+		(uuid "c2ed8bb0-31ec-4665-b9a6-51e515531ff9")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "SMA_L4.3-W2.6-LS5.0-RD"
+		(at 0 4.01)
+		(layer "F.Fab")
+		(uuid "9d817e8f-48d7-40d3-a96a-86a618f57788")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -2.5 1.3)
+		(end -2.47 1.3)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "b9e9f699-8827-4189-aeb3-bb6ef1b9ea5c")
+	)
+	(fp_line
+		(start -1.08 -1.36)
+		(end -1.08 1.36)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "8210ed35-0490-4958-9a9f-8cea48c2a314")
+	)
+	(fp_line
+		(start -2.5 1.36)
+		(end 2.16 1.36)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "e29c4fd6-b845-48d6-8b0a-115b1573ffe8")
+	)
+	(fp_line
+		(start -2.53 -1.36)
+		(end 2.16 -1.35)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "121c8e49-b9d4-4125-b937-1f00172b507b")
+	)
+	(fp_line
+		(start 2.16 1.36)
+		(end 2.16 1.01)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "6477aa1f-4014-49a2-898d-3a9e7d4fc336")
+	)
+	(fp_line
+		(start 2.16 -1.27)
+		(end 2.16 -0.92)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "92aea3c6-2790-43e1-9f40-de0473a90145")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "53b2da8c-5a22-4554-a6ac-9af360b2b57a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "2" smd rect
+		(at 2.4 -0.01 180)
+		(size 2.05 1.62)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "9cb63496-ecaf-4dc1-8500-8c1d2c4ed51d")
+	)
+	(pad "1" smd rect
+		(at -2.4 0.01 0)
+		(size 2.05 1.62)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "e53f1ed9-df58-4c9a-b94e-e0c3c285eed0")
+	)
+	(model "${KIPRJMOD}/../../parts/hongjiacheng_SS56/SMA_L4.3-W2.6-LS5.0-RD.STEP"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

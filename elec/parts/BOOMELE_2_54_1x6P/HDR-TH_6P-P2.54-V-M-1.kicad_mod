@@ -1,0 +1,167 @@
+(footprint "BOOMELE_2_54_1x6P:HDR-TH_6P-P2.54-V-M-1"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "2f44e833-d381-4e1e-8828-b940532c3450")
+	(property "Reference" "REF**"
+		(at 0 -4)
+		(layer "F.SilkS")
+		(uuid "8b82be0c-f6e9-4a65-bfc0-db5abcc53061")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "HDR-TH_6P-P2.54-V-M-1"
+		(at 0 4)
+		(layer "F.Fab")
+		(uuid "312c3e93-33e8-4116-bac0-364519cf72da")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_circle
+		(center -7.62 1.25)
+		(end -7.59 1.25)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "38b19b72-374b-4362-a4c1-dfe7a4fc46f5")
+	)
+	(fp_line
+		(start 7.62 -1.25)
+		(end -7.62 -1.25)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "b25e458b-1153-4e6a-b8dd-62c78fc27ebc")
+	)
+	(fp_line
+		(start -7.62 1.25)
+		(end 7.62 1.25)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f505c14c-316d-4de2-bed3-1325325356b6")
+	)
+	(fp_line
+		(start 7.62 -1.25)
+		(end 7.62 1.25)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "7e8139fa-8af8-4195-b17a-1fae2553f74f")
+	)
+	(fp_line
+		(start -7.62 -1.25)
+		(end -7.62 1.25)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "844dfe35-d6a9-45ac-af96-f697f441b9b1")
+	)
+	(fp_line
+		(start -5.08 -1.25)
+		(end -5.08 1.25)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f16e863d-c5e2-4ede-8048-d36a4e704b33")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "759c54f8-ed8c-4cc1-8dfe-2f8c95f7af0e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "6" thru_hole circle
+		(at 6.35 0 0)
+		(size 1.8 1.8)
+		(drill 1.1999976)
+		(layers "*.Cu" "*.Mask")
+		(uuid "bfef6723-4b23-4c83-a7b6-66f5a5bf2b04")
+	)
+	(pad "5" thru_hole circle
+		(at 3.81 0 0)
+		(size 1.8 1.8)
+		(drill 1.1999976)
+		(layers "*.Cu" "*.Mask")
+		(uuid "9dc0cfe9-c3b6-4c47-b5fd-66f75c849d81")
+	)
+	(pad "4" thru_hole circle
+		(at 1.27 0 0)
+		(size 1.8 1.8)
+		(drill 1.1999976)
+		(layers "*.Cu" "*.Mask")
+		(uuid "84cf14d9-91fb-495f-a399-95703c3307aa")
+	)
+	(pad "3" thru_hole circle
+		(at -1.27 0 0)
+		(size 1.8 1.8)
+		(drill 1.1999976)
+		(layers "*.Cu" "*.Mask")
+		(uuid "95857184-8fc8-413b-938e-7222946db9b2")
+	)
+	(pad "2" thru_hole circle
+		(at -3.81 0 0)
+		(size 1.8 1.8)
+		(drill 1.1999976)
+		(layers "*.Cu" "*.Mask")
+		(uuid "ac9f0e60-76ee-4775-9a8f-3bb3ce9f039c")
+	)
+	(pad "1" thru_hole rect
+		(at -6.35 0 0)
+		(size 1.8 1.8)
+		(drill 1.1999976)
+		(layers "*.Cu" "*.Mask")
+		(uuid "4459705f-cd2e-46c8-a0d0-fb69da167b17")
+	)
+	(model "${KIPRJMOD}/../../parts/BOOMELE_2_54_1x6P/HDR2.54-M-LI-1X6P.step"
+		(offset
+			(xyz 0 -0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

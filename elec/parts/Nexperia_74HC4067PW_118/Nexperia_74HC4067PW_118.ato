@@ -1,0 +1,42 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Nexperia_74HC4067PW_118_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C179326", date="2026-03-03T23:33:09.764550+00:00", checksum="31def14e13c26e85bf965860b97a9d0a4fa74f3b663d077e1727ea05311ac7ca">
+
+    trait is_atomic_part<manufacturer="Nexperia", partnumber="74HC4067PW,118", footprint="TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL.kicad_mod", symbol="74HC4067PW,118.kicad_sym", model="TSSOP-24_L7.8-W4.4-H1.0-LS6.4-P0.65.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C179326", manufacturer="Nexperia", partno="74HC4067PW,118">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2407241027_Nexperia-74HC4067PW-118_C179326.pdf">
+
+    # pins
+    signal GND ~ pin 12
+    signal S0 ~ pin 10
+    signal S1 ~ pin 11
+    signal S2 ~ pin 14
+    signal S3 ~ pin 13
+    signal VCC ~ pin 24
+    signal Y0 ~ pin 9
+    signal Y1 ~ pin 8
+    signal Y2 ~ pin 7
+    signal Y3 ~ pin 6
+    signal Y4 ~ pin 5
+    signal Y5 ~ pin 4
+    signal Y6 ~ pin 3
+    signal Y7 ~ pin 2
+    signal Y8 ~ pin 23
+    signal Y9 ~ pin 22
+    signal Y10 ~ pin 21
+    signal Y11 ~ pin 20
+    signal Y12 ~ pin 19
+    signal Y13 ~ pin 18
+    signal Y14 ~ pin 17
+    signal Y15 ~ pin 16
+    signal Z ~ pin 1
+    signal nE ~ pin 15

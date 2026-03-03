@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Lian_Xin_Technology_BS_CR2032_8_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C7498149", date="2026-03-03T23:33:47.829003+00:00", checksum="5e4e9cf9531d2dd6b63b84d9ea9e7d10baf1a81d91d384f5674bcc0820581ae8">
+
+    trait is_atomic_part<manufacturer="Lian Xin Technology", partnumber="BS-CR2032-8", footprint="BAT-SMD_BS-CR2032-8.kicad_mod", symbol="BS-CR2032-8.kicad_sym", model="BAT-SMD_BS-CR2032-8.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C7498149", manufacturer="Lian Xin Technology", partno="BS-CR2032-8">
+    trait has_designator_prefix<prefix="BAT">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2309251154_Lian-Xin-Technology-BS-CR2032-8_C7498149.pdf">
+
+    # pins (CR2032 battery holder: pin 1 = +, pin 2 = -)
+    signal POS ~ pin 1
+    signal NEG ~ pin 2

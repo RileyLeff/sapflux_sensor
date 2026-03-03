@@ -1,0 +1,101 @@
+(footprint "Seiko_Epson_Q13FC13500004:FC-135R_L3.2-W1.5"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "96a329af-1737-4668-b1b0-3196e869b3bd")
+	(property "Reference" "REF**"
+		(at 0 -4)
+		(layer "F.SilkS")
+		(uuid "fe6d8c62-302e-493a-9cb8-62d3b4a7f6ba")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "FC-135R_L3.2-W1.5"
+		(at 0 4)
+		(layer "F.Fab")
+		(uuid "6731f7d6-2220-4a21-84ff-47865e113c56")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center -1.75 0.9)
+		(end -1.72 0.9)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "180f3fd5-3630-4d36-b825-e2467fe66584")
+	)
+	(fp_line
+		(start -0.51 -0.76)
+		(end 0.51 -0.76)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "ad5fa347-dbec-4572-9e45-32b30620db8c")
+	)
+	(fp_line
+		(start 0.51 0.76)
+		(end -0.51 0.76)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f44c3db5-30d0-42d0-9183-3fbea41a7d40")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "1b607c6a-be37-43b5-80d3-e7de2a30e1db")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd rect
+		(at -1.25 0 90)
+		(size 1.8 1)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "d3fe463d-1ac8-46cc-b178-23ae93ec70c1")
+	)
+	(pad "2" smd rect
+		(at 1.25 0 90)
+		(size 1.8 1)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "9ba2b38d-a86d-4734-9f3f-1360dc51b85d")
+	)
+	(model "${KIPRJMOD}/../../parts/Seiko_Epson_Q13FC13500004/FC-135R_L3.2-W1.5.STEP"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

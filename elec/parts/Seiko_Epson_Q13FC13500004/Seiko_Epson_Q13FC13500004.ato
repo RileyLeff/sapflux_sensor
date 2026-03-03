@@ -1,0 +1,22 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Seiko_Epson_Q13FC13500004_package:
+    """32.768KHz ±20ppm 12.5pF"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C32346", date="2026-03-03T23:33:53.760690+00:00", checksum="e9d477d2334b8fb7e3d8ee4129a6390ded32176edd6822341434c91b44d5f1cf">
+
+    trait is_atomic_part<manufacturer="Seiko Epson", partnumber="Q13FC13500004", footprint="FC-135R_L3.2-W1.5.kicad_mod", symbol="Q13FC1350000400.kicad_sym", model="FC-135R_L3.2-W1.5.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C32346", manufacturer="Seiko Epson", partno="Q13FC13500004">
+    trait has_designator_prefix<prefix="Y">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2404180925_Seiko-Epson-Q13FC13500004_C32346.pdf">
+
+    # pins (32.768 kHz crystal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

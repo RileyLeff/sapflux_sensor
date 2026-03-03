@@ -1,0 +1,21 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Tritech_MOS_TM15N10D_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C7422818", date="2026-03-03T23:33:22.501663+00:00", checksum="ea46a2177e191f07cfea13810298037b8f56a60ae72385f0ac5cb25bebe14ca9">
+
+    trait is_atomic_part<manufacturer="Tritech-MOS", partnumber="TM15N10D", footprint="TO-252-2_L6.6-W6.2-P4.57-LS10.1-BR-CW.kicad_mod", symbol="TM15N10D.kicad_sym", model="TO-252-2_L6.6-W6.2-P4.57-LS10.1-BR-CW.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C7422818", manufacturer="Tritech-MOS", partno="TM15N10D">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2306141502_Tritech-MOS-TM15N10D_C7422818.pdf">
+
+    # pins
+    signal D ~ pin 2
+    signal G ~ pin 1
+    signal S ~ pin 3

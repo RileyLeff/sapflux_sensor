@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_MM3Z10_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C19077459", date="2026-03-03T23:33:27.130047+00:00", checksum="4b57effb51a71d25415ee43233d59d9b5215ea0b6077fa7976f9df2fcecd513b">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="MM3Z10", footprint="SOD-323_L1.7-W1.3-LS2.6-RD.kicad_mod", symbol="MM3Z10_C19077459.kicad_sym", model="SOD-323_L1.7-W1.3-LS2.6-RD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C19077459", manufacturer="hongjiacheng", partno="MM3Z10">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2403220910_hongjiacheng-MM3Z10_C19077459.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1
