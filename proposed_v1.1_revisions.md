@@ -941,6 +941,73 @@ through IP68 cable glands.
 
 ---
 
+## 13. SWD Header & Test Points
+
+### SWD programming header
+
+4-pin through-hole header (2.54mm pitch) for standard breadboard-style
+pin strip. Locate near the MCU, away from the board edge connectors.
+
+| Pin | Signal | MCU Pin | Notes |
+|-----|--------|---------|-------|
+| 1 | SWDIO | PA13 | Data |
+| 2 | SWCLK | PA14 | Clock |
+| 3 | GND | -- | Probe ground reference |
+| 4 | NRST | NRST | Optional but useful for halt/reset |
+
+Use with ST-Link V2 or J-Link. No boot button needed — SWD can
+always halt the core, erase, and reprogram regardless of firmware
+state (unless debug port is locked via option bytes, which we won't
+do during development).
+
+**Optional 5th pin:** Add V3V3 so the probe can detect target power
+without a separate connection. Not required for programming.
+
+### Test points
+
+Through-hole pads (1mm drill, 2mm annular ring) for scope/DMM probes.
+Group by function on the PCB. One GND test point per group for short
+probe ground leads.
+
+**Power rail verification (first thing to check on a new board):**
+
+| Label | Net | Expected | What it tells you |
+|-------|-----|----------|-------------------|
+| TP_V24 | V24_PROT | 12-29V | Input power through protection |
+| TP_3V3 | V3V3 | 3.3V ±2% | Buck converter running |
+| TP_PGOOD | PGOOD | HIGH when V3V3 stable | Buck startup complete |
+| TP_GND1 | GND | 0V | Power section probe reference |
+
+**Analog section (verify ADC signal chain):**
+
+| Label | Net | Expected | What it tells you |
+|-------|-----|----------|-------------------|
+| TP_VDDA | VDDA_FILT | 3.3V (clean) | Ferrite bead filtering |
+| TP_EXC | excitation | ~2.3V (loaded) | Thermistor excitation active |
+| TP_GND2 | GND | 0V | Analog section probe reference |
+
+**Heater & safety (verify gate driver and latch):**
+
+| Label | Net | Expected | What it tells you |
+|-------|-----|----------|-------------------|
+| TP_GATE | Q1 gate | 0V idle, 10V firing | Gate driver working |
+| TP_LATCH | SCR latch output | LOW normal, HIGH latched | Latch state |
+| TP_GND3 | GND | 0V | Heater section probe reference |
+
+**Bring-up sequence:**
+1. Apply 24V. Check TP_V24 (should match input).
+2. Check TP_3V3 (3.3V) and TP_PGOOD (HIGH). If not: buck problem.
+3. Connect SWD, flash firmware.
+4. Check TP_EXC with excitation enabled (should be ~2.3-3.1V depending
+   on number of thermistors connected).
+5. Check TP_GATE: should be 0V idle, 10V during heater pulse.
+6. Verify TP_LATCH stays LOW during normal operation.
+
+**Board area:** SWD header ~2.5x10mm. 9 test points at ~5mm² each ≈
+45mm² total. Negligible impact on 90x62mm board.
+
+---
+
 ## Resolved Items (formerly open)
 
 ### PTC inrush: non-issue
