@@ -456,36 +456,30 @@ drain pad, stitched to a bottom-layer copper pour. At 8 heaters
 rise ~9°C per pulse. Without adequate copper/vias, steady-state Rth
 can exceed 40°C/W and Tj will approach limits in hot enclosures.
 
-### D1 (reverse polarity Schottky) upgrade
+### D1 (reverse polarity Schottky) — moved to buck-only branch
 
-**CRITICAL FIX:** D1 is in the SERIES power path. Topology from
-protection.ato: `J1 → PTC → TVS → D1 → V24_PROT → {buck, heater}`.
-D1 carries ALL current including heater (up to 4.57A for 8 probes).
-The v1.0 SS36 (3A) is undersized for v1.1.
+**v1.0 problem:** D1 sits in the series power path before the
+buck/heater split, carrying ALL current including heater (up to
+4.57A for 8 probes). The SS36 (3A) is undersized, and even an SS56
+(5A) has tight thermal margins at 8 heaters in hot enclosures.
 
-- **Current:** SS36 (C16015), 3A/60V, SMA
-- **New:** SS56 (C18199169), 5A/60V, SMA, **preferred** (no setup fee), $0.045
-- Same SMA footprint -- drop-in replacement
-- 5A continuous + 120A surge handles 4.57A with margin
+**v1.1 fix:** Move D1 after the V24_RAW split point so it protects
+only the buck branch (<50 mA). The heater path has no Schottky —
+the fuse is the protection element. D1 can remain an SS36 (or any
+small SMA Schottky) since it carries milliamps, not amps. Thermal
+concern is completely eliminated.
 
-**Thermal constraint at 8 heaters:** At 4.57A, Vf ~0.65V →
-~3.0W dissipation during the 2-second pulse. SMA transient thermal
-impedance at 2s is ~30% of steady-state Rth(j-a): junction rise
-~80°C. At 40°C ambient (sun-heated enclosure): Tj ~120°C, leaving
-30°C margin to Tj,max=150°C. Acceptable for 2-second pulses every
-30 minutes (average power: 0.003W). In extreme heat (>50°C ambient),
-margin narrows to ~20°C -- monitor D1 temp on first field boards.
+**Reverse polarity behavior (D1 on buck-only):**
+- Normal case: TVS forward-clamps V24_RAW to -0.7V. Heater path
+  sees -0.7V / 40Ω = 17.5 mA. Harmless. Fuse does NOT blow.
+  MOSFET body diode barely conducts. Buck: D1 blocks. Safe.
+- TVS failed + reverse polarity: MOSFET body diode conducts,
+  fuse blows in ~100ms. Electronics still protected by D1.
+  Replace fuse + TVS.
+- The M8 upstream connector is keyed — reverse polarity requires
+  a wiring error at installation, not a field failure mode.
 
-**Layout mitigation:** Place 4-6 thermal vias (0.3mm drill) under
-D1's SMA anode pad, connected to the GND plane (In1.Cu). Add a
-copper pour on B.Cu under the diode for additional heat spreading.
-This reduces Rth(j-a) by ~30-40%, improving the hot-ambient margin.
-
-**Fallback:** If thermal testing at 8 heaters in >50°C ambient
-shows Tj approaching limits, upgrade to a higher-rated SMA Schottky
-(e.g., SS56 SMA with better thermal specs). Note: SMA and SMC
-footprints are NOT compatible (SMA: 4.3x2.6mm, SMC: 7.7x5.9mm).
-An SMC upgrade would require a board respin.
+D1 stays SS36 (C16015, basic, $0.04). No part change needed.
 
 ### PTC fuse split topology
 
@@ -494,33 +488,67 @@ buck converter and heater. At 2+ heaters (1.14A), the PTC trips.
 
 **v1.1 topology:**
 ```
-                          ┌→ PTC (1.1A) → buck input (20 mA steady)
-J1 → TVS → Schottky → V24_PROT ─┤
-                          └→ [6A fuse footprint] → heater MOSFET (4.57A pulsed)
+                    ┌→ D1 (SS36) → PTC (1.1A) → buck input (20 mA steady)
+J1 → TVS → V24_RAW ─┤
+                    └→ [6A fuse] → heater MOSFET (4.57A pulsed)
 ```
 
+- D1 moves from the main series path to the buck-only branch. It now
+  protects only the electronics (<50 mA). No thermal concern.
 - PTC moves from the main series input path (v1.0: before TVS/Schottky)
-  to the buck-only branch (v1.1: after the V24_PROT split). It now
-  protects only the electronics path (20 mA steady), not the heater.
+  to the buck-only branch (v1.1: after D1). It now protects only the
+  electronics path (20 mA steady), not the heater.
 - Heater path gets a **dedicated fuse** (6A fast-blow, 5x20mm).
   Populated by default — not optional. The fuse is the last line of
   defense for catastrophic shorts (e.g., cable insulation failure in
   the field). User-supplied: any 5-6A fast-blow 5x20mm glass fuse.
 - The 4-layer watchdog/latch system handles normal fault modes. The
   fuse handles wiring faults that bypass the electronics entirely.
-- Combined input (TVS + Schottky) sees full current (heater + buck)
-  during pulses. The TVS only conducts during transients (microamp
-  leakage in steady state). The SS56 Schottky handles 4.57A -- see
-  thermal note below.
+- TVS sees full current during transients only (microamp leakage in
+  steady state). No high-current Schottky in the heater path.
 
 ### Multi-heater table
 
-| Heaters | Total current | MOSFET Pdiss (75mΩ @ 10V) | D1 load | Status |
-|---------|--------------|---------------------------|---------|--------|
-| 1 | 0.57 A | 24 mW | 11% | Easy |
-| 2 | 1.14 A | 98 mW | 23% | Easy |
-| 4 | 2.29 A | 391 mW | 46% | OK (Tj rise ~8°C) |
-| 8 | 4.57 A | 1,565 mW | 91% | OK (Tj rise ~31°C) |
+| Heaters | Total current | MOSFET Pdiss (75mΩ @ 10V) | Status |
+|---------|--------------|---------------------------|--------|
+| 1 | 0.57 A | 24 mW | Easy |
+| 2 | 1.14 A | 98 mW | Easy |
+| 4 | 2.29 A | 391 mW | OK (Tj rise ~8°C) |
+| 8 | 4.57 A | 1,565 mW | OK (Tj rise ~31°C) |
+
+D1 is no longer in the heater path (buck-only branch). No Schottky
+thermal concern at any heater count.
+
+### Cable specification
+
+**Topology:** Star. Each heater probe has its own cable pair from the
+board to the probe. In star topology, each cable carries only one
+probe's current (~0.57A), regardless of total probe count. This makes
+cable loss independent of the number of probes.
+
+**Recommended gauge:** 16 AWG (1.31 mm^2) or heavier for cable runs
+over 10 meters. At 25m with 16AWG: 3.1% power drop per probe. Maximum
+cable length for 20% power drop: **188 meters** (16 AWG star).
+
+| Cable gauge | 25m power drop | Max length (20% drop) |
+|-------------|---------------|-----------------------|
+| 22 AWG | 11.5% | 47 m |
+| 18 AWG | 5.8% | 94 m |
+| 16 AWG | 3.1% | 188 m |
+
+**Why power drop matters:** Sap flux methods (Granier, heat ratio) are
+ratio-based and self-calibrate per probe — each probe's dTmax is its
+own reference. Different cable lengths (and thus different heater powers)
+across probes do NOT cause systematic measurement errors. However,
+the probe must deliver enough heat to produce a measurable temperature
+signal in the wood. At >20% power drop, the temperature rise may be
+too small for reliable derivative estimation in highly sap-active trees.
+
+**Shared trunk (NOT recommended for >2 probes):** If all probes share
+a single cable pair from the board to a junction box, the trunk carries
+the sum of all probe currents. At 8 probes on 22 AWG, 25m trunk: 57%
+power drop (insufficient). Even 16 AWG shared trunk at 8 probes: 21%
+drop at 25m. Star topology eliminates this scaling problem entirely.
 
 ---
 
@@ -642,8 +670,7 @@ Evaluate after first field deployment.
 | 74HC4067 mux | C179326 | 2 | $0.57 | $1.14 | extended |
 | W25Q256JVFIQ flash | C779876 | 1 | $3.92 | $3.92 | extended |
 | TM15N10D MOSFET | C7422818 | 1 | $0.09 | $0.09 | extended |
-| SS56 flyback diode | C18199169 | 1 | $0.05 | $0.05 | preferred |
-| SS56 reverse polarity (D1) | C18199169 | 1 | $0.05 | $0.05 | preferred |
+| SS56 flyback diode (D6) | C18199169 | 1 | $0.05 | $0.05 | preferred |
 | MM3Z10 10V zener (gate driver) | C19077459 | 1 | $0.012 | $0.012 | preferred |
 | 5x20mm fuse clips (heater) | C3130 | 2 | $0.027 | $0.054 | extended |
 | 2x24 pin header (48P, 2.54mm) | C22465947 | 1 | $0.30 | $0.30 | extended |
@@ -678,7 +705,6 @@ use existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0
 | ADS1115 passives (2nd) | various | ~4 | ~$0.03 | $0.10 |
 | XCHS3N12 MOSFET | C48928121 | 1 | $0.03 | $0.03 |
 | SS36 (D6 flyback) | C16015 | 1 | $0.05 | $0.05 |
-| SS36 (D1 reverse polarity) | C16015 | 1 | $0.04 | $0.04 |
 | R_GATE (1k, MCU→Q1 gate) | C21190 | 1 | $0.01 | $0.01 |
 | R4 (10k, Q1 gate pulldown) | C25804 | 1 | $0.01 | $0.01 |
 | R_EXC (560 ohm, replaced by 270 ohm) | C23204 | 1 | $0.001 | $0.001 |
@@ -688,14 +714,14 @@ use existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0
 
 | | Per board | Notes |
 |---|----------|-------|
-| Parts added | +$7.10 | |
-| Parts removed | -$1.71 | |
-| **Net parts delta** | **+$5.37** | |
+| Parts added | +$7.04 | |
+| Parts removed | -$1.69 | |
+| **Net parts delta** | **+$5.35** | |
 | Extended part fees | +$24.00 | 8 new unique extended parts x $3 |
 | | | (flash, mux, MOSFET, fuse clips, 48P header, 2P heater, PRTR5V0U4D, CR2032) |
 
-**Per-board cost at 5 boards:** ~$5.37 + ($24/5) = **$10.17/board**
-**Per-board cost at 50 boards:** ~$5.37 + ($24/50) = **$5.85/board**
+**Per-board cost at 5 boards:** ~$5.35 + ($24/5) = **$10.15/board**
+**Per-board cost at 50 boards:** ~$5.35 + ($24/50) = **$5.83/board**
 
 **Through-hole assembly note:** The M8 connector, 48-pin header, 2-pin
 heater terminal, and fuse clips are TH parts. JLCPCB charges extra for
@@ -1181,14 +1207,12 @@ corruption during brown-outs or firmware crashes.
 ### Heater inter-pulse cooldown
 
 Firmware MUST enforce a minimum interval between heater pulses (≥60
-seconds recommended). This prevents D1 (SS56) thermal accumulation
-from back-to-back pulses. At 8 heaters on a short cable (5m),
-D1 dissipates ~2.8W for 2 seconds — junction rises ~76°C per pulse.
-With 60 seconds between pulses (natural sap flux cadence is 30 min),
-the junction fully cools between pulses. This is enforced in software
-because the measurement protocol already requires long inter-pulse
-intervals for thermal equilibrium; a rapid re-fire would produce
-scientifically meaningless data regardless.
+seconds recommended). The sap flux measurement protocol requires the
+wood to reach thermal equilibrium before the next heat pulse — a rapid
+re-fire produces scientifically meaningless data. The natural cadence
+is 30 minutes between pulses, far exceeding the minimum. This
+constraint also ensures the MOSFET (DPAK) junction fully cools between
+pulses (Tj rise ~31°C per pulse at 8 heaters, dissipates in <30s).
 
 ### Flash DPD wake sequence
 
@@ -1249,20 +1273,12 @@ The ramp shape is fully characterized from hardware specs (R_GATE_PULL
 ±1%, Ciss ±20%, Vgs(th) 0.8-2.5V). Worst case: 2.9 ms. No direct
 measurement or deconvolution is needed.
 
-### D1 thermal at 8 heaters (adequate with cable loss)
+### D1 thermal (eliminated concern)
 
-Theoretical worst case (zero cable loss): 4.8A through D1, 3.1W,
-84°C junction rise. This is tight at 50°C ambient (16°C margin).
-
-In practice, cable resistance self-limits current: 25m of 22AWG has
-2.65Ω round-trip, reducing 8-heater current to 3.14A (D1: 2.0W,
-55°C rise). Even 5m cables limit current to 4.34A (D1: 2.8W, 76°C
-rise). At 40°C ambient with 5m cable: Tj = 116°C, 34°C margin.
-
-Thermal vias (4-6× 0.3mm under SMA pad) reduce Rth by ~30-40%.
-Firmware inter-pulse cooldown (≥60s) prevents thermal accumulation.
-The natural sap flux measurement cadence (30 min) provides complete
-junction cooling between pulses.
+In v1.1, D1 (SS36) moved to the buck-only branch (see Section 4).
+It now carries <50 mA — the heater current path bypasses D1 entirely.
+No thermal concern at any heater count. This supersedes all prior
+analysis of D1 thermal limits at 4-8 heaters.
 
 ### Buck (LM5165) headroom at v1.1 loads (comfortable)
 
