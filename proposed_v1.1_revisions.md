@@ -1178,6 +1178,120 @@ Firmware must drive PA12 LOW before writing config/calibration data,
 then drive HIGH immediately after. This prevents accidental EEPROM
 corruption during brown-outs or firmware crashes.
 
+### Heater inter-pulse cooldown
+
+Firmware MUST enforce a minimum interval between heater pulses (≥60
+seconds recommended). This prevents D1 (SS56) thermal accumulation
+from back-to-back pulses. At 8 heaters on a short cable (5m),
+D1 dissipates ~2.8W for 2 seconds — junction rises ~76°C per pulse.
+With 60 seconds between pulses (natural sap flux cadence is 30 min),
+the junction fully cools between pulses. This is enforced in software
+because the measurement protocol already requires long inter-pulse
+intervals for thermal equilibrium; a rapid re-fire would produce
+scientifically meaningless data regardless.
+
+### Flash DPD wake sequence
+
+W25Q256 deep power-down wake requires Release command (0xAB) + 3µs
+wait. Firmware flash driver must wrap every SPI transaction with
+wake-if-needed → wait 3µs → transact → enter DPD.
+
+### EEPROM data integrity
+
+Write EEPROM config/calibration data with CRC32. On boot, verify
+CRC; if invalid, fall back to compiled-in defaults and flag via
+RS-485. Prevents silent corruption from brown-out mid-write.
+
+---
+
+## Design Notes (FAQ for Reviewers)
+
+These items have been analyzed and resolved. Documented here to
+prevent re-flagging in subsequent reviews.
+
+### Mux Ron impedance mismatch (not a concern)
+
+Multiple reviewers have flagged that the thermistor path goes through
+the 74HC4067 mux (~80Ω Ron typical, ~200Ω at -40°C) while the
+excitation sense on AIN1 does not, potentially breaking ratiometric
+cancellation.
+
+**Analysis:** The ADS1115 has 200 pA input bias current. The voltage
+error from 200Ω Ron mismatch is 200pA × 200Ω = 40 nV. The ADS1115
+LSB at ±4.096V PGA is 125 µV. This error is 0.00032 LSB, which
+translates to 74 µ°C at -40°C — 6,000× below the ADC noise floor
+(±23 m°C at 128 SPS). The 100nF filter caps and 1.16ms dummy read
+provide >9 time constants of settling at any temperature. Charge
+injection (5pC → 50µV) is cleared by the dummy read.
+
+Errors do NOT accumulate across rapid mux switching. Each measurement
+is independent: dummy read fully resets the sampling capacitor and
+filter cap state.
+
+Routing excitation through a mux channel would provide matched
+impedance but costs 2 thermistor channels for zero measurable benefit.
+
+### Gate turn-on ramp shape (negligible for sap flux)
+
+R_GATE_PULL (1MΩ) charges the MOSFET gate through an RC time constant
+of 1.8 ms (1MΩ × 1800pF Ciss). The heater power ramps from 0 to full
+over ~2.6 ms (exponential). Turn-off is instantaneous (~17 ns, via
+Q_DRIVER Rds(on) × Ciss).
+
+The ramp represents 0.065% of total pulse energy (18.8 mJ out of
+28.8 J for a single probe, 2-second pulse). The effective start-time
+shift is ~1.3 ms. For comparison, the thermal diffusion timescale in
+wood at 6mm probe spacing is ~240 seconds. The ramp is 0.001% of the
+diffusion time. This is far below measurement noise and wood property
+variability.
+
+The ramp shape is fully characterized from hardware specs (R_GATE_PULL
+±1%, Ciss ±20%, Vgs(th) 0.8-2.5V). Worst case: 2.9 ms. No direct
+measurement or deconvolution is needed.
+
+### D1 thermal at 8 heaters (adequate with cable loss)
+
+Theoretical worst case (zero cable loss): 4.8A through D1, 3.1W,
+84°C junction rise. This is tight at 50°C ambient (16°C margin).
+
+In practice, cable resistance self-limits current: 25m of 22AWG has
+2.65Ω round-trip, reducing 8-heater current to 3.14A (D1: 2.0W,
+55°C rise). Even 5m cables limit current to 4.34A (D1: 2.8W, 76°C
+rise). At 40°C ambient with 5m cable: Tj = 116°C, 34°C margin.
+
+Thermal vias (4-6× 0.3mm under SMA pad) reduce Rth by ~30-40%.
+Firmware inter-pulse cooldown (≥60s) prevents thermal accumulation.
+The natural sap flux measurement cadence (30 min) provides complete
+junction cooling between pulses.
+
+### Buck (LM5165) headroom at v1.1 loads (comfortable)
+
+LM5165 with RILIM=56k: 120 mA peak inductor current, ~50-60 mA max
+continuous output in PFM mode (datasheet: PFM IOUT max = 100 mA, but
+our RILIM limits this to ILIM/2 ≈ 60 mA typ, 50 mA min).
+
+v1.1 worst-case loads:
+- Scan at 85°C (8 probes): 31.6 mA (53-63% of limit)
+- Flash write burst: 30.8 mA (51-62% of limit)
+- Scan + LED: 25.0 mA (42-50% of limit)
+- Pathological overlap (scan + flash, firmware bug): 36.4 mA (61-73%)
+
+All realistic scenarios have ≥18 mA headroom. The buck does not fail
+catastrophically near its limit — Vout sags gradually, PGOOD drops
+LOW (MCU detects), and the converter enters hiccup mode. Output
+capacitors (22µF + ceramics, ~33µF total) buffer sub-millisecond
+transients. No RILIM change needed for v1.1.
+
+### MODBUS compatibility (firmware decision)
+
+MODBUS RTU is the de facto standard protocol for RS-485 field
+instruments (frame addressing, register read/write). Campbell loggers
+use proprietary serial protocols but many other loggers speak MODBUS.
+Supporting MODBUS makes the board compatible with a wider ecosystem.
+This is a firmware-only decision — the RS-485 hardware is protocol-
+agnostic. Frame timing at 115200 baud: ~4 ms per MODBUS RTU frame,
+well within our 5 ms polling window.
+
 ---
 
 ## Open Items
