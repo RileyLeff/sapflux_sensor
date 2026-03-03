@@ -6,9 +6,9 @@ as of 2026-02-26.
 
 **v1.0 baseline:** 39 BOM lines, 83 components, ~$116 for 5 boards.
 
-**v1.1 vision:** Scale from a single East30 sensor to **8 independent
-sap flux probes** (32 thermistor channels) off one logic board. Target
-cost: ~$100/plot for 8-tree coverage. 71x cheaper than commercial
+**v1.1 vision:** Scale from a single East30 sensor to **up to 12
+sap flux probes** (48 thermistor channels) off one logic board. Target
+cost: ~$100/plot for 8-12 tree coverage. 71x cheaper than commercial
 alternatives (~$1,375/tree).
 
 ---
@@ -49,62 +49,65 @@ nearby. Load caps placed symmetrically, close to crystal pads.
 
 ---
 
-## 2. ADC Architecture: Dual Mux, 32 Thermistor Channels
+## 2. ADC Architecture: Triple Mux, 48 Thermistor Channels
 
-**Goal:** Support up to 8 sap flux probes (4 thermistors each = 32
-channels) with a single ADS1115, using two cascaded 16:1 analog muxes.
+**Goal:** Support up to 12 sap flux probes (4 thermistors each = 48
+channels) with a single ADS1115, using three cascaded 16:1 analog muxes.
 
-**Change:** Remove one ADS1115. Add 2x 74HC4067 16:1 analog muxes.
+**Change:** Remove one ADS1115. Add 3x 74HC4067 16:1 analog muxes.
 All thermistor lines route through muxes into ADS1115 AIN0. Excitation
 sense goes directly to AIN1 (single-ended ratiometric measurement).
 
-| | v1.0 (2x ADS1115) | v1.1 (1x ADS1115 + 2x mux) |
+| | v1.0 (2x ADS1115) | v1.1 (1x ADS1115 + 3x mux) |
 |---|---|---|
 | ADC chips | 2 | 1 |
-| Max thermistors | 6 | 32 (2x 16-channel mux) |
+| Max thermistors | 6 | 48 (3x 16-channel mux) |
 | Resolution | 16-bit | 16-bit (same ADC) |
-| Interface | I2C | I2C + 4 GPIO (shared select) + 2 GPIO (enables) |
+| Interface | I2C | I2C + 4 GPIO (shared select) + 3 GPIO (enables) |
 | Idle power | 1 uA | 0.5 uA + ~0 (mux is CMOS, nA leakage) |
-| Price delta | -- | -$0.16 (drop ADC + passives, add 2x mux) |
+| Price delta | -- | +$0.41 (drop ADC + passives, add 3x mux) |
 
 ### Mux part
 
 74HC4067PW,118 (C179326) -- Nexperia, 16:1, 80 ohm Ron, TSSOP-24,
-31K stock, $0.57 each, extended. Qty 2.
+31K stock, $0.57 each, extended. Qty 3.
 
 ### How it works
 
-Two muxes share select lines S0-S3 (4 GPIOs). Each mux has its own
+Three muxes share select lines S0-S3 (4 GPIOs). Each mux has its own
 enable pin (~E, active low). Only one mux is enabled at a time:
 
 ```
 Thermistors 1-16  → Mux A (channels 0-15) → ──┐
-                                                ├→ ADS1115 AIN0
-Thermistors 17-32 → Mux B (channels 0-15) → ──┘
+                                                │
+Thermistors 17-32 → Mux B (channels 0-15) → ──┼→ ADS1115 AIN0
+                                                │
+Thermistors 33-48 → Mux C (channels 0-15) → ──┘
 ```
 
-Firmware cycle: set S0-S3 → enable mux A (disable B) → start ADC →
-read result → next channel. After mux A channel 15, switch to mux B.
+Firmware cycle: set S0-S3 → enable mux A (disable B, C) → start ADC →
+read result → next channel. After mux A channel 15, switch to mux B,
+then mux C.
 
-Enable toggling prevents crosstalk: the disabled mux's output is
-high-impedance, so charge injection from its channels can't corrupt
+Enable toggling prevents crosstalk: the disabled muxes' outputs are
+high-impedance, so charge injection from their channels can't corrupt
 the active measurement.
 
 ### Single excitation line
 
-One GPIO pin (PC6) drives all 32 thermistor half-bridges through a
+One GPIO pin (PC6) drives all 48 thermistor half-bridges through a
 single RC filter:
 
 - R_EXC = 270 ohm (C22966, UNI-ROYAL 0603WAF2700T5E, basic, $0.001)
 - C_EXC = 1 uF (C15849, existing BOM)
 - Filter cutoff: fc = 1 / (2 * pi * 270 * 1e-6) = 589 Hz
 
-At 8 sensors (32 half-bridges, ~20k each): R_load = 625 ohm.
-V_exc = 3.3 * 625 / (625 + 270) = 2.30V. I_steady = 3.7 mA.
+At 12 sensors (48 half-bridges, 20k each @ 25°C): R_load = 417 ohm.
+V_exc = 3.3 * 417 / (417 + 270) = 2.00V. I_steady = 4.8 mA.
 I_inrush = 3.3 / 270 = 12.2 mA (safe, under STM32 20 mA GPIO limit).
 
-Firmware: enable PC6 before scan, read all 32 mux channels across
-both muxes, disable PC6. Simpler than dual-excitation (no per-group
+Firmware: enable PC6 before scan, read all 48 mux channels across
+all three muxes, disable PC6. Simpler than dual-excitation (no per-group
 enable/disable sequencing).
 
 ### Excitation sense: ratiometric on AIN1
@@ -119,7 +122,10 @@ thermistor reading by excitation to get ratiometric values:
 
 Ratiometric measurement cancels excitation voltage uncertainty
 (GPIO output variation, R_EXC voltage divider, supply noise). The
-2.30V excitation is not a problem — only the ratio matters.
+2.00V excitation at 48 channels is not a problem — only the ratio
+matters. See Section 12 (Sensor Topology) for detailed analysis of
+excitation depression and the critical firmware requirement to
+measure V_exc rather than assume 3.3V.
 
 This loses hardware differential CMRR vs v1.0, but:
 
@@ -135,16 +141,19 @@ AIN2, AIN3: tied to AGND through 1k resistors (prevent noise coupling).
 
 ADS1115 data rates and noise (PGA = +/-4.096V, LSB = 125 uV):
 
-| Data Rate | Conversion Time | Noise (uVrms) | Temp Noise (mC) | 32-ch Scan | Scan Rate |
+| Data Rate | Conversion Time | Noise (uVrms) | Temp Noise (mC) | 48-ch Scan | Scan Rate |
 |-----------|----------------|---------------|-----------------|------------|-----------|
-| 8 SPS | 125 ms | 7.8 | 0.6 | 8.0 s | 0.13 Hz |
-| 16 SPS | 62.5 ms | 11 | 0.9 | 4.0 s | 0.25 Hz |
-| 32 SPS | 31.3 ms | 16 | 1.3 | 2.0 s | 0.50 Hz |
-| 64 SPS | 15.6 ms | 23 | 1.8 | 1.0 s | 1.0 Hz |
-| 128 SPS | 7.81 ms | 31 | 2.5 | 0.50 s | 2.0 Hz |
-| 250 SPS | 4.0 ms | 47 | 3.8 | 0.26 s | 3.9 Hz |
-| 475 SPS | 2.1 ms | 64 | 5.1 | 0.13 s | 7.4 Hz |
-| 860 SPS | 1.16 ms | 94 | 7.5 | 0.07 s | 13.4 Hz |
+| 8 SPS | 125 ms | 7.8 | 0.3 | 6.18 s | 0.2 Hz |
+| 16 SPS | 62.5 ms | 11 | 0.4 | 3.12 s | 0.3 Hz |
+| 32 SPS | 31.3 ms | 16 | 0.5 | 1.59 s | 0.6 Hz |
+| 64 SPS | 15.6 ms | 23 | 0.8 | 0.82 s | 1.2 Hz |
+| 128 SPS | 7.81 ms | 31 | 1.0 | 0.44 s | 2.3 Hz |
+| 250 SPS | 4.0 ms | 47 | 1.6 | 0.25 s | 4.0 Hz |
+| 475 SPS | 2.1 ms | 64 | 2.1 | 0.16 s | 6.3 Hz |
+| 860 SPS | 1.16 ms | 94 | 3.1 | 0.11 s | 8.9 Hz |
+
+**Temp noise** uses sensitivity of 30.2 mV/°C at 25°C (Curve 44 NTC
+with 10kΩ R_ref). See Section 12 for derivation.
 
 **Note:** Each channel requires a dummy conversion after mux switch
 (ADS1115 sampling cap needs to settle). Use fast-dummy trick: run
@@ -157,25 +166,26 @@ for derivatives -- the noise/dt term grows. Sweet spot: 64-250 SPS.
 
 ### Adaptive scan strategy
 
-| Phase | Time Window | Data Rate | 32-ch Rate | Purpose |
+| Phase | Time Window | Data Rate | 48-ch Rate | Purpose |
 |-------|------------|-----------|------------|---------|
-| Fast (heating) | 0-5 s | 860 SPS | 13.4 Hz | Capture initial transient |
-| Medium | 5-30 s | 250 SPS | 3.9 Hz | Track decay curve |
-| Slow (tail) | 30-120 s | 64 SPS | 1.0 Hz | High-precision baseline |
+| Fast (heating) | 0-5 s | 860 SPS | 8.9 Hz | Capture initial transient |
+| Medium | 5-30 s | 250 SPS | 4.0 Hz | Track decay curve |
+| Slow (tail) | 30-120 s | 64 SPS | 1.2 Hz | High-precision baseline |
 
 Alternative: always collect at 860 SPS (max speed), filter in software.
-Trades flash storage (~16 KB/cycle at 860 SPS) for simplicity. At 32 MB
-flash capacity: ~2M measurement cycles = years of data.
+Trades flash storage (~100 KB/cycle at 860 SPS, 48 ch) for simplicity.
+At 32 MB flash: ~328 cycles = ~7 days. Adaptive mode recommended.
 
 ### Supported sensor configurations
 
-| Config | Thermistors | Mux A | Mux B | 860 SPS Rate |
-|--------|-------------|-------|-------|-------------|
-| 1x East30 (4-pin) | 4 | 4 ch | idle | 96 Hz |
-| 2x East30 | 8 | 8 ch | idle | 51 Hz |
-| 4x East30 | 16 | 16 ch | idle | 26 Hz |
-| 8x East30 | 32 | 16 ch | 16 ch | 13 Hz |
-| 6x 4-pin generic | 24 | 16 ch | 8 ch | 18 Hz |
+| Config | Thermistors | Mux A | Mux B | Mux C | 860 SPS Rate |
+|--------|-------------|-------|-------|-------|-------------|
+| 1x East30 (4-pin) | 4 | 4 ch | idle | idle | 96 Hz |
+| 2x East30 | 8 | 8 ch | idle | idle | 51 Hz |
+| 4x East30 | 16 | 16 ch | idle | idle | 26 Hz |
+| 8x East30 (4-pin) | 32 | 16 ch | 16 ch | idle | 13 Hz |
+| 8x 6-pin probes | 48 | 16 ch | 16 ch | 16 ch | 8.9 Hz |
+| 12x East30 (4-pin) | 48 | 16 ch | 16 ch | 16 ch | 8.9 Hz |
 
 Rates assume 2 conversions per mux channel (dummy + real for settling)
 plus 1 excitation read per scan cycle.
@@ -184,12 +194,13 @@ plus 1 excitation read per scan cycle.
 
 | Pin | Function | Notes |
 |-----|----------|-------|
-| PD0 | Mux select S0 | Shared between both muxes |
+| PD0 | Mux select S0 | Shared between all three muxes |
 | PD1 | Mux select S1 | Shared |
 | PD2 | Mux select S2 | Shared |
 | PD3 | Mux select S3 | Shared |
 | PA9 | Mux A enable (~E) | Active low. 10k pull-up to 3.3V (boot-safe: mux disabled). |
 | PA10 | Mux B enable (~E) | Active low. 10k pull-up to 3.3V (boot-safe: mux disabled). |
+| PA11 | Mux C enable (~E) | Active low. 10k pull-up to 3.3V (boot-safe: mux disabled). |
 
 PB1 freed (was ADC2 ALERT/DRDY in v1.0).
 
@@ -221,20 +232,24 @@ a logger.
 - Pin 16 CLK: PB13 (SCK)
 
 **Data budget (int16 storage, adaptive scan for 120 s after each 2 s
-heater pulse, 30-min intervals, 32 channels):**
+heater pulse, 30-min intervals, 48 channels):**
 
 | Item | Size |
 |------|------|
-| Per sample | 32 ch x 2 bytes = 64 bytes |
-| Per measurement cycle (adaptive) | ~250 scans x 64 B + 8 B header = ~16 KB |
-| Per measurement cycle (860 SPS constant) | ~1,587 scans x 64 B = ~99 KB |
-| Per day (48 cycles, adaptive) | ~750 KB |
-| 32 MB capacity (adaptive) | ~44 days at 32 ch |
-| With 4 channels (1 probe, adaptive) | ~350 days |
+| Per sample | 48 ch x 2 bytes = 96 bytes |
+| Per measurement cycle (adaptive) | ~167 scans x 96 B + 8 B header = ~16 KB |
+| Per measurement cycle (860 SPS constant) | ~1,063 scans x 96 B = ~100 KB |
+| Per day (48 cycles, adaptive) | ~752 KB |
+| 32 MB capacity (adaptive) | ~44 days at 48 ch |
+| With 4 channels (1 probe, adaptive) | ~48 days (more scans, similar cycle size) |
 
-Adaptive scan: 860 SPS x 5s (66 scans) + 250 SPS x 25s (96 scans) +
-64 SPS x 90s (89 scans) = ~250 scans per cycle. At constant 860 SPS:
-~1,587 scans/cycle (~99 KB) = ~7 days at 32 ch.
+Note: per-cycle storage is roughly independent of channel count (~16 KB).
+More channels = slower scans = fewer samples, but larger samples. The
+product is nearly constant. Storage scales with cycles/day, not channels.
+
+Adaptive scan: 860 SPS x 5s (44 scans) + 250 SPS x 25s (64 scans) +
+64 SPS x 90s (59 scans) = ~167 scans per cycle. At constant 860 SPS:
+~1,063 scans/cycle (~100 KB) = ~7 days at 48 ch.
 
 **MCU pins:** SPI2 bus (PB13=SCK, PB14=MISO, PB15=MOSI) + PB12 (CS).
 SPI1 is blocked -- PA5 (SPI1_SCK) is already used by TPL5010 DONE.
@@ -259,21 +274,33 @@ Users wire 1-8 heater elements in parallel at the cable level. The
 board just provides switched 24V. Each heater is ~42 ohm, so 8 in
 parallel = 5.25 ohm = 4.57 A total.
 
-**Thermistor/signal block:** 2x24 pin header (48P), XFCN PZ254V-12-48P
-(C22465947), $0.30, extended.
-- 32 thermistor inputs
-- GND (thermistor ground return)
+**Thermistor/signal block:** 2x30 pin header (60P), XKB X6521WV-2x30H-C60D30
+(C2883964), $0.96, extended.
+- 48 thermistor inputs (3x 16-channel mux groups)
+- GND (thermistor ground return, multiple pins for crosstalk isolation)
 - Excitation (GPIO-switched 3.3V via 270 ohm filter)
-- Spare pins for: unused GPIOs, SPI bus, I2C bus, etc.
 - See Section 11 for full pinout.
 
-Total connector edge footprint: ~70-80 mm. Fits on the board edge.
+**Auxiliary header:** 1x6 pin header (2.54mm), for I2C bus, common
+ground, and spare GPIOs. Separate from the thermistor connector to
+avoid mixing digital signals with precision analog lines.
+- I2C SDA + SCL (through 1k on-board series protection resistors)
+- GND x2 (common ground reference for external devices)
+- Spare GPIO x2 (PA6, PA7)
+- No 3.3V export (buck headroom too tight, see Section 13 FAQ).
+  External devices bring their own power.
+
+Total connector edge footprint: ~90 mm. Fits on 100mm board edge.
 
 **Why separate blocks:**
 - Physical isolation of high-current (4.57 A) heater path from
   microvolt-level thermistor signals
 - Can disconnect heater cable without disturbing thermistor wiring
 - Simpler cable assemblies (power wires are thicker gauge)
+- Standard 2.54mm pin headers are rated 3A per pin — insufficient for
+  8-heater current (4.57A). The screw terminal handles it with margin
+  (10A rating). Thermistor signals are ~60 µA each — 5,000x below the
+  pin header's 3A rating.
 
 ### Gate driver circuit (NEW in v1.1)
 
@@ -550,26 +577,36 @@ the sum of all probe currents. At 8 probes on 22 AWG, 25m trunk: 57%
 power drop (insufficient). Even 16 AWG shared trunk at 8 probes: 21%
 drop at 25m. Star topology eliminates this scaling problem entirely.
 
+### Heater wiring at the board connector
+
+The 2-pin KF2EDGV-3.5 screw terminal is rated for 10A but physically
+accommodates only one wire pair per contact. Deployments with >2 heater
+probes MUST use an external junction box or bus bar to fan out star
+cables from a single pair of leads into the board connector. This is
+standard practice for multi-sensor field instruments (e.g., Campbell
+multiplexers use external terminal strips). The junction box should be
+inside the weatherproof enclosure, as close to the board as practical.
+
 ---
 
 ## 5. Input Protection (All Channels)
 
-**Goal:** Identical ESD/EMI protection on all 33 connector-facing analog
-lines (32 thermistors + 1 excitation).
+**Goal:** Identical ESD/EMI protection on all 49 connector-facing analog
+lines (48 thermistors + 1 excitation).
 
 Each line gets three protection stages:
 
 1. **TVS array (PRTR5V0U4D):** ESD clamp at connector side. Each IC
-   protects 4 lines. 33 lines / 4 = 9 arrays (3 spare channels).
-   - v1.0: 2 arrays. v1.1: 9 arrays. Add 7x PRTR5V0U4D (C2835429, $0.06 each).
+   protects 4 lines. 49 lines / 4 = 13 arrays (3 spare channels).
+   - v1.0: 2 arrays. v1.1: 13 arrays. Add 11x PRTR5V0U4D (C2835429, $0.09 each).
 
 2. **1k ohm series resistor:** Current limiter + RC filter partner.
-   Limits fault current to 3.3 mA. 33 resistors total.
-   - v1.0: 7 resistors. v1.1: 33. Add 26x 1k ohm 0603 (C21190, $0.01 each).
+   Limits fault current to 3.3 mA. 49 resistors total.
+   - v1.0: 7 resistors. v1.1: 49. Add 42x 1k ohm 0603 (C21190, $0.001 each).
 
 3. **100 nF filter cap:** Low-pass filter (fc = 1.6 kHz with 1k ohm).
-   Blocks EMI from cables. 33 caps total.
-   - v1.0: 7 caps. v1.1: 33. Add 26x 100 nF 0603 (C14663, $0.01 each).
+   Blocks EMI from cables. 49 caps total.
+   - v1.0: 7 caps. v1.1: 49. Add 42x 100 nF 0603 (C14663, $0.003 each).
 
 **Zero measurement impact:** The 1k ohm series resistance appears on
 BOTH thermistor sense lines AND the excitation sense line (AIN1). In
@@ -581,7 +618,40 @@ load, the voltage drop is negligible (16 uV from input leakage).
 **Unused mux channels:** Tie to GND. Prevents floating CMOS inputs
 from coupling noise.
 
-**Cost for additional channels:** +$0.94 (7 TVS + 26 R + 26 C)
+**Cost for additional channels:** +$1.14 (11 TVS + 42 R + 42 C)
+
+### ESD rail isolation (ferrite bead)
+
+With 13 PRTR5V0U4D arrays, ESD events on any connector pin dump transient
+current into the TVS VCC rail. Without isolation, this current flows
+directly into the 3.3V bus shared with the MCU, ADCs, and EEPROM —
+potentially corrupting an in-progress ADC conversion or causing a
+brownout reset.
+
+**Fix:** Add a ferrite bead (L3) between the main 3.3V rail and the
+TVS VCC bus, splitting the supply into "clean 3.3V" (MCU, ADCs, EEPROM,
+flash) and "dirty 3.3V" (TVS array VCC pins only). ESD energy stays
+local to the TVS side; the ferrite's high impedance at MHz frequencies
+blocks the transient from reaching sensitive analog circuitry.
+
+```
+V3V3 (clean) ──── L3 (ferrite) ──── V3V3_TVS (dirty)
+  │                                      │
+  ├── MCU                                ├── 13x PRTR5V0U4D VCC
+  ├── 2x ADS1115                         └── 100nF local decoupling
+  ├── EEPROM
+  ├── Flash
+  └── SP3485
+```
+
+**Part:** GZ1608D601TF (C1002), 600 ohm @ 100 MHz, 0603, basic, $0.008.
+Same part as L2 (VDDA ferrite) — no new BOM line item. Add one 100 nF
+decoupling cap (C14663) on the TVS side.
+
+**DC impact:** At DC the ferrite is ~0.2 ohm. TVS arrays draw <1 uA
+quiescent. Voltage drop: negligible. During an ESD event the ferrite
+presents >600 ohm to the transient, attenuating it by >50 dB before
+it reaches the clean rail.
 
 ---
 
@@ -623,6 +693,7 @@ from coupling noise.
 | PD3 | Mux select S3 | GPIO | |
 | PA9 | Mux A enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
 | PA10 | Mux B enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
+| PA11 | Mux C enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
 | PA12 | EEPROM WP | GPIO | Active high = write protect. 10k pull-up (boot-safe: writes blocked until firmware enables) |
 | PC14 | RTC crystal | OSC32_IN | Dedicated |
 | PC15 | RTC crystal | OSC32_OUT | Dedicated |
@@ -636,10 +707,11 @@ from coupling noise.
 
 - PB1: was ADC2 ALERT/DRDY (2nd ADS1115 removed)
 
-### Spare GPIOs (13 total)
+### Spare GPIOs (12 total)
 
-PA6, PA7, PA11, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13,
-PF0, PF1
+PA6, PA7, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13, PF0, PF1
+
+PA6 and PA7 are broken out on the auxiliary header for external use.
 
 **LQFP-48 port availability (verified):** PA0-PA15, PB0-PB15,
 PC6, PC7, PC13, PC14, PC15, PD0-PD3, PF0, PF1. No other PC or PD
@@ -667,35 +739,41 @@ Evaluate after first field deployment.
 |------|------|-----|-----------|-------|---------|
 | 32.768 kHz crystal | C32346 | 1 | $0.18 | $0.18 | basic |
 | 18 pF C0G 0402 load caps | C1549 | 2 | $0.001 | $0.002 | basic |
-| 74HC4067 mux | C179326 | 2 | $0.57 | $1.14 | extended |
+| 74HC4067 mux | C179326 | 3 | $0.57 | $1.71 | extended |
 | W25Q256JVFIQ flash | C779876 | 1 | $3.92 | $3.92 | extended |
 | TM15N10D MOSFET | C7422818 | 1 | $0.09 | $0.09 | extended |
 | SS56 flyback diode (D6) | C18199169 | 1 | $0.05 | $0.05 | preferred |
 | MM3Z10 10V zener (gate driver) | C19077459 | 1 | $0.012 | $0.012 | preferred |
 | 5x20mm fuse clips (heater) | C3130 | 2 | $0.027 | $0.054 | extended |
-| 2x24 pin header (48P, 2.54mm) | C22465947 | 1 | $0.30 | $0.30 | extended |
+| 2x30 pin header (60P, 2.54mm) | C2883964 | 1 | $0.96 | $0.96 | extended |
+| 1x6 auxiliary header (2.54mm) | -- | 1 | $0.05 | $0.05 | basic |
 | KF2EDGV-3.5-2P heater conn | C441321 | 1 | $0.06 | $0.06 | extended |
-| PRTR5V0U4D TVS | C2835429 | 7 | $0.06 | $0.42 | extended |
-| 1k ohm 0603 | C21190 | 26 | $0.01 | $0.26 | basic |
-| 100 nF 0603 | C14663 | 29 | $0.01 | $0.29 | basic |
+| PRTR5V0U4D TVS | C2835429 | 11 | $0.09 | $0.99 | extended |
+| 1k ohm 0603 | C21190 | 44 | $0.001 | $0.04 | basic |
+| 100 nF 0603 | C14663 | 46 | $0.003 | $0.14 | basic |
 | CR2032 holder (SMD) | C7498149 | 1 | $0.21 | $0.21 | extended |
 | BAT54S Schottky | C7420333 | 1 | $0.01 | $0.01 | preferred |
 | 270 ohm 0603 (R_EXC, replaces 560 ohm) | C22966 | 1 | $0.001 | $0.001 | basic |
-| 100 nF decoupling (mux x2, flash x1) | C14663 | (counted above) | -- | -- | basic |
-| 1k resistors (AIN2, AIN3 tie to AGND) | C21190 | (counted above) | -- | -- | basic |
+| 100 nF decoupling (mux x3, flash x1) | C14663 | (counted above) | -- | -- | basic |
+| 1k resistors (AIN2, AIN3 tie + I2C protection) | C21190 | (counted above) | -- | -- | basic |
 | 4.7M R_BIAS (gate driver 24V divider) | C23163 | 1 | $0.001 | $0.001 | preferred |
 | 100k R_CTRL_PD (Q_CTRL gate pull-down) | C25803 | (counted in 100k) | -- | -- | basic |
-| 10k pull-ups (mux ~E x2, flash CS, EEPROM WP) | C25804 | 4 | $0.01 | $0.04 | basic |
+| 10k pull-ups (mux ~E x3, flash CS, EEPROM WP) | C25804 | 5 | $0.001 | $0.005 | basic |
 | 1 uF VBAT buffer cap | C15849 | (counted above) | -- | -- | basic |
+| GZ1608D601TF ferrite (ESD rail isolation) | C1002 | 1 | $0.008 | $0.008 | basic |
 
 **Note:** Gate driver uses Q_DRIVER + Q_CTRL (both 2N7002, C8545,
 existing BOM). R_GATE_PULL and R_GATE_PD are 1M (C22935, existing).
 R_CTRL is 10k (C25804, existing). R_CTRL_PD is 100k (C25803,
 existing). Only new part number: R_BIAS 4.7M (C23163, preferred,
-no setup fee). The 4x 10k pull-ups (mux ~E x2, flash CS, EEPROM WP)
+no setup fee). The 5x 10k pull-ups (mux ~E x3, flash CS, EEPROM WP)
 use existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0
 560 ohm R_EXC (C23204) — value swap, not a new line item. The VBAT
-1 uF cap uses existing C15849.
+1 uF cap uses existing C15849. The 44x 1k resistors include 42 for
+input protection, plus 2 for I2C series protection on auxiliary header.
+The 46x 100nF caps include 42 for input filters, plus 3 for mux
+decoupling, plus 1 for TVS rail decoupling (ESD isolation), plus flash
+decoupling (counted separately in existing BOM).
 
 ### Parts removed
 
@@ -714,14 +792,14 @@ use existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0
 
 | | Per board | Notes |
 |---|----------|-------|
-| Parts added | +$7.04 | |
-| Parts removed | -$1.69 | |
-| **Net parts delta** | **+$5.35** | |
+| Parts added | +$8.48 | |
+| Parts removed | -$1.71 | |
+| **Net parts delta** | **+$6.77** | |
 | Extended part fees | +$24.00 | 8 new unique extended parts x $3 |
-| | | (flash, mux, MOSFET, fuse clips, 48P header, 2P heater, PRTR5V0U4D, CR2032) |
+| | | (flash, mux, MOSFET, fuse clips, 60P header, 2P heater, PRTR5V0U4D, CR2032) |
 
-**Per-board cost at 5 boards:** ~$5.35 + ($24/5) = **$10.15/board**
-**Per-board cost at 50 boards:** ~$5.35 + ($24/50) = **$5.83/board**
+**Per-board cost at 5 boards:** ~$6.77 + ($24/5) = **$11.57/board**
+**Per-board cost at 50 boards:** ~$6.77 + ($24/50) = **$7.25/board**
 
 **Through-hole assembly note:** The M8 connector, 48-pin header, 2-pin
 heater terminal, and fuse clips are TH parts. JLCPCB charges extra for
@@ -731,8 +809,8 @@ TH assembly (~$0.20/joint). Budget ~$2-3/board for TH assembly surcharge.
 - PRTR5V0U4D (C2835429): 2,617 stock. At 7 per board, supports ~374
   boards. Fine for prototyping but verify before production runs.
   Backup: NXP PRTR5V0U4D (original, typically higher stock).
-- 48-pin header (C22465947): 817 stock. Fine for 5-50 boards. Backup:
-  any 2x24 2.54mm pin header (common form factor, many vendors).
+- 60-pin header (C2883964): 1,404 stock. Fine for 5-50 boards. Backup:
+  any 2x30 2.54mm pin header (common form factor, many vendors).
 
 **User-supplied (not in BOM):** CR2032 coin cell (~$0.30 retail),
 5x20mm fast-blow fuse (5-6A).
@@ -924,7 +1002,7 @@ contact delay is acceptable. No mechanical failure points.
 v1.1 changes vs v1.0:
 - Remove 1x ADS1115: -0.5 uA
 - Add flash (deep power-down): +0.5 uA
-- Add 2x mux: +~0 uA (nA leakage)
+- Add 3x mux: +~0 uA (nA leakage)
 - Add crystal/LSE: on VBAT, not main supply
 - Gate driver quiescent: +28.2 uA from 24V (24 uA through
   R_GATE_PULL/Q_DRIVER + 4.2 uA through R_BIAS/R_GATE_PD divider).
@@ -936,26 +1014,32 @@ Bottom line doesn't change materially from v1.0. The gate driver's
 
 ---
 
-## 11. Connector Pinout (48-pin, 2x24, 2.54mm)
+## 11. Connector Pinout
 
-**Part:** XFCN PZ254V-12-48P (C22465947) -- 2x24 pin header, 2.54mm
-pitch, through-hole, $0.30, extended.
+### Thermistor connector (60-pin, 2x30, 2.54mm)
 
-**Board footprint:** 61mm wide x ~5mm deep. Sits on board edge alongside
-the 2-pin heater screw terminal (7mm). Total edge: ~73mm, fits on
-100mm board.
+**Part:** XKB X6521WV-2x30H-C60D30 (C2883964) -- 2x30 pin header,
+2.54mm pitch, through-hole, $0.96, extended.
+
+**Board footprint:** 76mm wide x ~5mm deep. Sits on board edge alongside
+the 2-pin heater screw terminal (7mm) and 6-pin auxiliary header (15mm).
+Total edge: ~98mm, fits on 100mm board.
 
 **Heater connector** is separate: KF2EDGV-3.5-2P (C441321), 2-pin screw
-terminal, rated 10A. Carries up to 4.57A (8 heaters in parallel) for
+terminal, rated 10A. Carries up to 4.57A (8-12 heaters in parallel) for
 2-second pulses. 46% of 10A rating = comfortable margin.
 
-### Pinout
+**Auxiliary header** is separate: 1x6 pin header (2.54mm), for I2C bus,
+common ground, and spare GPIOs. Separate from the thermistor connector
+to keep digital signals away from precision analog lines.
+
+### Thermistor pinout
 
 ```
 Pin    Row A (odd)  |  Row B (even)    Pin
 --- --------------  |  -------------- ---
-  1            GND  |  EXC              2     Sensor 1
-  3        Therm 1  |  Therm 2          4
+  1            GND  |  EXC              2     ─── Mux A ───
+  3        Therm 1  |  Therm 2          4     Sensor 1
   5        Therm 3  |  Therm 4          6
   7        Therm 5  |  Therm 6          8     Sensor 2
   9        Therm 7  |  Therm 8         10
@@ -965,8 +1049,8 @@ Pin    Row A (odd)  |  Row B (even)    Pin
  17       Therm 13  |  Therm 14        18     Sensor 4
  19       Therm 15  |  Therm 16        20
  --- -- mux A/B boundary ------------ ---
- 21            GND  |  EXC             22     Sensor 5
- 23       Therm 17  |  Therm 18        24
+ 21            GND  |  EXC             22     ─── Mux B ───
+ 23       Therm 17  |  Therm 18        24     Sensor 5
  25       Therm 19  |  Therm 20        26
  27       Therm 21  |  Therm 22        28     Sensor 6
  29       Therm 23  |  Therm 24        30
@@ -975,34 +1059,65 @@ Pin    Row A (odd)  |  Row B (even)    Pin
  35       Therm 27  |  Therm 28        36
  37       Therm 29  |  Therm 30        38     Sensor 8
  39       Therm 31  |  Therm 32        40
- --- -- auxiliary ------------------- ---
- 41            GND  |  GND             42
- 43        I2C SDA  |  I2C SCL         44
- 45     GPIO (PA6)  |  GPIO (PA7)      46
- 47     GPIO (PB1)  |  GPIO (PB2)      48
+ --- -- mux B/C boundary ------------ ---
+ 41            GND  |  EXC             42     ─── Mux C ───
+ 43       Therm 33  |  Therm 34        44     Sensor 9
+ 45       Therm 35  |  Therm 36        46
+ 47       Therm 37  |  Therm 38        48     Sensor 10
+ 49       Therm 39  |  Therm 40        50
+ 51            GND  |  GND             52     ground fence
+ 53       Therm 41  |  Therm 42        54     Sensor 11
+ 55       Therm 43  |  Therm 44        56
+ 57       Therm 45  |  Therm 46        58     Sensor 12
+ 59       Therm 47  |  Therm 48        60
 ```
 
-**Signal summary:** 32 thermistors, 2 excitation (same net, pin 2+22),
-8 GND, 2 I2C, 4 GPIO. Both EXC pins carry the same signal — wired to
-the same filtered excitation line. Two pins for convenience (one per
-mux group's cable bundle).
+### Auxiliary header pinout (1x6)
+
+```
+Pin  Signal         Notes
+---  -------------- ------------------------------------------
+  1  GND            Common ground reference (mandatory for I2C)
+  2  GND            Redundant ground return
+  3  I2C SDA        Through 1k on-board series resistor (5V protection)
+  4  I2C SCL        Through 1k on-board series resistor (5V protection)
+  5  GPIO (PA6)     3.3V logic, user-configurable
+  6  GPIO (PA7)     3.3V logic, user-configurable
+```
+
+**Signal summary (thermistor connector):** 48 thermistors, 3 excitation
+(same net, pins 2/22/42), 9 GND. All EXC pins carry the same signal —
+wired to the same filtered excitation line. Three pins for cable routing
+convenience (one per mux group).
 
 **Design rationale:**
 - Thermistors grouped in blocks of 4 (one sensor per block). Each
   sensor's wires land on consecutive pins -- breakout board traces
   run straight with zero crossings.
-- Mux A sensors (1-4) on pins 1-20, mux B sensors (5-8) on pins
-  21-40. Mirrored layout.
-- GND fences every 8-10 pins. Double-GND at mux boundary (11/12)
-  and mid-group (31/32) for crosstalk isolation.
-- Single excitation: one PC6 GPIO drives all 32 half-bridges through
-  270 ohm filter (3.7 mA steady). Pin 2 and pin 22 are the same net
-  — two physical pins for cable routing convenience.
-- Auxiliary block (41-48): I2C for external sensors, 4 spare GPIOs,
-  extra GND pair.
-- No 3.3V export (PFM-mode buck has ~23 mA headroom during scan but
-  ripple is unsuitable for external analog loads; unknown external
-  loads could also exceed 50 mA limit during flash writes).
+- Symmetric layout: each mux section = 20 pins. Mux A on pins 1-20,
+  mux B on pins 21-40, mux C on pins 41-60. Identical layout per group.
+- GND fences every 10 pins. Double-GND at mux boundaries (11/12,
+  31/32, 51/52) for crosstalk isolation.
+- Single excitation: one PC6 GPIO drives all 48 half-bridges through
+  270 ohm filter (4.8 mA steady). Pins 2, 22, and 42 are the same net
+  — three physical pins for cable routing convenience.
+- 28 AWG ribbon cable (IDC) carries all signals. At ~60 µA per
+  thermistor, the cable is loaded at 0.002% of its 0.3A rating.
+
+**Auxiliary header rationale:**
+- Separate from thermistor connector to prevent digital I2C transitions
+  from coupling into adjacent analog sense lines.
+- **No 3.3V export.** The PFM-mode buck (LM5165) has only ~18 mA
+  headroom at peak load. Unknown external devices could exceed the 50 mA
+  limit, causing output droop and MCU brownout. External devices must
+  bring their own power supply.
+- **Common ground is mandatory.** I2C signals reference ground. Without
+  a shared ground, voltage offset between supplies (even 100 mV) eats
+  into noise margins. Two GND pins provide redundancy.
+- **1k series resistors on I2C** prevent damage if a 5V device is
+  connected without a level shifter. At 5V, the STM32's ESD clamp
+  conducts — the 1kΩ limits current to 1.7 mA (harmless). I2C won't
+  function at 5V without a level shifter, but the board won't be damaged.
 
 ### Physical interface
 
@@ -1016,12 +1131,145 @@ terminals grouped per sensor position. Sensor cables enter enclosure
 through IP68 cable glands.
 
 **Breakout board** (separate, simple PCB -- just connectors and traces):
-- 8 groups of 6-position screw terminals (GND + EXC + 4 thermistors)
+- Up to 12 groups of screw terminals (GND + EXC + 4 thermistors each)
 - GND and excitation bussed internally per mux group
-- Connects to logic board via ~10cm IDC ribbon cable
+- Connects to logic board via ~10cm IDC ribbon cable (28 AWG)
 - Different breakout variants for different deployments (2-sensor,
-  4-sensor, 8-sensor)
+  4-sensor, 8-sensor, 12-sensor)
 - Cost: ~$3-5 for PCB + connectors
+
+---
+
+## 12. Sensor Topology & Calibration
+
+### Thermistor type
+
+North Star Sensors **Curve 44**: NTC thermistor, **10,000 Ω at 25°C**.
+The "44" is a curve number, not a resistance value.
+
+Calibration model: extended Steinhart-Hart (4-coefficient):
+
+```
+1/T = A + B·ln(R) + C·[ln(R)]² + D·[ln(R)]³
+```
+
+where T is in Kelvin, R in Ohms.
+
+**Coefficients (0°C to 70°C range):**
+
+| Coeff | Value |
+|-------|-------|
+| A | 1.18090254918130E-03 |
+| B | 2.16884014794388E-04 |
+| C | 1.90058756197216E-06 |
+| D | 1.83161892641824E-08 |
+
+Source: `east30docs/Steinhart-HartCoefficientsByCurve (1).pdf`
+
+### Probe wiring topology
+
+Each probe channel is a voltage divider between excitation and ground:
+
+```
+PC6 (GPIO) ── R_EXC (270Ω) ──┬── excitation line (to cable)
+                               │
+                         [per probe channel, inside probe:]
+                               │
+                          R_ref (10kΩ, fixed)
+                               │
+                          sense_node ──── (mux input, via cable)
+                               │
+                          R_therm (NTC, Curve 44)
+                               │
+                              GND
+```
+
+The mux selects one sense_node at a time. The ADC reads the voltage
+at sense_node: V_sense = V_exc × R_therm / (R_ref + R_therm).
+
+### Resistance vs temperature (Curve 44)
+
+| T (°C) | R_therm (Ω) | R_therm (kΩ) |
+|--------|-------------|-------------|
+| -10 | 55,344 | 55.3 |
+| 0 | 32,651 | 32.7 |
+| 10 | 19,899 | 19.9 |
+| 20 | 12,492 | 12.5 |
+| 25 | 10,000 | 10.0 |
+| 30 | 8,057 | 8.1 |
+| 35 | 6,532 | 6.5 |
+| 40 | 5,326 | 5.3 |
+| 50 | 3,602 | 3.6 |
+| 60 | 2,487 | 2.5 |
+| 70 | 1,751 | 1.8 |
+
+### Excitation voltage depression
+
+All probe channels are wired to the same excitation line. When
+multiple channels are connected, they form parallel loads that
+depress V_exc through R_EXC (270Ω):
+
+| Channels | V_exc (25°C) | Drop from 3.3V | I_total |
+|----------|-------------|----------------|---------|
+| 6 (v1.0) | 3.05V | 7.5% | 0.9 mA |
+| 32 | 2.30V | 30.2% | 3.7 mA |
+| 48 | 2.00V | 39.3% | 4.8 mA |
+
+This depression is caused by R_EXC, not cable resistance. Making
+the excitation wire thicker does not help — the 270Ω resistor
+dominates by 100:1 over cable resistance.
+
+### Ratiometric measurement (critical firmware requirement)
+
+The ADC reads both V_sense (through mux, on AIN0) and V_exc (direct
+to AIN1). The firmware computes the ratio:
+
+```
+ratio = V_sense / V_exc = R_therm / (R_ref + R_therm)
+R_therm = R_ref × ratio / (1 - ratio)
+T = steinhart_hart_inverse(R_therm)
+```
+
+This ratio is **independent of V_exc**. The 39% voltage depression
+at 48 channels cancels perfectly.
+
+**CRITICAL FIRMWARE FOOTGUN:** If firmware assumes V_exc = 3.3V
+instead of measuring it, the error at 48 channels is **20°C** (e.g.,
+reads 45°C when actual temperature is 25°C). This is the single
+largest firmware error source in the entire design. The firmware
+MUST read AIN1 (excitation sense) every scan cycle and use the
+measured value, not a constant.
+
+### ADC sensitivity and noise floor
+
+With 10kΩ R_ref and Curve 44 NTC, sensitivity at 25°C is
+**30.2 mV/°C** (242 LSBs/°C at PGA ±4.096V). Resolution per
+LSB: **4.1 m°C**.
+
+| SPS | Noise (µV rms) | Temp noise (m°C rms) | 6σ (m°C) |
+|-----|---------------|---------------------|----------|
+| 860 | 4.0 | 0.1 | 0.8 |
+| 250 | 2.0 | 0.1 | 0.4 |
+| 128 | 1.5 | 0.05 | 0.3 |
+| 64 | 1.1 | 0.04 | 0.2 |
+
+V_sense at 25°C with 48 channels: 1.0V (24.4% of ADC range, 13
+effective bits). Still well above the noise floor.
+
+### Sensitivity across temperature range (48 channels)
+
+| T (°C) | R_therm | V_exc | V_sense | Sensitivity | LSBs/°C |
+|--------|---------|-------|---------|-------------|---------|
+| 0 | 32.7kΩ | 2.53V | 1.94V | 40.4 mV/°C | 323 |
+| 15 | 15.7kΩ | 2.19V | 1.34V | 38.3 mV/°C | 306 |
+| 25 | 10.0kΩ | 2.00V | 1.00V | 30.2 mV/°C | 242 |
+| 35 | 6.5kΩ | 1.85V | 0.73V | 25.3 mV/°C | 202 |
+| 50 | 3.6kΩ | 1.69V | 0.45V | 16.0 mV/°C | 128 |
+| 70 | 1.8kΩ | 1.57V | 0.23V | 8.1 mV/°C | 65 |
+
+Sensitivity decreases at higher temperatures (NTC curve flattens).
+At 70°C, 65 LSBs/°C still provides 15.4 m°C resolution — more than
+adequate for sap flux measurements.
 
 ---
 
@@ -1128,9 +1376,10 @@ inactive GPIO was low, AIN1 read ~2.0V instead of the expected
 excitation voltage.
 
 **Fix:** Single excitation line (PC6 only, 270 ohm R_EXC). Eliminates
-the AIN1 summing bug entirely. Frees PA11 as spare GPIO. R_EXC reduced
-from 560 to 270 ohm to maintain adequate V_exc (2.30V) at 32 bridges.
-Ratiometric measurement (V_therm / V_exc) cancels the voltage divider.
+the AIN1 summing bug entirely. PA11 reassigned to Mux C enable (~E)
+for 48-channel support. R_EXC reduced from 560 to 270 ohm to maintain
+adequate V_exc (2.00V) at 48 bridges. Ratiometric measurement
+(V_therm / V_exc) cancels the voltage divider.
 
 ### Pin availability: PD4, PD5, PC8 do not exist on LQFP-48
 
@@ -1173,6 +1422,15 @@ increased ESR, the oscillator may fail to start or take >2 seconds.
 **Action:** Set LSEDRV = 0b11 (highest drive) during LSE init.
 Measure startup time on first boards across temperature range. If
 startup is reliable at 0b10 or 0b01, reduce drive to save ~0.1 uA.
+
+### SPI/ADC noise isolation
+
+Never perform any SPI flash transaction (erase, program, or read)
+while an ADS1115 conversion is in progress. SPI clock switching
+noise on PB13 can couple into thermistor readings through shared
+ground/power planes — especially during the 125 ms window of an
+8 SPS conversion. The ADS1115 ALERT/DRDY pin signals conversion
+complete; gate all flash access behind this flag.
 
 ### Flash erase scheduling
 
@@ -1272,6 +1530,38 @@ variability.
 The ramp shape is fully characterized from hardware specs (R_GATE_PULL
 ±1%, Ciss ±20%, Vgs(th) 0.8-2.5V). Worst case: 2.9 ms. No direct
 measurement or deconvolution is needed.
+
+### Mux leakage error budget (acceptable)
+
+The 74HC4067 has channel leakage current (I_leak) that flows through
+the Thevenin source impedance of the thermistor divider, creating a
+DC voltage offset at the ADC input. For sap flux measurement, the
+relevant error is not the absolute offset but the CHANGE in offset
+during a heat pulse — as the thermistor resistance changes during
+heating, R_thevenin changes, and the leakage-induced voltage error
+shifts proportionally. This shift corrupts the dT measurement.
+
+**Leakage specs (74HC4067 at VCC = 3.3V):**
+- Typical at 25°C: ~10 nA
+- Typical at 60°C (max realistic ambient): ~100 nA
+- Absolute maximum (all conditions): ±1 µA
+
+**Error analysis (worst realistic case: 60°C ambient, 100 nA):**
+A 10°C heat pulse changes thermistor resistance from ~4.5k to ~3.6k.
+R_thevenin = R_ref || R_therm (both ~10k at 25°C, shifts during pulse).
+The change in leakage-induced voltage error across the pulse corresponds
+to a temperature error of ~4.8 m°C.
+
+**At typical conditions (25°C, 10 nA):** dT error ~0.4 m°C.
+
+Both values are well below the 10 m°C target precision for sap flux
+derivative estimation. The absolute max spec (1 µA) would give ~43 m°C,
+but this rating covers -40°C to +125°C across all supply voltages — at
+3.3V and 60°C, actual leakage is orders of magnitude lower.
+
+**Recommendation:** Accept. Validate on first boards with back-to-back
+measurements (mux channel vs direct ADC) to confirm typical leakage
+is in the ~10 nA range at ambient temperature.
 
 ### D1 thermal (eliminated concern)
 
