@@ -1,20 +1,28 @@
 """
-ADC front-end: 2x ADS1115 + input protection + excitation filter.
+ADC front-end: 1x ADS1115 + 3x 74HC4067 mux + 49-channel input protection.
 
-Signal path per thermistor channel:
-  J2 pin → [TVS ESD pin] → R_AIN (1k) → [C_AIN 100nF to GND] → ADC AIN pin
+v1.1: Redesigned for 48 thermistor channels via 3 analog multiplexers.
+Each mux selects 1 of 16 thermistor inputs and routes it to a shared
+ADC AIN0 input. Only one mux is enabled at a time.
 
-Excitation path:
-  MCU GPIO → R_EXC (560 ohm) → filtered_exc → C_EXC (1uF to GND)
-                                      |→ J2 pin 4 (excitation to sensor)
-                                      |→ R_AIN_EXC (1k) → [TVS + C_AIN_EXC] → ADC1 AIN3
+Signal path per thermistor:
+  Connector pin → [TVS ESD pin] → R (1k) → [C 100nF to GND] → Mux Y input
+  Mux Z output → ADC AIN0
 
-TVS arrays (PRTR5V0U4D):
-  D_J2A: excitation sense + thermistors 1-3 (4 channels)
-  D_J2B: thermistors 4-6 + unused ESD4 (tied to GND)
+Excitation sense:
+  Filtered exc → [TVS] → R (1k) → [C 100nF to GND] → ADC AIN1
 
-ADC1 (0x48): AIN0-AIN2 = thermistors 1-3, AIN3 = excitation sense
-ADC2 (0x49): AIN0-AIN2 = thermistors 4-6, AIN3 = unused
+ESD rail isolation:
+  V3V3 (clean) → L3 (ferrite 600Ω@100MHz) → V3V3_TVS (dirty)
+  All 13 TVS arrays' VCC connects to dirty side only.
+
+Mux assignments:
+  Mux A: Y0-Y15 = thermistor 1-16 (PA9 = ~E)
+  Mux B: Y0-Y15 = thermistor 17-32 (PA10 = ~E)
+  Mux C: Y0-Y15 = thermistor 33-48 (PA11 = ~E)
+  Shared: PD0-PD3 = S0-S3
+
+ADC1 (0x48): AIN0 = mux Z, AIN1 = excitation sense, AIN2/3 = AGND
 """
 
 #pragma experiment("BRIDGE_CONNECT")
@@ -24,77 +32,181 @@ import ElectricPower
 import Electrical
 
 from "atopile/ti-ads1115/ti-ads1115.ato" import TI_ADS1115
+from "parts/Nexperia_74HC4067PW_118/Nexperia_74HC4067PW_118.ato" import Nexperia_74HC4067PW_118_package
 from "parts/TECH_PUBLIC_PRTR5V0U4D_TP/TECH_PUBLIC_PRTR5V0U4D_TP.ato" import TECH_PUBLIC_PRTR5V0U4D_TP_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+from "parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato" import Sunlord_GZ1608D601TF_package
 
 module ADCFrontEnd:
     """
-    2x ADS1115 16-bit ADCs with 7-channel input protection (RC filters + TVS)
-    and excitation filter for thermistor measurement.
+    Single ADS1115 + 3x 74HC4067 mux + 49-channel input protection
+    (48 thermistors + 1 excitation sense) with ESD rail isolation.
     """
 
     # --- External interfaces ---
     power = new ElectricPower
-    """3.3V supply for ADCs and TVS arrays."""
+    """3.3V supply (clean side — MCU, ADC, muxes)."""
 
     sda = new Electrical
-    """I2C SDA line (shared bus, wired in top-level)."""
-
     scl = new Electrical
-    """I2C SCL line (shared bus, wired in top-level)."""
-
     excitation_gpio = new Electrical
-    """MCU GPIO output driving thermistor excitation."""
-
     excitation_out = new Electrical
-    """Filtered excitation to J2 connector (sensor cable)."""
-
-    thermistor_1 = new Electrical
-    thermistor_2 = new Electrical
-    thermistor_3 = new Electrical
-    thermistor_4 = new Electrical
-    thermistor_5 = new Electrical
-    thermistor_6 = new Electrical
-
     alert1 = new Electrical
-    """ADC1 ALERT/DRDY output to MCU."""
 
-    alert2 = new Electrical
-    """ADC2 ALERT/DRDY output to MCU."""
+    # Mux control (exposed for MCU GPIO wiring)
+    mux_s0 = new Electrical
+    mux_s1 = new Electrical
+    mux_s2 = new Electrical
+    mux_s3 = new Electrical
+    mux_en_a = new Electrical
+    mux_en_b = new Electrical
+    mux_en_c = new Electrical
 
-    # --- ADC instances (registry package includes decoupling + I2C pull-ups + ALERT pull-up) ---
+    # 48 thermistor inputs (from connector)
+    therm_1 = new Electrical
+    therm_2 = new Electrical
+    therm_3 = new Electrical
+    therm_4 = new Electrical
+    therm_5 = new Electrical
+    therm_6 = new Electrical
+    therm_7 = new Electrical
+    therm_8 = new Electrical
+    therm_9 = new Electrical
+    therm_10 = new Electrical
+    therm_11 = new Electrical
+    therm_12 = new Electrical
+    therm_13 = new Electrical
+    therm_14 = new Electrical
+    therm_15 = new Electrical
+    therm_16 = new Electrical
+    therm_17 = new Electrical
+    therm_18 = new Electrical
+    therm_19 = new Electrical
+    therm_20 = new Electrical
+    therm_21 = new Electrical
+    therm_22 = new Electrical
+    therm_23 = new Electrical
+    therm_24 = new Electrical
+    therm_25 = new Electrical
+    therm_26 = new Electrical
+    therm_27 = new Electrical
+    therm_28 = new Electrical
+    therm_29 = new Electrical
+    therm_30 = new Electrical
+    therm_31 = new Electrical
+    therm_32 = new Electrical
+    therm_33 = new Electrical
+    therm_34 = new Electrical
+    therm_35 = new Electrical
+    therm_36 = new Electrical
+    therm_37 = new Electrical
+    therm_38 = new Electrical
+    therm_39 = new Electrical
+    therm_40 = new Electrical
+    therm_41 = new Electrical
+    therm_42 = new Electrical
+    therm_43 = new Electrical
+    therm_44 = new Electrical
+    therm_45 = new Electrical
+    therm_46 = new Electrical
+    therm_47 = new Electrical
+    therm_48 = new Electrical
+
+    # =====================================================================
+    # ADC (single ADS1115 at 0x48)
+    # =====================================================================
     adc1 = new TI_ADS1115
-    adc2 = new TI_ADS1115
-
-    # Power
     power ~ adc1.power
-    power ~ adc2.power
-
-    # I2C (direct line connections, avoid interface-level merging issues)
     sda ~ adc1.i2c.sda.line
-    sda ~ adc2.i2c.sda.line
     scl ~ adc1.i2c.scl.line
-    scl ~ adc2.i2c.scl.line
-
-    # Addresses: ADC1 = 0x48 (default), ADC2 = 0x49
-    # Addressor handles ADDR pin wiring internally
-    adc2.addressor.address = 0x49
-
-    # Tie unused ADC2 AIN3 to GND (prevents floating input from coupling noise)
-    adc2.inputs[3].line ~ power.lv
-
-    # ALERT/DRDY
     alert1 ~ adc1.alert_ready.line
-    alert2 ~ adc2.alert_ready.line
 
-    # --- Excitation filter (R_EXC + C_EXC) ---
+    # Unused ADC inputs tied to AGND through 1k (prevent noise coupling)
+    r_ain2_gnd = new Resistor
+    r_ain2_gnd.resistance = 1kohm +/- 1%
+    r_ain2_gnd.package = "0603"
+    r_ain3_gnd = new Resistor
+    r_ain3_gnd.resistance = 1kohm +/- 1%
+    r_ain3_gnd.package = "0603"
+    adc1.inputs[2].line ~> r_ain2_gnd ~> power.lv
+    adc1.inputs[3].line ~> r_ain3_gnd ~> power.lv
+
+    # =====================================================================
+    # Multiplexers (3x 74HC4067)
+    # =====================================================================
+    mux_a = new Nexperia_74HC4067PW_118_package
+    mux_b = new Nexperia_74HC4067PW_118_package
+    mux_c = new Nexperia_74HC4067PW_118_package
+
+    # Mux power + decoupling
+    c_mux_a = new YAGEO_CC0603KRX7R9BB104_package
+    c_mux_b = new YAGEO_CC0603KRX7R9BB104_package
+    c_mux_c = new YAGEO_CC0603KRX7R9BB104_package
+
+    mux_a.VCC ~ power.hv
+    mux_a.GND ~ power.lv
+    c_mux_a.p1 ~ power.hv
+    c_mux_a.p2 ~ power.lv
+
+    mux_b.VCC ~ power.hv
+    mux_b.GND ~ power.lv
+    c_mux_b.p1 ~ power.hv
+    c_mux_b.p2 ~ power.lv
+
+    mux_c.VCC ~ power.hv
+    mux_c.GND ~ power.lv
+    c_mux_c.p1 ~ power.hv
+    c_mux_c.p2 ~ power.lv
+
+    # Shared select lines (S0-S3)
+    mux_s0 ~ mux_a.S0
+    mux_s0 ~ mux_b.S0
+    mux_s0 ~ mux_c.S0
+    mux_s1 ~ mux_a.S1
+    mux_s1 ~ mux_b.S1
+    mux_s1 ~ mux_c.S1
+    mux_s2 ~ mux_a.S2
+    mux_s2 ~ mux_b.S2
+    mux_s2 ~ mux_c.S2
+    mux_s3 ~ mux_a.S3
+    mux_s3 ~ mux_b.S3
+    mux_s3 ~ mux_c.S3
+
+    # Individual enable lines (~E, active low) with 10k pull-ups (boot-safe: disabled)
+    r_en_a = new Resistor
+    r_en_a.resistance = 10kohm +/- 1%
+    r_en_a.package = "0603"
+    r_en_b = new Resistor
+    r_en_b.resistance = 10kohm +/- 1%
+    r_en_b.package = "0603"
+    r_en_c = new Resistor
+    r_en_c.resistance = 10kohm +/- 1%
+    r_en_c.package = "0603"
+
+    mux_en_a ~ mux_a.nE
+    mux_en_a ~> r_en_a ~> power.hv
+
+    mux_en_b ~ mux_b.nE
+    mux_en_b ~> r_en_b ~> power.hv
+
+    mux_en_c ~ mux_c.nE
+    mux_en_c ~> r_en_c ~> power.hv
+
+    # Mux Z outputs → ADC AIN0 (all three share one ADC input)
+    mux_a.Z ~ adc1.inputs[0].line
+    mux_b.Z ~ adc1.inputs[0].line
+    mux_c.Z ~ adc1.inputs[0].line
+
+    # =====================================================================
+    # Excitation filter (R_EXC + C_EXC)
+    # =====================================================================
     r_exc = new Resistor
-    r_exc.resistance = 560ohm +/- 1%
+    r_exc.resistance = 270ohm +/- 1%
     r_exc.package = "0603"
 
     c_exc = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-    """1uF 50V. RC = 560 ohm x 1uF = 560us, fc = 284Hz."""
+    """1uF. RC = 270 ohm x 1uF = 270us, fc = 589Hz."""
 
     filtered_exc = new Electrical
 
@@ -103,112 +215,647 @@ module ADCFrontEnd:
     c_exc.p2 ~ power.lv
     filtered_exc ~ excitation_out
 
-    # --- TVS arrays ---
-    d_j2a = new TECH_PUBLIC_PRTR5V0U4D_TP_package
-    d_j2b = new TECH_PUBLIC_PRTR5V0U4D_TP_package
-
-    d_j2a.VCC ~ power.hv
-    d_j2a.GND ~ power.lv
-    d_j2b.VCC ~ power.hv
-    d_j2b.GND ~ power.lv
-    d_j2b.ESD4 ~ power.lv
-
-    # Local decoupling for TVS arrays (absorbs ESD dump current, prevents 3.3V rail bounce)
-    c_esd_a = new YAGEO_CC0603KRX7R9BB104_package
-    c_esd_b = new YAGEO_CC0603KRX7R9BB104_package
-    c_esd_a.p1 ~ power.hv
-    c_esd_a.p2 ~ power.lv
-    c_esd_b.p1 ~ power.hv
-    c_esd_b.p2 ~ power.lv
-
-    # --- Input protection: 7 channels (1k series R + 100nF shunt C each) ---
-
-    # Series resistors (auto-pick 1k 0603)
-    r_ain1 = new Resistor
-    r_ain1.resistance = 1kohm +/- 1%
-    r_ain1.package = "0603"
-    r_ain2 = new Resistor
-    r_ain2.resistance = 1kohm +/- 1%
-    r_ain2.package = "0603"
-    r_ain3 = new Resistor
-    r_ain3.resistance = 1kohm +/- 1%
-    r_ain3.package = "0603"
-    r_ain4 = new Resistor
-    r_ain4.resistance = 1kohm +/- 1%
-    r_ain4.package = "0603"
-    r_ain5 = new Resistor
-    r_ain5.resistance = 1kohm +/- 1%
-    r_ain5.package = "0603"
-    r_ain6 = new Resistor
-    r_ain6.resistance = 1kohm +/- 1%
-    r_ain6.package = "0603"
+    # Excitation sense → ADC AIN1 (through 1k + 100nF, same as thermistors)
     r_ain_exc = new Resistor
     r_ain_exc.resistance = 1kohm +/- 1%
     r_ain_exc.package = "0603"
-
-    # Filter caps (100nF 50V explicit for voltage rating)
-    c_ain1 = new YAGEO_CC0603KRX7R9BB104_package
-    c_ain2 = new YAGEO_CC0603KRX7R9BB104_package
-    c_ain3 = new YAGEO_CC0603KRX7R9BB104_package
-    c_ain4 = new YAGEO_CC0603KRX7R9BB104_package
-    c_ain5 = new YAGEO_CC0603KRX7R9BB104_package
-    c_ain6 = new YAGEO_CC0603KRX7R9BB104_package
     c_ain_exc = new YAGEO_CC0603KRX7R9BB104_package
+    prot_exc = new Electrical
+    filtered_exc ~> r_ain_exc ~> prot_exc
+    prot_exc ~ c_ain_exc.p1
+    c_ain_exc.p2 ~ power.lv
+    prot_exc ~ adc1.inputs[1].line
 
-    # Protected nodes (after series R, at TVS/cap/ADC junction)
+    # =====================================================================
+    # ESD rail isolation (ferrite bead)
+    # =====================================================================
+    l_esd = new Sunlord_GZ1608D601TF_package
+    """600 ohm @ 100MHz. Isolates TVS transients from clean 3.3V rail."""
+
+    tvs_vcc = new Electrical
+    """Dirty 3.3V for TVS arrays only."""
+
+    power.hv ~ l_esd.p1
+    l_esd.p2 ~ tvs_vcc
+
+    # Dirty-side decoupling
+    c_esd_bulk = new YAGEO_CC0603KRX7R9BB104_package
+    tvs_vcc ~ c_esd_bulk.p1
+    c_esd_bulk.p2 ~ power.lv
+
+    # =====================================================================
+    # TVS arrays (13x PRTR5V0U4D) — powered from dirty rail
+    # =====================================================================
+    tvs_1 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_2 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_3 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_4 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_5 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_6 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_7 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_8 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_9 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_10 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_11 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_12 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    tvs_13 = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+
+    # TVS decoupling caps (one per array)
+    c_tvs_1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_4 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_5 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_6 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_7 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_8 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_9 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_10 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_11 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_12 = new YAGEO_CC0603KRX7R9BB104_package
+    c_tvs_13 = new YAGEO_CC0603KRX7R9BB104_package
+
+    # TVS power wiring (dirty rail)
+    tvs_1.VCC ~ tvs_vcc
+    tvs_1.GND ~ power.lv
+    c_tvs_1.p1 ~ tvs_vcc
+    c_tvs_1.p2 ~ power.lv
+    tvs_2.VCC ~ tvs_vcc
+    tvs_2.GND ~ power.lv
+    c_tvs_2.p1 ~ tvs_vcc
+    c_tvs_2.p2 ~ power.lv
+    tvs_3.VCC ~ tvs_vcc
+    tvs_3.GND ~ power.lv
+    c_tvs_3.p1 ~ tvs_vcc
+    c_tvs_3.p2 ~ power.lv
+    tvs_4.VCC ~ tvs_vcc
+    tvs_4.GND ~ power.lv
+    c_tvs_4.p1 ~ tvs_vcc
+    c_tvs_4.p2 ~ power.lv
+    tvs_5.VCC ~ tvs_vcc
+    tvs_5.GND ~ power.lv
+    c_tvs_5.p1 ~ tvs_vcc
+    c_tvs_5.p2 ~ power.lv
+    tvs_6.VCC ~ tvs_vcc
+    tvs_6.GND ~ power.lv
+    c_tvs_6.p1 ~ tvs_vcc
+    c_tvs_6.p2 ~ power.lv
+    tvs_7.VCC ~ tvs_vcc
+    tvs_7.GND ~ power.lv
+    c_tvs_7.p1 ~ tvs_vcc
+    c_tvs_7.p2 ~ power.lv
+    tvs_8.VCC ~ tvs_vcc
+    tvs_8.GND ~ power.lv
+    c_tvs_8.p1 ~ tvs_vcc
+    c_tvs_8.p2 ~ power.lv
+    tvs_9.VCC ~ tvs_vcc
+    tvs_9.GND ~ power.lv
+    c_tvs_9.p1 ~ tvs_vcc
+    c_tvs_9.p2 ~ power.lv
+    tvs_10.VCC ~ tvs_vcc
+    tvs_10.GND ~ power.lv
+    c_tvs_10.p1 ~ tvs_vcc
+    c_tvs_10.p2 ~ power.lv
+    tvs_11.VCC ~ tvs_vcc
+    tvs_11.GND ~ power.lv
+    c_tvs_11.p1 ~ tvs_vcc
+    c_tvs_11.p2 ~ power.lv
+    tvs_12.VCC ~ tvs_vcc
+    tvs_12.GND ~ power.lv
+    c_tvs_12.p1 ~ tvs_vcc
+    c_tvs_12.p2 ~ power.lv
+    tvs_13.VCC ~ tvs_vcc
+    tvs_13.GND ~ power.lv
+    c_tvs_13.p1 ~ tvs_vcc
+    c_tvs_13.p2 ~ power.lv
+
+    # TVS 13 spare channels tied to GND
+    tvs_13.ESD2 ~ power.lv
+    tvs_13.ESD3 ~ power.lv
+    tvs_13.ESD4 ~ power.lv
+
+    # =====================================================================
+    # Input protection chains (49x: 1k series R + 100nF shunt C)
+    # and mux routing
+    #
+    # Pattern per channel:
+    #   therm_N → tvs_X.ESDY → R_N (1k) → prot_N → C_N (100nF to GND)
+    #   prot_N → mux_X.Y_N
+    # =====================================================================
+
+    # --- 48 series resistors ---
+    r_1 = new Resistor
+    r_1.resistance = 1kohm +/- 1%
+    r_1.package = "0603"
+    r_2 = new Resistor
+    r_2.resistance = 1kohm +/- 1%
+    r_2.package = "0603"
+    r_3 = new Resistor
+    r_3.resistance = 1kohm +/- 1%
+    r_3.package = "0603"
+    r_4 = new Resistor
+    r_4.resistance = 1kohm +/- 1%
+    r_4.package = "0603"
+    r_5 = new Resistor
+    r_5.resistance = 1kohm +/- 1%
+    r_5.package = "0603"
+    r_6 = new Resistor
+    r_6.resistance = 1kohm +/- 1%
+    r_6.package = "0603"
+    r_7 = new Resistor
+    r_7.resistance = 1kohm +/- 1%
+    r_7.package = "0603"
+    r_8 = new Resistor
+    r_8.resistance = 1kohm +/- 1%
+    r_8.package = "0603"
+    r_9 = new Resistor
+    r_9.resistance = 1kohm +/- 1%
+    r_9.package = "0603"
+    r_10 = new Resistor
+    r_10.resistance = 1kohm +/- 1%
+    r_10.package = "0603"
+    r_11 = new Resistor
+    r_11.resistance = 1kohm +/- 1%
+    r_11.package = "0603"
+    r_12 = new Resistor
+    r_12.resistance = 1kohm +/- 1%
+    r_12.package = "0603"
+    r_13 = new Resistor
+    r_13.resistance = 1kohm +/- 1%
+    r_13.package = "0603"
+    r_14 = new Resistor
+    r_14.resistance = 1kohm +/- 1%
+    r_14.package = "0603"
+    r_15 = new Resistor
+    r_15.resistance = 1kohm +/- 1%
+    r_15.package = "0603"
+    r_16 = new Resistor
+    r_16.resistance = 1kohm +/- 1%
+    r_16.package = "0603"
+    r_17 = new Resistor
+    r_17.resistance = 1kohm +/- 1%
+    r_17.package = "0603"
+    r_18 = new Resistor
+    r_18.resistance = 1kohm +/- 1%
+    r_18.package = "0603"
+    r_19 = new Resistor
+    r_19.resistance = 1kohm +/- 1%
+    r_19.package = "0603"
+    r_20 = new Resistor
+    r_20.resistance = 1kohm +/- 1%
+    r_20.package = "0603"
+    r_21 = new Resistor
+    r_21.resistance = 1kohm +/- 1%
+    r_21.package = "0603"
+    r_22 = new Resistor
+    r_22.resistance = 1kohm +/- 1%
+    r_22.package = "0603"
+    r_23 = new Resistor
+    r_23.resistance = 1kohm +/- 1%
+    r_23.package = "0603"
+    r_24 = new Resistor
+    r_24.resistance = 1kohm +/- 1%
+    r_24.package = "0603"
+    r_25 = new Resistor
+    r_25.resistance = 1kohm +/- 1%
+    r_25.package = "0603"
+    r_26 = new Resistor
+    r_26.resistance = 1kohm +/- 1%
+    r_26.package = "0603"
+    r_27 = new Resistor
+    r_27.resistance = 1kohm +/- 1%
+    r_27.package = "0603"
+    r_28 = new Resistor
+    r_28.resistance = 1kohm +/- 1%
+    r_28.package = "0603"
+    r_29 = new Resistor
+    r_29.resistance = 1kohm +/- 1%
+    r_29.package = "0603"
+    r_30 = new Resistor
+    r_30.resistance = 1kohm +/- 1%
+    r_30.package = "0603"
+    r_31 = new Resistor
+    r_31.resistance = 1kohm +/- 1%
+    r_31.package = "0603"
+    r_32 = new Resistor
+    r_32.resistance = 1kohm +/- 1%
+    r_32.package = "0603"
+    r_33 = new Resistor
+    r_33.resistance = 1kohm +/- 1%
+    r_33.package = "0603"
+    r_34 = new Resistor
+    r_34.resistance = 1kohm +/- 1%
+    r_34.package = "0603"
+    r_35 = new Resistor
+    r_35.resistance = 1kohm +/- 1%
+    r_35.package = "0603"
+    r_36 = new Resistor
+    r_36.resistance = 1kohm +/- 1%
+    r_36.package = "0603"
+    r_37 = new Resistor
+    r_37.resistance = 1kohm +/- 1%
+    r_37.package = "0603"
+    r_38 = new Resistor
+    r_38.resistance = 1kohm +/- 1%
+    r_38.package = "0603"
+    r_39 = new Resistor
+    r_39.resistance = 1kohm +/- 1%
+    r_39.package = "0603"
+    r_40 = new Resistor
+    r_40.resistance = 1kohm +/- 1%
+    r_40.package = "0603"
+    r_41 = new Resistor
+    r_41.resistance = 1kohm +/- 1%
+    r_41.package = "0603"
+    r_42 = new Resistor
+    r_42.resistance = 1kohm +/- 1%
+    r_42.package = "0603"
+    r_43 = new Resistor
+    r_43.resistance = 1kohm +/- 1%
+    r_43.package = "0603"
+    r_44 = new Resistor
+    r_44.resistance = 1kohm +/- 1%
+    r_44.package = "0603"
+    r_45 = new Resistor
+    r_45.resistance = 1kohm +/- 1%
+    r_45.package = "0603"
+    r_46 = new Resistor
+    r_46.resistance = 1kohm +/- 1%
+    r_46.package = "0603"
+    r_47 = new Resistor
+    r_47.resistance = 1kohm +/- 1%
+    r_47.package = "0603"
+    r_48 = new Resistor
+    r_48.resistance = 1kohm +/- 1%
+    r_48.package = "0603"
+
+    # --- 48 filter caps ---
+    c_1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_4 = new YAGEO_CC0603KRX7R9BB104_package
+    c_5 = new YAGEO_CC0603KRX7R9BB104_package
+    c_6 = new YAGEO_CC0603KRX7R9BB104_package
+    c_7 = new YAGEO_CC0603KRX7R9BB104_package
+    c_8 = new YAGEO_CC0603KRX7R9BB104_package
+    c_9 = new YAGEO_CC0603KRX7R9BB104_package
+    c_10 = new YAGEO_CC0603KRX7R9BB104_package
+    c_11 = new YAGEO_CC0603KRX7R9BB104_package
+    c_12 = new YAGEO_CC0603KRX7R9BB104_package
+    c_13 = new YAGEO_CC0603KRX7R9BB104_package
+    c_14 = new YAGEO_CC0603KRX7R9BB104_package
+    c_15 = new YAGEO_CC0603KRX7R9BB104_package
+    c_16 = new YAGEO_CC0603KRX7R9BB104_package
+    c_17 = new YAGEO_CC0603KRX7R9BB104_package
+    c_18 = new YAGEO_CC0603KRX7R9BB104_package
+    c_19 = new YAGEO_CC0603KRX7R9BB104_package
+    c_20 = new YAGEO_CC0603KRX7R9BB104_package
+    c_21 = new YAGEO_CC0603KRX7R9BB104_package
+    c_22 = new YAGEO_CC0603KRX7R9BB104_package
+    c_23 = new YAGEO_CC0603KRX7R9BB104_package
+    c_24 = new YAGEO_CC0603KRX7R9BB104_package
+    c_25 = new YAGEO_CC0603KRX7R9BB104_package
+    c_26 = new YAGEO_CC0603KRX7R9BB104_package
+    c_27 = new YAGEO_CC0603KRX7R9BB104_package
+    c_28 = new YAGEO_CC0603KRX7R9BB104_package
+    c_29 = new YAGEO_CC0603KRX7R9BB104_package
+    c_30 = new YAGEO_CC0603KRX7R9BB104_package
+    c_31 = new YAGEO_CC0603KRX7R9BB104_package
+    c_32 = new YAGEO_CC0603KRX7R9BB104_package
+    c_33 = new YAGEO_CC0603KRX7R9BB104_package
+    c_34 = new YAGEO_CC0603KRX7R9BB104_package
+    c_35 = new YAGEO_CC0603KRX7R9BB104_package
+    c_36 = new YAGEO_CC0603KRX7R9BB104_package
+    c_37 = new YAGEO_CC0603KRX7R9BB104_package
+    c_38 = new YAGEO_CC0603KRX7R9BB104_package
+    c_39 = new YAGEO_CC0603KRX7R9BB104_package
+    c_40 = new YAGEO_CC0603KRX7R9BB104_package
+    c_41 = new YAGEO_CC0603KRX7R9BB104_package
+    c_42 = new YAGEO_CC0603KRX7R9BB104_package
+    c_43 = new YAGEO_CC0603KRX7R9BB104_package
+    c_44 = new YAGEO_CC0603KRX7R9BB104_package
+    c_45 = new YAGEO_CC0603KRX7R9BB104_package
+    c_46 = new YAGEO_CC0603KRX7R9BB104_package
+    c_47 = new YAGEO_CC0603KRX7R9BB104_package
+    c_48 = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- 48 protected nodes ---
     prot_1 = new Electrical
     prot_2 = new Electrical
     prot_3 = new Electrical
     prot_4 = new Electrical
     prot_5 = new Electrical
     prot_6 = new Electrical
-    prot_exc = new Electrical
+    prot_7 = new Electrical
+    prot_8 = new Electrical
+    prot_9 = new Electrical
+    prot_10 = new Electrical
+    prot_11 = new Electrical
+    prot_12 = new Electrical
+    prot_13 = new Electrical
+    prot_14 = new Electrical
+    prot_15 = new Electrical
+    prot_16 = new Electrical
+    prot_17 = new Electrical
+    prot_18 = new Electrical
+    prot_19 = new Electrical
+    prot_20 = new Electrical
+    prot_21 = new Electrical
+    prot_22 = new Electrical
+    prot_23 = new Electrical
+    prot_24 = new Electrical
+    prot_25 = new Electrical
+    prot_26 = new Electrical
+    prot_27 = new Electrical
+    prot_28 = new Electrical
+    prot_29 = new Electrical
+    prot_30 = new Electrical
+    prot_31 = new Electrical
+    prot_32 = new Electrical
+    prot_33 = new Electrical
+    prot_34 = new Electrical
+    prot_35 = new Electrical
+    prot_36 = new Electrical
+    prot_37 = new Electrical
+    prot_38 = new Electrical
+    prot_39 = new Electrical
+    prot_40 = new Electrical
+    prot_41 = new Electrical
+    prot_42 = new Electrical
+    prot_43 = new Electrical
+    prot_44 = new Electrical
+    prot_45 = new Electrical
+    prot_46 = new Electrical
+    prot_47 = new Electrical
+    prot_48 = new Electrical
 
-    # === Ch1: thermistor_1 → ADC1 AIN0, TVS D_J2A.ESD2 ===
-    thermistor_1 ~ d_j2a.ESD2
-    thermistor_1 ~> r_ain1 ~> prot_1
-    prot_1 ~ c_ain1.p1
-    c_ain1.p2 ~ power.lv
-    prot_1 ~ adc1.inputs[0].line
+    # =====================================================================
+    # Mux A channels (therm 1-16) — TVS 1-4
+    # =====================================================================
+    # Ch 1: TVS1.ESD1
+    therm_1 ~ tvs_1.ESD1
+    therm_1 ~> r_1 ~> prot_1
+    prot_1 ~ c_1.p1
+    c_1.p2 ~ power.lv
+    prot_1 ~ mux_a.Y0
+    # Ch 2: TVS1.ESD2
+    therm_2 ~ tvs_1.ESD2
+    therm_2 ~> r_2 ~> prot_2
+    prot_2 ~ c_2.p1
+    c_2.p2 ~ power.lv
+    prot_2 ~ mux_a.Y1
+    # Ch 3: TVS1.ESD3
+    therm_3 ~ tvs_1.ESD3
+    therm_3 ~> r_3 ~> prot_3
+    prot_3 ~ c_3.p1
+    c_3.p2 ~ power.lv
+    prot_3 ~ mux_a.Y2
+    # Ch 4: TVS1.ESD4
+    therm_4 ~ tvs_1.ESD4
+    therm_4 ~> r_4 ~> prot_4
+    prot_4 ~ c_4.p1
+    c_4.p2 ~ power.lv
+    prot_4 ~ mux_a.Y3
+    # Ch 5: TVS2.ESD1
+    therm_5 ~ tvs_2.ESD1
+    therm_5 ~> r_5 ~> prot_5
+    prot_5 ~ c_5.p1
+    c_5.p2 ~ power.lv
+    prot_5 ~ mux_a.Y4
+    # Ch 6: TVS2.ESD2
+    therm_6 ~ tvs_2.ESD2
+    therm_6 ~> r_6 ~> prot_6
+    prot_6 ~ c_6.p1
+    c_6.p2 ~ power.lv
+    prot_6 ~ mux_a.Y5
+    # Ch 7: TVS2.ESD3
+    therm_7 ~ tvs_2.ESD3
+    therm_7 ~> r_7 ~> prot_7
+    prot_7 ~ c_7.p1
+    c_7.p2 ~ power.lv
+    prot_7 ~ mux_a.Y6
+    # Ch 8: TVS2.ESD4
+    therm_8 ~ tvs_2.ESD4
+    therm_8 ~> r_8 ~> prot_8
+    prot_8 ~ c_8.p1
+    c_8.p2 ~ power.lv
+    prot_8 ~ mux_a.Y7
+    # Ch 9: TVS3.ESD1
+    therm_9 ~ tvs_3.ESD1
+    therm_9 ~> r_9 ~> prot_9
+    prot_9 ~ c_9.p1
+    c_9.p2 ~ power.lv
+    prot_9 ~ mux_a.Y8
+    # Ch 10: TVS3.ESD2
+    therm_10 ~ tvs_3.ESD2
+    therm_10 ~> r_10 ~> prot_10
+    prot_10 ~ c_10.p1
+    c_10.p2 ~ power.lv
+    prot_10 ~ mux_a.Y9
+    # Ch 11: TVS3.ESD3
+    therm_11 ~ tvs_3.ESD3
+    therm_11 ~> r_11 ~> prot_11
+    prot_11 ~ c_11.p1
+    c_11.p2 ~ power.lv
+    prot_11 ~ mux_a.Y10
+    # Ch 12: TVS3.ESD4
+    therm_12 ~ tvs_3.ESD4
+    therm_12 ~> r_12 ~> prot_12
+    prot_12 ~ c_12.p1
+    c_12.p2 ~ power.lv
+    prot_12 ~ mux_a.Y11
+    # Ch 13: TVS4.ESD1
+    therm_13 ~ tvs_4.ESD1
+    therm_13 ~> r_13 ~> prot_13
+    prot_13 ~ c_13.p1
+    c_13.p2 ~ power.lv
+    prot_13 ~ mux_a.Y12
+    # Ch 14: TVS4.ESD2
+    therm_14 ~ tvs_4.ESD2
+    therm_14 ~> r_14 ~> prot_14
+    prot_14 ~ c_14.p1
+    c_14.p2 ~ power.lv
+    prot_14 ~ mux_a.Y13
+    # Ch 15: TVS4.ESD3
+    therm_15 ~ tvs_4.ESD3
+    therm_15 ~> r_15 ~> prot_15
+    prot_15 ~ c_15.p1
+    c_15.p2 ~ power.lv
+    prot_15 ~ mux_a.Y14
+    # Ch 16: TVS4.ESD4
+    therm_16 ~ tvs_4.ESD4
+    therm_16 ~> r_16 ~> prot_16
+    prot_16 ~ c_16.p1
+    c_16.p2 ~ power.lv
+    prot_16 ~ mux_a.Y15
 
-    # === Ch2: thermistor_2 → ADC1 AIN1, TVS D_J2A.ESD3 ===
-    thermistor_2 ~ d_j2a.ESD3
-    thermistor_2 ~> r_ain2 ~> prot_2
-    prot_2 ~ c_ain2.p1
-    c_ain2.p2 ~ power.lv
-    prot_2 ~ adc1.inputs[1].line
+    # =====================================================================
+    # Mux B channels (therm 17-32) — TVS 5-8
+    # =====================================================================
+    therm_17 ~ tvs_5.ESD1
+    therm_17 ~> r_17 ~> prot_17
+    prot_17 ~ c_17.p1
+    c_17.p2 ~ power.lv
+    prot_17 ~ mux_b.Y0
+    therm_18 ~ tvs_5.ESD2
+    therm_18 ~> r_18 ~> prot_18
+    prot_18 ~ c_18.p1
+    c_18.p2 ~ power.lv
+    prot_18 ~ mux_b.Y1
+    therm_19 ~ tvs_5.ESD3
+    therm_19 ~> r_19 ~> prot_19
+    prot_19 ~ c_19.p1
+    c_19.p2 ~ power.lv
+    prot_19 ~ mux_b.Y2
+    therm_20 ~ tvs_5.ESD4
+    therm_20 ~> r_20 ~> prot_20
+    prot_20 ~ c_20.p1
+    c_20.p2 ~ power.lv
+    prot_20 ~ mux_b.Y3
+    therm_21 ~ tvs_6.ESD1
+    therm_21 ~> r_21 ~> prot_21
+    prot_21 ~ c_21.p1
+    c_21.p2 ~ power.lv
+    prot_21 ~ mux_b.Y4
+    therm_22 ~ tvs_6.ESD2
+    therm_22 ~> r_22 ~> prot_22
+    prot_22 ~ c_22.p1
+    c_22.p2 ~ power.lv
+    prot_22 ~ mux_b.Y5
+    therm_23 ~ tvs_6.ESD3
+    therm_23 ~> r_23 ~> prot_23
+    prot_23 ~ c_23.p1
+    c_23.p2 ~ power.lv
+    prot_23 ~ mux_b.Y6
+    therm_24 ~ tvs_6.ESD4
+    therm_24 ~> r_24 ~> prot_24
+    prot_24 ~ c_24.p1
+    c_24.p2 ~ power.lv
+    prot_24 ~ mux_b.Y7
+    therm_25 ~ tvs_7.ESD1
+    therm_25 ~> r_25 ~> prot_25
+    prot_25 ~ c_25.p1
+    c_25.p2 ~ power.lv
+    prot_25 ~ mux_b.Y8
+    therm_26 ~ tvs_7.ESD2
+    therm_26 ~> r_26 ~> prot_26
+    prot_26 ~ c_26.p1
+    c_26.p2 ~ power.lv
+    prot_26 ~ mux_b.Y9
+    therm_27 ~ tvs_7.ESD3
+    therm_27 ~> r_27 ~> prot_27
+    prot_27 ~ c_27.p1
+    c_27.p2 ~ power.lv
+    prot_27 ~ mux_b.Y10
+    therm_28 ~ tvs_7.ESD4
+    therm_28 ~> r_28 ~> prot_28
+    prot_28 ~ c_28.p1
+    c_28.p2 ~ power.lv
+    prot_28 ~ mux_b.Y11
+    therm_29 ~ tvs_8.ESD1
+    therm_29 ~> r_29 ~> prot_29
+    prot_29 ~ c_29.p1
+    c_29.p2 ~ power.lv
+    prot_29 ~ mux_b.Y12
+    therm_30 ~ tvs_8.ESD2
+    therm_30 ~> r_30 ~> prot_30
+    prot_30 ~ c_30.p1
+    c_30.p2 ~ power.lv
+    prot_30 ~ mux_b.Y13
+    therm_31 ~ tvs_8.ESD3
+    therm_31 ~> r_31 ~> prot_31
+    prot_31 ~ c_31.p1
+    c_31.p2 ~ power.lv
+    prot_31 ~ mux_b.Y14
+    therm_32 ~ tvs_8.ESD4
+    therm_32 ~> r_32 ~> prot_32
+    prot_32 ~ c_32.p1
+    c_32.p2 ~ power.lv
+    prot_32 ~ mux_b.Y15
 
-    # === Ch3: thermistor_3 → ADC1 AIN2, TVS D_J2A.ESD4 ===
-    thermistor_3 ~ d_j2a.ESD4
-    thermistor_3 ~> r_ain3 ~> prot_3
-    prot_3 ~ c_ain3.p1
-    c_ain3.p2 ~ power.lv
-    prot_3 ~ adc1.inputs[2].line
+    # =====================================================================
+    # Mux C channels (therm 33-48) — TVS 9-12
+    # =====================================================================
+    therm_33 ~ tvs_9.ESD1
+    therm_33 ~> r_33 ~> prot_33
+    prot_33 ~ c_33.p1
+    c_33.p2 ~ power.lv
+    prot_33 ~ mux_c.Y0
+    therm_34 ~ tvs_9.ESD2
+    therm_34 ~> r_34 ~> prot_34
+    prot_34 ~ c_34.p1
+    c_34.p2 ~ power.lv
+    prot_34 ~ mux_c.Y1
+    therm_35 ~ tvs_9.ESD3
+    therm_35 ~> r_35 ~> prot_35
+    prot_35 ~ c_35.p1
+    c_35.p2 ~ power.lv
+    prot_35 ~ mux_c.Y2
+    therm_36 ~ tvs_9.ESD4
+    therm_36 ~> r_36 ~> prot_36
+    prot_36 ~ c_36.p1
+    c_36.p2 ~ power.lv
+    prot_36 ~ mux_c.Y3
+    therm_37 ~ tvs_10.ESD1
+    therm_37 ~> r_37 ~> prot_37
+    prot_37 ~ c_37.p1
+    c_37.p2 ~ power.lv
+    prot_37 ~ mux_c.Y4
+    therm_38 ~ tvs_10.ESD2
+    therm_38 ~> r_38 ~> prot_38
+    prot_38 ~ c_38.p1
+    c_38.p2 ~ power.lv
+    prot_38 ~ mux_c.Y5
+    therm_39 ~ tvs_10.ESD3
+    therm_39 ~> r_39 ~> prot_39
+    prot_39 ~ c_39.p1
+    c_39.p2 ~ power.lv
+    prot_39 ~ mux_c.Y6
+    therm_40 ~ tvs_10.ESD4
+    therm_40 ~> r_40 ~> prot_40
+    prot_40 ~ c_40.p1
+    c_40.p2 ~ power.lv
+    prot_40 ~ mux_c.Y7
+    therm_41 ~ tvs_11.ESD1
+    therm_41 ~> r_41 ~> prot_41
+    prot_41 ~ c_41.p1
+    c_41.p2 ~ power.lv
+    prot_41 ~ mux_c.Y8
+    therm_42 ~ tvs_11.ESD2
+    therm_42 ~> r_42 ~> prot_42
+    prot_42 ~ c_42.p1
+    c_42.p2 ~ power.lv
+    prot_42 ~ mux_c.Y9
+    therm_43 ~ tvs_11.ESD3
+    therm_43 ~> r_43 ~> prot_43
+    prot_43 ~ c_43.p1
+    c_43.p2 ~ power.lv
+    prot_43 ~ mux_c.Y10
+    therm_44 ~ tvs_11.ESD4
+    therm_44 ~> r_44 ~> prot_44
+    prot_44 ~ c_44.p1
+    c_44.p2 ~ power.lv
+    prot_44 ~ mux_c.Y11
+    therm_45 ~ tvs_12.ESD1
+    therm_45 ~> r_45 ~> prot_45
+    prot_45 ~ c_45.p1
+    c_45.p2 ~ power.lv
+    prot_45 ~ mux_c.Y12
+    therm_46 ~ tvs_12.ESD2
+    therm_46 ~> r_46 ~> prot_46
+    prot_46 ~ c_46.p1
+    c_46.p2 ~ power.lv
+    prot_46 ~ mux_c.Y13
+    therm_47 ~ tvs_12.ESD3
+    therm_47 ~> r_47 ~> prot_47
+    prot_47 ~ c_47.p1
+    c_47.p2 ~ power.lv
+    prot_47 ~ mux_c.Y14
+    therm_48 ~ tvs_12.ESD4
+    therm_48 ~> r_48 ~> prot_48
+    prot_48 ~ c_48.p1
+    c_48.p2 ~ power.lv
+    prot_48 ~ mux_c.Y15
 
-    # === Ch4: thermistor_4 → ADC2 AIN0, TVS D_J2B.ESD1 ===
-    thermistor_4 ~ d_j2b.ESD1
-    thermistor_4 ~> r_ain4 ~> prot_4
-    prot_4 ~ c_ain4.p1
-    c_ain4.p2 ~ power.lv
-    prot_4 ~ adc2.inputs[0].line
-
-    # === Ch5: thermistor_5 → ADC2 AIN1, TVS D_J2B.ESD2 ===
-    thermistor_5 ~ d_j2b.ESD2
-    thermistor_5 ~> r_ain5 ~> prot_5
-    prot_5 ~ c_ain5.p1
-    c_ain5.p2 ~ power.lv
-    prot_5 ~ adc2.inputs[1].line
-
-    # === Ch6: thermistor_6 → ADC2 AIN2, TVS D_J2B.ESD3 ===
-    thermistor_6 ~ d_j2b.ESD3
-    thermistor_6 ~> r_ain6 ~> prot_6
-    prot_6 ~ c_ain6.p1
-    c_ain6.p2 ~ power.lv
-    prot_6 ~ adc2.inputs[2].line
-
-    # === Excitation sense → ADC1 AIN3, TVS D_J2A.ESD1 ===
-    filtered_exc ~ d_j2a.ESD1
-    filtered_exc ~> r_ain_exc ~> prot_exc
-    prot_exc ~ c_ain_exc.p1
-    c_ain_exc.p2 ~ power.lv
-    prot_exc ~ adc1.inputs[3].line
+    # Excitation sense: TVS13.ESD1
+    filtered_exc ~ tvs_13.ESD1

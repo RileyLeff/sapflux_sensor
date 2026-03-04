@@ -1,0 +1,71 @@
+"""
+W25Q256JVFIQ SPI NOR flash (32 MB) for data logging.
+
+Standard SPI mode (single I/O). SOIC-16 wide body.
+RESET#, WP#, HOLD# all tied to VCC (always active, never protected).
+
+CS# has 10k pull-up for safe boot state (deselected when MCU pins float).
+100nF decoupling on VCC.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/Winbond_Elec_W25Q256JVFIQ/Winbond_Elec_W25Q256JVFIQ.ato" import Winbond_Elec_W25Q256JVFIQ_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module FlashMemory:
+    """W25Q256JVFIQ SPI flash with decoupling and CS# pull-up."""
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply."""
+
+    sck = new Electrical
+    """SPI clock."""
+
+    mosi = new Electrical
+    """SPI MOSI (flash DI/IO0)."""
+
+    miso = new Electrical
+    """SPI MISO (flash DO/IO1)."""
+
+    cs = new Electrical
+    """SPI chip select (active low)."""
+
+    # --- Flash IC ---
+    flash = new Winbond_Elec_W25Q256JVFIQ_package
+
+    # --- Decoupling ---
+    c_flash = new YAGEO_CC0603KRX7R9BB104_package  # 100nF
+
+    # --- CS# pull-up (deselected during boot) ---
+    r_cs = new Resistor
+    r_cs.resistance = 10kohm +/- 1%
+    r_cs.package = "0603"
+
+    # === Power ===
+    flash.VCC ~ power.hv
+    flash.GND ~ power.lv
+    c_flash.p1 ~ power.hv
+    c_flash.p2 ~ power.lv
+
+    # === Tie unused control pins to VCC ===
+    # RESET# (pin 1 = RESEThIO3): active low reset — tie high
+    flash.RESEThIO3 ~ power.hv
+    # nRESET (pin 3): second reset pin — tie high
+    flash.nRESET ~ power.hv
+    # WP# (pin 9 = WPhIO2): write protect — tie high (writes allowed)
+    flash.WPhIO2 ~ power.hv
+
+    # === SPI interface ===
+    flash.CLK ~ sck
+    flash.DIIO0 ~ mosi
+    flash.DOIO1 ~ miso
+    flash.nCS ~ cs
+
+    # CS# pull-up
+    cs ~> r_cs ~> power.hv

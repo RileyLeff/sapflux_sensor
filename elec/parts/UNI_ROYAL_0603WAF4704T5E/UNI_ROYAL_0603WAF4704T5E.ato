@@ -18,5 +18,5 @@ component UNI_ROYAL_0603WAF4704T5E_package:
     trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010116_UNI-ROYAL-Uniroyal-Elec-0603WAF4704T5E_C23163.pdf">
 
     # pins
-    pin 2
-    pin 1
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

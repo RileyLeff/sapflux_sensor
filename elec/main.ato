@@ -1,21 +1,39 @@
 """
-Sap Flux Sensor Adapter Board — atopile implementation.
-24V battery/solar powered, RS-485 comms, STM32G0B1 MCU,
-2x ADS1115 ADCs, heater driver with TPL5010 watchdog.
+Sap Flux Sensor Adapter Board v1.1 — atopile implementation.
+24V battery/solar powered, RS-485 comms, STM32G0B1 MCU, ADS1115 ADC
+with 3x 74HC4067 mux (48 thermistors), 32MB SPI flash, heater driver
+with TPL5010 watchdog + SCR latch + 10V gate driver.
 
 Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
-wires connectors, and establishes shared buses (I2C, power rails).
+wires connectors, and establishes shared buses (I2C, SPI, power rails).
+
+Power topology:
+  J1 (M8) → V24_RAW → TVS (shunt, passthrough) → V24_PROT
+  V24_PROT → F1 (PTC) → D1 (SS36 Schottky) → V24_BUCK → LM5165Y → V3V3
+  V24_PROT → heater module (own fuse clips inside)
 
 MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
-  PA0: RS-485 ~RE         PA8: TIM1_CH1 (heater gate)
-  PA1: RS-485 DE          PA13: SWDIO
-  PA2: USART2_TX          PA14: SWCLK / BOOT0
-  PA3: USART2_RX          PB0: ADC1 ALERT/DRDY
-  PA4: TPL5010 WAKE       PB1: ADC2 ALERT/DRDY
-  PA5: TPL5010 DONE       PB3: LED R (sink)
-  PB4: LED G (sink)       PB6: I2C1_SCL
-  PB5: LED B (sink)       PB7: I2C1_SDA
-  PC6: Excitation GPIO    PC7: PGOOD input
+  PA0:  RS-485 ~RE           PA8:  TIM1_CH1 (heater gate)
+  PA1:  RS-485 DE            PA9:  Mux A enable (~E)
+  PA2:  USART2_TX            PA10: Mux B enable (~E)
+  PA3:  USART2_RX            PA11: Mux C enable (~E) [pin name: PA11PA9]
+  PA4:  TPL5010 WAKE         PA12: EEPROM WP [pin name: PA12PA10]
+  PA5:  TPL5010 DONE         PA13: SWDIO
+  PA6:  Spare GPIO (aux J4)  PA14: SWCLK / BOOT0
+  PA7:  Spare GPIO (aux J4)  PA15: (unused)
+  PB0:  ADC1 ALERT/DRDY      PB6:  I2C1_SCL
+  PB1:  (unused)              PB7:  I2C1_SDA
+  PB2:  (unused)              PB8:  (unused)
+  PB3:  LED R (sink)          PB9:  (unused)
+  PB4:  LED G (sink)          PB10: (unused)
+  PB5:  LED B (sink)          PB11: (unused)
+  PB12: Flash CS              PB13: SPI2_SCK (Flash)
+  PB14: SPI2_MISO (Flash)    PB15: SPI2_MOSI (Flash)
+  PC6:  Excitation GPIO      PC7:  PGOOD input
+  PC13: (unused)              PC14: OSC32_IN (crystal, in mcu.ato)
+  PC15: OSC32_OUT (crystal)   PD0:  Mux S0
+  PD1:  Mux S1                PD2:  Mux S2
+  PD3:  Mux S3
 """
 
 #pragma experiment("BRIDGE_CONNECT")
@@ -32,15 +50,20 @@ from "rs485.ato" import RS485Bus
 from "heater.ato" import HeaterDriver
 from "led.ato" import StatusLED
 from "connectors.ato" import Connectors
+from "flash.ato" import FlashMemory
 from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
 
 module SapFluxAdapter:
-    """Top-level module for the sap flux sensor adapter board."""
+    """Top-level module for the sap flux sensor adapter board v1.1."""
 
     # === Power rails ===
     power_24v_raw = new ElectricPower
     power_24v_protected = new ElectricPower
+    power_buck = new ElectricPower
+    """Post-PTC, post-Schottky power for buck converter only."""
     power_3v3 = new ElectricPower
 
     # === Shared I2C bus nodes ===
@@ -49,25 +72,39 @@ module SapFluxAdapter:
 
     # === Subsystem instances ===
 
-    # Connectors (J1 M8 upstream, J2 10-pin sensor)
+    # Connectors (J1 M8, J2 60-pin, J3 heater, J4 aux)
     connectors = new Connectors
     power_24v_raw ~ connectors.power_24v
 
-    # Input protection (PTC + TVS + Schottky)
+    # Input protection (TVS shunt, passthrough)
     input_protection = new InputProtection
     power_24v_raw ~ input_protection.power_in
     input_protection.power_out ~ power_24v_protected
 
+    # --- Buck input path: PTC + Schottky ---
+    f1 = new Littelfuse_2920L110_60MR_package
+    """2920 PTC fuse. Limits sustained overcurrent to buck converter."""
+
+    d1 = new MDD_Microdiode_Electronics_SS36_package
+    """SS36 Schottky. Reverse polarity protection for buck path."""
+
+    ptc_out = new Electrical
+    f1.p1 ~ power_24v_protected.hv
+    f1.p2 ~ ptc_out
+    d1.A ~ ptc_out
+    d1.K ~ power_buck.hv
+    power_24v_protected.lv ~ power_buck.lv
+
     # Buck converter (24V -> 3.3V)
     buck = new BuckConverter
-    power_24v_protected ~ buck.power_in
+    power_buck ~ buck.power_in
     buck.power_out ~ power_3v3
 
     # MCU
     mcu = new MCU
     power_3v3 ~ mcu.power
 
-    # ADC front-end (2x ADS1115 + input protection + excitation filter)
+    # ADC front-end (ADS1115 + 3x 74HC4067 mux + 49-ch protection)
     adc = new ADCFrontEnd
     power_3v3 ~ adc.power
 
@@ -83,6 +120,10 @@ module SapFluxAdapter:
     # Status LED
     led = new StatusLED
     power_3v3 ~ led.power
+
+    # SPI Flash (W25Q256JVFIQ, 32MB)
+    flash = new FlashMemory
+    power_3v3 ~ flash.power
 
     # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
     eeprom = new onsemi_CAT24C32WI_GT3_package
@@ -101,8 +142,12 @@ module SapFluxAdapter:
     eeprom.A0 ~ power_3v3.lv
     eeprom.A1 ~ power_3v3.lv
     eeprom.A2 ~ power_3v3.lv
-    # WP tied to GND (writes always allowed)
-    eeprom.WP ~ power_3v3.lv
+    # WP: firmware-controlled via PA12 with 10k pull-up (boot-safe: write-protected)
+    r_wp = new Resistor
+    r_wp.resistance = 10kohm +/- 1%
+    r_wp.package = "0603"
+    mcu.package.PA12PA10 ~ eeprom.WP
+    eeprom.WP ~> r_wp ~> power_3v3.hv
 
     # === I2C bus wiring ===
     # ADC front-end I2C
@@ -112,6 +157,16 @@ module SapFluxAdapter:
     # MCU I2C1 (PB7=SDA, PB6=SCL)
     sda ~ mcu.package.PB7
     scl ~ mcu.package.PB6
+
+    # Auxiliary header I2C (through 1k series R, inside connectors module)
+    sda ~ connectors.i2c_sda
+    scl ~ connectors.i2c_scl
+
+    # === SPI Flash wiring (SPI2) ===
+    mcu.package.PB12 ~ flash.cs
+    mcu.package.PB13 ~ flash.sck
+    mcu.package.PB14 ~ flash.miso
+    mcu.package.PB15 ~ flash.mosi
 
     # === RS-485 wiring ===
     # USART2 (PA2=TX, PA3=RX)
@@ -132,25 +187,82 @@ module SapFluxAdapter:
     mcu.package.PA5 ~ heater.done
     # RSTn shared with MCU NRST
     mcu.nrst ~ heater.rstn
-    # Heater terminals to J2 connector
+    # Heater terminals to J3 connector
     connectors.heater_hi ~ heater.heater_hi
     connectors.heater_lo ~ heater.heater_lo
 
-    # === ADC wiring ===
+    # === ADC + Mux wiring ===
     # Excitation GPIO (PC6)
     mcu.package.PC6 ~ adc.excitation_gpio
     # Excitation output to J2 connector
     adc.excitation_out ~ connectors.excitation
-    # Thermistor lines from J2 to ADC
-    connectors.thermistor_1 ~ adc.thermistor_1
-    connectors.thermistor_2 ~ adc.thermistor_2
-    connectors.thermistor_3 ~ adc.thermistor_3
-    connectors.thermistor_4 ~ adc.thermistor_4
-    connectors.thermistor_5 ~ adc.thermistor_5
-    connectors.thermistor_6 ~ adc.thermistor_6
-    # ALERT/DRDY to MCU (PB0=ADC1, PB1=ADC2)
+    # ALERT/DRDY (PB0)
     mcu.package.PB0 ~ adc.alert1
-    mcu.package.PB1 ~ adc.alert2
+
+    # Mux select lines (PD0-PD3, shared across all three muxes)
+    mcu.package.PD0 ~ adc.mux_s0
+    mcu.package.PD1 ~ adc.mux_s1
+    mcu.package.PD2 ~ adc.mux_s2
+    mcu.package.PD3 ~ adc.mux_s3
+
+    # Mux enable lines (individual, active low)
+    mcu.package.PA9 ~ adc.mux_en_a
+    mcu.package.PA10 ~ adc.mux_en_b
+    mcu.package.PA11PA9 ~ adc.mux_en_c
+
+    # === 48 thermistor lines (connector → ADC) ===
+    connectors.therm_1 ~ adc.therm_1
+    connectors.therm_2 ~ adc.therm_2
+    connectors.therm_3 ~ adc.therm_3
+    connectors.therm_4 ~ adc.therm_4
+    connectors.therm_5 ~ adc.therm_5
+    connectors.therm_6 ~ adc.therm_6
+    connectors.therm_7 ~ adc.therm_7
+    connectors.therm_8 ~ adc.therm_8
+    connectors.therm_9 ~ adc.therm_9
+    connectors.therm_10 ~ adc.therm_10
+    connectors.therm_11 ~ adc.therm_11
+    connectors.therm_12 ~ adc.therm_12
+    connectors.therm_13 ~ adc.therm_13
+    connectors.therm_14 ~ adc.therm_14
+    connectors.therm_15 ~ adc.therm_15
+    connectors.therm_16 ~ adc.therm_16
+    connectors.therm_17 ~ adc.therm_17
+    connectors.therm_18 ~ adc.therm_18
+    connectors.therm_19 ~ adc.therm_19
+    connectors.therm_20 ~ adc.therm_20
+    connectors.therm_21 ~ adc.therm_21
+    connectors.therm_22 ~ adc.therm_22
+    connectors.therm_23 ~ adc.therm_23
+    connectors.therm_24 ~ adc.therm_24
+    connectors.therm_25 ~ adc.therm_25
+    connectors.therm_26 ~ adc.therm_26
+    connectors.therm_27 ~ adc.therm_27
+    connectors.therm_28 ~ adc.therm_28
+    connectors.therm_29 ~ adc.therm_29
+    connectors.therm_30 ~ adc.therm_30
+    connectors.therm_31 ~ adc.therm_31
+    connectors.therm_32 ~ adc.therm_32
+    connectors.therm_33 ~ adc.therm_33
+    connectors.therm_34 ~ adc.therm_34
+    connectors.therm_35 ~ adc.therm_35
+    connectors.therm_36 ~ adc.therm_36
+    connectors.therm_37 ~ adc.therm_37
+    connectors.therm_38 ~ adc.therm_38
+    connectors.therm_39 ~ adc.therm_39
+    connectors.therm_40 ~ adc.therm_40
+    connectors.therm_41 ~ adc.therm_41
+    connectors.therm_42 ~ adc.therm_42
+    connectors.therm_43 ~ adc.therm_43
+    connectors.therm_44 ~ adc.therm_44
+    connectors.therm_45 ~ adc.therm_45
+    connectors.therm_46 ~ adc.therm_46
+    connectors.therm_47 ~ adc.therm_47
+    connectors.therm_48 ~ adc.therm_48
+
+    # === Spare GPIOs to auxiliary header (J4) ===
+    mcu.package.PA6 ~ connectors.gpio_pa6
+    mcu.package.PA7 ~ connectors.gpio_pa7
 
     # === LED wiring ===
     # MCU sinks current (GPIOs drive low to turn on)
@@ -169,17 +281,13 @@ module SapFluxAdapter:
     buck.pgood.line ~ heater.pgood
 
     # === Net name overrides (readable names in KiCad) ===
-    # Workaround for atopile bug: override_net_name on ElectricPower.hv/.lv
-    # is shadowed by the class's pre-existing SUGGESTED trait (try_get_trait
-    # returns first match by insertion order). Standalone signals with
-    # override_net_name are found by the net naming algorithm's hierarchy walk.
     signal V3V3 ~ power_3v3.hv
     V3V3.override_net_name = "V3V3"
     signal GND ~ power_3v3.lv
     GND.override_net_name = "GND"
     signal V24_RAW ~ power_24v_raw.hv
     V24_RAW.override_net_name = "V24_RAW"
-    signal V24_PROT ~ power_24v_protected.hv
-    V24_PROT.override_net_name = "V24_PROT"
+    signal V24_BUCK ~ power_buck.hv
+    V24_BUCK.override_net_name = "V24_BUCK"
     sda.override_net_name = "SDA"
     scl.override_net_name = "SCL"

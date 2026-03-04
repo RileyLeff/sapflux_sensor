@@ -1,50 +1,36 @@
 """
-Input protection circuit: PTC fuse + TVS clamp + Schottky reverse polarity.
+Input protection: TVS clamp on 24V rail.
+
+v1.1: PTC fuse and Schottky diode moved to main.ato (split between
+buck and heater power paths). This module is now TVS-only.
 
 Topology:
-  J1 (24V) --> F1 (PTC) --> node_a --> D1 (Schottky, anode->cathode) --> +24V Protected
-                                |
-                              D2 (TVS, cathode to node_a, anode to GND)
-                                |
-                               GND
+  24V rail ──┬── passthrough
+             │
+           D2 (TVS, cathode to rail, anode to GND)
+             │
+            GND
 """
 
-import Electrical
 import ElectricPower
 
-from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
 from "parts/FTR_SMAJ33A/FTR_SMAJ33A.ato" import FTR_SMAJ33A_package
-from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
 
 module InputProtection:
     """
-    24V input protection: PTC fuse (1.1A hold, 60V),
-    TVS clamp (33V standoff, ~53V clamp), Schottky reverse polarity (60V/3A).
+    24V input TVS clamp (33V standoff, ~53V clamp).
+    Protects against transients on the 24V rail.
     """
 
     # External interfaces
     power_in = new ElectricPower
     power_out = new ElectricPower
 
-    # Components
-    f1 = new Littelfuse_2920L110_60MR_package
+    # D2: TVS clamp, cathode to rail, anode to GND
     d2_tvs = new FTR_SMAJ33A_package
-    d1_schottky = new MDD_Microdiode_Electronics_SS36_package
-
-    # Internal node between fuse output and diodes
-    node_a = new Electrical
-
-    # F1: series fuse from input to node_a
-    power_in.hv ~ f1.p1
-    f1.p2 ~ node_a
-
-    # D2: TVS clamp, cathode to node_a, anode to GND
-    d2_tvs.C ~ node_a
+    d2_tvs.C ~ power_in.hv
     d2_tvs.A ~ power_in.lv
 
-    # D1: Schottky, anode to node_a, cathode to output
-    d1_schottky.A ~ node_a
-    d1_schottky.K ~ power_out.hv
-
-    # Ground passthrough
+    # Passthrough (TVS is shunt, not series)
+    power_in.hv ~ power_out.hv
     power_in.lv ~ power_out.lv

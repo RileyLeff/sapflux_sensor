@@ -1,33 +1,34 @@
 """
 Heater driver + TPL5010 watchdog + SCR latch safety circuit.
 
-Q1 (XCHS3N12 N-FET) switches 24V heater current. TPL5010 external watchdog
-provides MCU-independent kill via PNP/NPN SCR latch. D_ISO isolates latch
-from NRST so MCU can still boot and report fault.
+v1.1 changes:
+  - Q1: TM15N10D (DPAK, 100V/15A) replaces XCHS3N12 (SOT-23, 120V/3A)
+  - Gate driver: Q_CTRL + Q_DRIVER + D_ZENER (10V) boosts gate to 10V
+    from 24V rail. Non-inverted logic (PA8 HIGH = heater ON).
+  - Flyback: SS56 replaces SS36 (5A vs 3A, handles 8-heater inrush)
+  - Fuse clips: 2x 5x20mm clips in heater power path (user-supplied fuse)
+  - Old R_GATE (1k) and R4 (10k gate pulldown) removed — gate driver
+    replaces both functions.
 
-PGOOD-gated arming: Q_ARM (N-FET in R_FB path) prevents the latch from
-self-sustaining until RC-delayed PGOOD charges arm_node above Vgs(th).
-This prevents the TPL5010 power-on reset (~60ms) from permanently
-triggering the latch at every boot. Arming delay ≥361ms (3.6× margin).
+Gate driver circuit:
+  V24 ── R_GATE_PULL (1M) ──┬── Q1 Gate ── D_ZENER (10V) ── GND
+                             │
+                        Q_DRIVER drain (source to GND)
 
-Gate-kill circuit:
-  MCU timer → R_GATE (1k) → gate_node → R4 (10k) → GND
-                                  ↑
-                             Q_WD drain
-                             Q_WD source → GND
-                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_ARM → Q_LATCH base
-                                            ↑                               ↑          ↑
-                                      R_WD_PD (10k) → GND           arm_node    R_LATCH_PD (1M) → GND
-                                      Q2_INV emitter → 3.3V            ↑        Q_LATCH emitter → GND
-                                      Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
-                                            ↑  ↑          (anode)   (cathode)    ↑
-                                            |  R_PNP_BASE (100k) → 3.3V
-                                      Q_LATCH collector          R_WD_PU (100k) → 3.3V
+  Q_DRIVER gate: V24 ── R_BIAS (4.7M) ──┬── R_GATE_PD (1M) ── GND
+                                          │
+                                     Q_CTRL drain (source to GND)
 
-Latch arm circuit:
-  PGOOD → R_ARM (1M) → arm_node → C_ARM (1uF) → GND
-                           ↑
-                      Q_ARM gate
+  Q_CTRL gate: PA8 ── R_CTRL (10k) ──┬── R_CTRL_PD (100k) ── GND
+
+PA8 HIGH → Q_CTRL ON → Q_DRIVER gate LOW → Q_DRIVER OFF →
+R_GATE_PULL charges Q1 gate to 10V (zener clamp) → heater ON.
+
+SCR latch circuit (unchanged from v1.0):
+  TPL5010 RSTn → D_ISO → R_BASE → Q2_INV (PNP)
+  Q2_INV collector → Q_WD gate (gate clamp) + R_FB → Q_ARM → Q_LATCH base
+  Q_LATCH collector → Q2_INV base (cross-coupled latch)
+  PGOOD → R_ARM → C_ARM (arm delay prevents POR latch trigger)
 """
 
 #pragma experiment("BRIDGE_CONNECT")
@@ -36,8 +37,10 @@ import Resistor
 import ElectricPower
 import Electrical
 
-from "parts/XCH_XCHS3N12/XCH_XCHS3N12.ato" import XCH_XCHS3N12_package
-from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+from "parts/Tritech_MOS_TM15N10D/Tritech_MOS_TM15N10D.ato" import Tritech_MOS_TM15N10D_package
+from "parts/hongjiacheng_SS56/hongjiacheng_SS56.ato" import hongjiacheng_SS56_package
+from "parts/hongjiacheng_MM3Z10/hongjiacheng_MM3Z10.ato" import hongjiacheng_MM3Z10_package
+from "parts/Xucheng_Elec_5x20/Xucheng_Elec_5x20.ato" import Xucheng_Elec_5x20_package
 from "parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato" import Texas_Instruments_TPL5010DDCR_package
 from "parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato" import Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
 from "parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato" import Changjiang_Electronics_Tech_2N7002_package
@@ -46,29 +49,29 @@ from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electr
 from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+from "parts/UNI_ROYAL_0603WAF4704T5E/UNI_ROYAL_0603WAF4704T5E.ato" import UNI_ROYAL_0603WAF4704T5E_package
 
 module HeaterDriver:
     """
-    24V heater driver with 4-layer safety: hardware timer, IWDG, external
-    watchdog (TPL5010), and thermistor interlock. SCR latch provides
-    permanent lockout on watchdog fault.
+    24V heater driver with gate driver (10V from 24V), TM15N10D DPAK MOSFET,
+    fuse clips, TPL5010 watchdog, and SCR latch safety.
     """
 
     # --- External interfaces ---
     power_24v = new ElectricPower
-    """24V protected rail (heater power + bulk cap)."""
+    """24V rail (post-TVS V24_RAW). Fuse and gate driver draw from here."""
 
     power_3v3 = new ElectricPower
     """3.3V rail (watchdog, PNP emitter, pull-ups)."""
 
     heater_hi = new Electrical
-    """Heater positive terminal (from J2, connects to 24V)."""
+    """Heater positive terminal (to 2-pin connector)."""
 
     heater_lo = new Electrical
-    """Heater negative terminal (from J2, connects to Q1 drain)."""
+    """Heater negative terminal (to 2-pin connector, connects to Q1 drain)."""
 
     gate_drive = new Electrical
-    """MCU timer output (into R_GATE)."""
+    """MCU timer output PA8 (into Q_CTRL gate via R_CTRL)."""
 
     wake = new Electrical
     """TPL5010 WAKE output → MCU EXTI input."""
@@ -77,155 +80,187 @@ module HeaterDriver:
     """TPL5010 DONE input ← MCU GPIO output."""
 
     rstn = new Electrical
-    """TPL5010 RSTn node. Also connects to MCU NRST (wired in top-level)."""
+    """TPL5010 RSTn node. Also connects to MCU NRST."""
 
     pgood = new Electrical
-    """PGOOD signal from buck converter. Gates latch arming via RC delay."""
+    """PGOOD signal from buck converter. Gates latch arming."""
 
-    # --- Power FET and flyback ---
-    q1 = new XCH_XCHS3N12_package
-    """120V/3A N-FET heater switch."""
+    # --- Power MOSFET (TM15N10D, DPAK) ---
+    q1 = new Tritech_MOS_TM15N10D_package
+    """100V/15A N-FET heater switch. 75 mΩ @ Vgs=10V."""
 
-    d4 = new MDD_Microdiode_Electronics_SS36_package
-    """60V/3A flyback Schottky across heater."""
+    # --- Flyback diode (SS56, 5A SMA) ---
+    d4 = new hongjiacheng_SS56_package
+    """60V/5A flyback Schottky across heater."""
+
+    # --- Fuse clips (2x, hold 5x20mm glass fuse) ---
+    fuse_clip_1 = new Xucheng_Elec_5x20_package
+    fuse_clip_2 = new Xucheng_Elec_5x20_package
 
     # --- Bulk decoupling on 24V ---
     c4 = new Honor_Elec_VP1H101M0607_package
     """100uF 50V electrolytic. Absorbs heater switching transients."""
 
+    # --- Gate driver components ---
+    q_driver = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET gate clamp stage. Biased by 24V divider."""
+
+    q_ctrl = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET MCU isolation. PA8 controls Q_DRIVER indirectly."""
+
+    d_zener = new hongjiacheng_MM3Z10_package
+    """10V zener. Clamps Q1 gate voltage to safe 10V level."""
+
+    r_gate_pull = new Resistor
+    r_gate_pull.resistance = 1Mohm +/- 1%
+    r_gate_pull.package = "0603"
+    """Pulls Q1 gate toward 24V when Q_DRIVER is OFF."""
+
+    r_bias = new UNI_ROYAL_0603WAF4704T5E_package
+    """4.7M resistor. 24V divider upper leg for Q_DRIVER gate bias."""
+
+    r_gate_pd = new Resistor
+    r_gate_pd.resistance = 1Mohm +/- 1%
+    r_gate_pd.package = "0603"
+    """24V divider lower leg for Q_DRIVER gate. V_gate = 24 * 1M/5.7M = 4.2V."""
+
+    r_ctrl = new Resistor
+    r_ctrl.resistance = 10kohm +/- 1%
+    r_ctrl.package = "0603"
+    """Series resistor between PA8 and Q_CTRL gate."""
+
+    r_ctrl_pd = new Resistor
+    r_ctrl_pd.resistance = 100kohm +/- 1%
+    r_ctrl_pd.package = "0603"
+    """Q_CTRL gate pull-down. Boot-safe: keeps Q_CTRL OFF when PA8 floats."""
+
     # --- TPL5010 watchdog ---
     u_wdt = new Texas_Instruments_TPL5010DDCR_package
-
     c_wd = new YAGEO_CC0603KRX7R9BB104_package
-    """100nF bypass on TPL5010 VDD."""
 
     r_delay = new Resistor
     r_delay.resistance = 11kohm +/- 1%
     r_delay.package = "0603"
 
-    # --- Gate control resistors ---
-    r_gate = new Resistor
-    r_gate.resistance = 1kohm +/- 1%
-    r_gate.package = "0603"
+    r_done_pd = new Resistor
+    r_done_pd.resistance = 100kohm +/- 1%
+    r_done_pd.package = "0603"
 
-    r4 = new Resistor
-    r4.resistance = 10kohm +/- 1%
-    r4.package = "0603"
-
-    # --- SCR latch components ---
+    # --- SCR latch components (unchanged from v1.0) ---
     q2_inv = new Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
-    """PNP inverter. Inverts RSTn to drive gate clamp."""
-
     q_wd = new Changjiang_Electronics_Tech_2N7002_package
-    """N-FET gate clamp. Pulls Q1 gate to GND on fault."""
-
     q_latch = new Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
-    """NPN latch. Cross-coupled with Q2_INV for permanent lockout."""
-
     d_iso = new Changjiang_Electronics_Tech_1N4148WS_package
-    """Isolation diode. Prevents latch from holding MCU in reset."""
 
     r_base = new Resistor
     r_base.resistance = 10kohm +/- 1%
     r_base.package = "0603"
-
     r_wd_pd = new Resistor
     r_wd_pd.resistance = 10kohm +/- 1%
     r_wd_pd.package = "0603"
-
     r_wd_pu = new Resistor
     r_wd_pu.resistance = 100kohm +/- 1%
     r_wd_pu.package = "0603"
-
     r_fb = new Resistor
     r_fb.resistance = 100kohm +/- 1%
     r_fb.package = "0603"
-
     r_latch_pd = new Resistor
     r_latch_pd.resistance = 1Mohm +/- 1%
     r_latch_pd.package = "0603"
-
     r_pnp_base = new Resistor
     r_pnp_base.resistance = 100kohm +/- 1%
     r_pnp_base.package = "0603"
-    """PNP base-emitter pull-up. Defines OFF state when D_ISO is reverse-biased
-    and Q_LATCH is off (normal operation). Without this, the PNP base floats
-    and leakage/noise could cause spurious heater lockout. 100kΩ gives 140×
-    margin over worst-case transistor leakage at 85°C, while still allowing
-    easy latch trigger (hFE needed = 1.4 vs MMBT3904 min 100)."""
 
     # --- PGOOD-gated latch arm circuit ---
     q_arm = new Changjiang_Electronics_Tech_2N7002_package
-    """N-FET in R_FB path. Breaks latch feedback loop until PGOOD charges
-    arm_node above Vgs(th). Prevents TPL5010 power-on reset from triggering
-    permanent heater lockout."""
-
     r_arm = new Resistor
     r_arm.resistance = 1Mohm +/- 1%
     r_arm.package = "0603"
-    """Slow-charge resistor for arm RC delay. τ = 1MΩ × 1µF = 1s.
-    Arming delay ≥361ms (Vgs(th) min) vs 100ms max TPL5010 tRST."""
-
     c_arm = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-    """1µF arm delay cap. Holds arm_node low during power-on reset,
-    preventing latch feedback until RC charges past Q_ARM threshold."""
 
     # --- Internal nodes ---
     gate_node = new Electrical
-    """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
+    """Q1 gate: R_GATE_PULL, D_ZENER cathode, Q_DRIVER drain, Q_WD drain."""
+
+    driver_gate_node = new Electrical
+    """Q_DRIVER gate: R_BIAS bottom, R_GATE_PD top, Q_CTRL drain."""
+
+    ctrl_gate_node = new Electrical
+    """Q_CTRL gate: R_CTRL output, R_CTRL_PD top."""
+
+    fused_24v = new Electrical
+    """Post-fuse 24V node for heater path."""
 
     pnp_coll_node = new Electrical
-    """Q2_INV collector: R_WD_PD top, Q_WD gate, R_FB input."""
-
     pnp_base_node = new Electrical
-    """Q2_INV base: R_BASE output, Q_LATCH collector."""
-
     d_iso_anode_node = new Electrical
-    """D_ISO anode: R_BASE input (between D_ISO and PNP base)."""
-
     fb_out_node = new Electrical
-    """R_FB output / Q_ARM drain junction."""
-
     latch_base_node = new Electrical
-    """Q_LATCH base: Q_ARM source, R_LATCH_PD top."""
-
     arm_node = new Electrical
-    """PGOOD-delayed arm signal. RC charges from PGOOD through R_ARM."""
 
-    # === Heater power path ===
+    # =====================================================================
+    # Heater power path (with fuse)
+    # =====================================================================
 
-    # 24V → heater_hi, heater_lo → Q1 → GND
-    heater_hi ~ power_24v.hv
+    # V24 → fuse_clip_1 → [physical fuse] → fuse_clip_2 → fused_24v
+    power_24v.hv ~ fuse_clip_1.p1
+    fuse_clip_2.p1 ~ fused_24v
+
+    # Fused 24V → heater_hi, heater_lo → Q1 → GND
+    fused_24v ~ heater_hi
     heater_lo ~ q1.D
     q1.S ~ power_24v.lv
 
-    # Flyback diode across heater (anode at Q1 drain, cathode at 24V)
+    # Flyback diode across heater
     d4.A ~ heater_lo
-    d4.K ~ heater_hi
+    d4.K ~ fused_24v
 
-    # Bulk cap on 24V rail
+    # Bulk cap on 24V rail (before fuse, on main rail)
     power_24v.hv ~ c4.p1
     c4.p2 ~ power_24v.lv
 
-    # === Gate drive path ===
+    # =====================================================================
+    # Gate driver circuit
+    # =====================================================================
 
-    # MCU timer → R_GATE → gate_node → R4 → GND
-    gate_drive ~> r_gate ~> gate_node
-    gate_node ~> r4 ~> power_24v.lv
+    # R_GATE_PULL: 24V → 1M → gate_node (charges Q1 gate when Q_DRIVER OFF)
+    power_24v.hv ~> r_gate_pull ~> gate_node
 
-    # Q1 gate
+    # D_ZENER: clamps gate_node to 10V (cathode at gate, anode to GND)
+    d_zener.K ~ gate_node
+    d_zener.A ~ power_24v.lv
+
+    # Q_DRIVER: drain at gate_node, source to GND (pulls gate LOW when ON)
+    q_driver.D ~ gate_node
+    q_driver.S ~ power_24v.lv
+
+    # Q_DRIVER gate bias: 24V divider (R_BIAS 4.7M / R_GATE_PD 1M)
+    r_bias.p1 ~ power_24v.hv
+    r_bias.p2 ~ driver_gate_node
+    driver_gate_node ~> r_gate_pd ~> power_24v.lv
+    driver_gate_node ~ q_driver.G
+
+    # Q_CTRL: drain pulls driver_gate_node to GND (overrides divider bias)
+    q_ctrl.D ~ driver_gate_node
+    q_ctrl.S ~ power_24v.lv
+
+    # Q_CTRL gate: PA8 → R_CTRL → ctrl_gate_node → R_CTRL_PD → GND
+    gate_drive ~> r_ctrl ~> ctrl_gate_node
+    ctrl_gate_node ~> r_ctrl_pd ~> power_24v.lv
+    ctrl_gate_node ~ q_ctrl.G
+
+    # Q1 gate connection
     gate_node ~ q1.G
 
-    # Q_WD clamps gate to GND on fault
+    # Q_WD (latch kill) clamps gate to GND on fault
     q_wd.D ~ gate_node
     q_wd.S ~ power_24v.lv
 
-    # === TPL5010 watchdog ===
-
+    # =====================================================================
+    # TPL5010 watchdog (unchanged from v1.0)
+    # =====================================================================
     u_wdt.VDD ~ power_3v3.hv
     u_wdt.GND ~ power_3v3.lv
-
-    # Bypass cap
     power_3v3.hv ~ c_wd.p1
     c_wd.p2 ~ power_3v3.lv
 
@@ -235,31 +270,27 @@ module HeaterDriver:
     # MCU interface
     u_wdt.WAKE ~ wake
     u_wdt.DONE ~ done
-
-    # DONE pull-down: keeps DONE low when MCU is in reset/unpowered,
-    # preventing floating input from confusing TPL5010
-    r_done_pd = new Resistor
-    r_done_pd.resistance = 100kohm +/- 1%
-    r_done_pd.package = "0603"
     done ~> r_done_pd ~> power_3v3.lv
 
     # RSTn with pull-up
     u_wdt.RSTn ~ rstn
     rstn ~> r_wd_pu ~> power_3v3.hv
 
-    # === SCR latch circuit ===
+    # =====================================================================
+    # SCR latch circuit (unchanged from v1.0)
+    # =====================================================================
 
-    # PNP inverter (Q2_INV): emitter → 3.3V, base via R_BASE/D_ISO
+    # PNP inverter (Q2_INV): emitter → 3.3V
     q2_inv.E ~ power_3v3.hv
     q2_inv.B ~ pnp_base_node
     q2_inv.C ~ pnp_coll_node
 
-    # PNP collector drives Q_WD gate + feedback (through PGOOD-gated Q_ARM)
+    # PNP collector drives Q_WD gate + feedback
     pnp_coll_node ~ q_wd.G
     pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
     pnp_coll_node ~> r_fb ~> fb_out_node
 
-    # Q_ARM gates the feedback path: latch can't sustain until armed
+    # Q_ARM gates feedback path
     q_arm.D ~ fb_out_node
     q_arm.S ~ latch_base_node
     q_arm.G ~ arm_node
@@ -269,23 +300,20 @@ module HeaterDriver:
     d_iso.A ~ d_iso_anode_node
     d_iso_anode_node ~> r_base ~> pnp_base_node
 
-    # NPN latch (Q_LATCH): collector → PNP base node, emitter → GND
+    # NPN latch: collector → PNP base node, emitter → GND
     q_latch.C ~ pnp_base_node
     q_latch.E ~ power_3v3.lv
     q_latch.B ~ latch_base_node
 
-    # PNP base-emitter pull-up (defines OFF state in normal operation)
+    # PNP base-emitter pull-up
     pnp_base_node ~> r_pnp_base ~> power_3v3.hv
 
-    # === PGOOD-gated latch arm ===
-
-    # RC delay: PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
-    # τ = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max tRST.
-    # At power-on: arm_node low → Q_ARM off → R_FB disconnected → latch disabled.
-    # After ~400-800ms: arm_node charged → Q_ARM on → latch armed for real faults.
+    # =====================================================================
+    # PGOOD-gated latch arm (unchanged from v1.0)
+    # =====================================================================
     pgood ~> r_arm ~> arm_node
     arm_node ~ c_arm.p1
     c_arm.p2 ~ power_3v3.lv
 
-    # Latch base pull-down (noise immunity)
+    # Latch base pull-down
     latch_base_node ~> r_latch_pd ~> power_3v3.lv

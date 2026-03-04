@@ -1,12 +1,17 @@
 """
-STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, and VDDA filtering.
+STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, VDDA filtering,
+32.768 kHz RTC crystal, and VBAT backup (CR2032).
 
 Power topology:
-  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VBAT, VREFpos
+  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VREFpos
+  VBAT: BAT54S selects higher of VDDA_FILT or CR2032 (backup during power loss)
   Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
 
 Note: LQFP-48 merges VDD and VDDA into one pin (VDD_VDDA). Ferrite bead
 filters ALL MCU power. 200mA rating is ample for ~20mA MCU draw.
+
+Crystal: 32.768 kHz (Seiko Epson FC-135R, 12.5pF CL) on PC14/PC15.
+  Load caps: 2x 18pF C0G (0402). Stray ~2pF assumed.
 
 BOOT0: 10k pull-down to GND (normal boot from flash).
 NRST: 100nF filter cap to GND. Exposed for TPL5010 RSTn connection.
@@ -24,11 +29,15 @@ from "parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.at
 from "parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato" import Sunlord_GZ1608D601TF_package
 from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Seiko_Epson_Q13FC13500004/Seiko_Epson_Q13FC13500004.ato" import Seiko_Epson_Q13FC13500004_package
+from "parts/FH_0402CG180J500NT/FH_0402CG180J500NT.ato" import FH_0402CG180J500NT_package
+from "parts/hongjiacheng_BAT54S/hongjiacheng_BAT54S.ato" import hongjiacheng_BAT54S_package
+from "parts/Lian_Xin_Technology_BS_CR2032_8/Lian_Xin_Technology_BS_CR2032_8.ato" import Lian_Xin_Technology_BS_CR2032_8_package
 
 module MCU:
     """
     STM32G0B1CBT6 with power filtering, decoupling, BOOT0 pull-down,
-    and NRST filter cap.
+    NRST filter cap, 32.768 kHz crystal, and CR2032 VBAT backup.
     """
 
     # --- External interfaces ---
@@ -64,16 +73,40 @@ module MCU:
     r_boot0.resistance = 10kohm +/- 1%
     r_boot0.package = "0603"
 
+    # --- 32.768 kHz Crystal ---
+    crystal = new Seiko_Epson_Q13FC13500004_package
+    c_xtal1 = new FH_0402CG180J500NT_package  # 18pF load cap
+    c_xtal2 = new FH_0402CG180J500NT_package  # 18pF load cap
+
+    # --- VBAT backup ---
+    bat54s = new hongjiacheng_BAT54S_package
+    cr2032 = new Lian_Xin_Technology_BS_CR2032_8_package
+    c_vbat1 = new YAGEO_CC0603KRX7R9BB104_package  # 100nF VBAT decoupling
+    c_vbat2 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package  # 1uF VBAT bulk
+
     # === Power path: 3.3V -> ferrite bead -> MCU pins ===
     power.hv ~ fb_vdda.p1
     signal VDDA_FILT ~ fb_vdda.p2
     VDDA_FILT.override_net_name = "VDDA_FILT"
 
-    # MCU power pins (all on filtered side)
+    # MCU power pins (all on filtered side, except VBAT)
     VDDA_FILT ~ package.VDD_VDDA
-    VDDA_FILT ~ package.VBAT
     VDDA_FILT ~ package.VREFpos
     power.lv ~ package.VSS_VSSA
+
+    # === VBAT backup circuit ===
+    # BAT54S: K1 = main rail, K2 = battery, A = VBAT output
+    # Higher voltage source wins (diode OR)
+    bat54s.K1 ~ VDDA_FILT
+    bat54s.K2 ~ cr2032.POS
+    bat54s.A ~ package.VBAT
+    cr2032.NEG ~ power.lv
+
+    # VBAT decoupling (100nF + 1uF near pin)
+    bat54s.A ~ c_vbat1.p1
+    c_vbat1.p2 ~ power.lv
+    bat54s.A ~ c_vbat2.p1
+    c_vbat2.p2 ~ power.lv
 
     # === Bypass caps (after ferrite bead) ===
     VDDA_FILT ~ c_mcu1.p1
@@ -100,3 +133,14 @@ module MCU:
     # === BOOT0 pull-down ===
     signal BOOT0 ~ package.PA14_BOOT0
     BOOT0 ~> r_boot0 ~> power.lv
+
+    # === 32.768 kHz Crystal ===
+    # Crystal between PC14_OSC32_IN and PC15_OSC32_OUT
+    crystal.p1 ~ package.PC14_OSC32_IN
+    crystal.p2 ~ package.PC15_OSC32_OUT
+
+    # Load caps: 18pF C0G from each crystal pin to GND
+    c_xtal1.p1 ~ package.PC14_OSC32_IN
+    c_xtal1.p2 ~ power.lv
+    c_xtal2.p1 ~ package.PC15_OSC32_OUT
+    c_xtal2.p2 ~ power.lv

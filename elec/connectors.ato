@@ -1,5 +1,14 @@
 """
-Connectors: M8 upstream (J1) + 10-pin sensor header (J2) + shield cap.
+Connectors: M8 upstream (J1) + 60-pin thermistor header (J2) +
+2-pin heater terminal (J3) + 1x6 auxiliary header (J4) + shield cap.
+
+v1.1 changes:
+  - J2: 60-pin 2x30 replaces 10-pin KF2EDGV. 48 thermistors + 3 excitation
+    + 9 GND. Pin mapping per design doc Section 11.
+  - J3: 2-pin KF2EDGV-3.5-2P for heater (was pins 1-2 of old J2).
+  - J4: 1x6 auxiliary header. GND(x2), I2C SDA/SCL (through 1k series R
+    for 5V protection), spare GPIO PA6/PA7.
+  - J1: M8 4-pin unchanged.
 
 J1 (M8 4-pin A-coded):
   Pin 1: 24V power input
@@ -8,22 +17,38 @@ J1 (M8 4-pin A-coded):
   Pin 4: RS-485 B (-)
   Shell: C5 (100nF) to GND
 
-J2 (KF2EDGV 10-pin 3.5mm):
-  Pin 1-2: Heater A/B (24V, non-polar)
-  Pin 3: Ground
-  Pin 4: Excitation (filtered 3.3V)
-  Pin 5-10: Data 1-6 (thermistors)
+J2 (60-pin 2x30, 2.54mm pitch):
+  Mux A (pins 1-20): GND, EXC, Therm 1-8, GND, GND, Therm 9-16
+  Mux B (pins 21-40): GND, EXC, Therm 17-24, GND, GND, Therm 25-32
+  Mux C (pins 41-60): GND, EXC, Therm 33-40, GND, GND, Therm 41-48
+
+J3 (2-pin KF2EDGV-3.5-2P, 10A rated):
+  Pin 1: Heater+ (switched 24V)
+  Pin 2: Heater- (drain return)
+
+J4 (1x6, 2.54mm pitch):
+  Pin 1: GND
+  Pin 2: GND
+  Pin 3: I2C SDA (through 1k series R)
+  Pin 4: I2C SCL (through 1k series R)
+  Pin 5: GPIO PA6
+  Pin 6: GPIO PA7
 """
 
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
 import ElectricPower
 import Electrical
 
 from "parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato" import CAZN_M8_P4A_GPL_M8_JD_package
-from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+from "parts/XKB_Connectivity_X6521WV_2x30H_C60D30/XKB_Connectivity_X6521WV_2x30H_C60D30.ato" import XKB_Connectivity_X6521WV_2x30H_C60D30_package
+from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_2P/Cixi_Kefa_Elec_KF2EDGV_3_5_2P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package
+from "parts/BOOMELE_2_54_1x6P/BOOMELE_2_54_1x6P.ato" import BOOMELE_2_54_1x6P_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 
 module Connectors:
-    """M8 upstream connector, 10-pin sensor header, and shield cap."""
+    """M8 upstream, 60-pin thermistor, 2-pin heater, and 1x6 auxiliary."""
 
     # --- External interfaces ---
     power_24v = new ElectricPower
@@ -36,22 +61,80 @@ module Connectors:
     """RS-485 B line."""
 
     heater_hi = new Electrical
-    """Heater positive terminal."""
+    """Heater positive terminal (switched 24V)."""
 
     heater_lo = new Electrical
-    """Heater negative terminal."""
+    """Heater negative terminal (drain return)."""
 
     excitation = new Electrical
-    """Filtered excitation output to sensor."""
+    """Filtered excitation output (shared across all 3 EXC pins)."""
 
-    thermistor_1 = new Electrical
-    thermistor_2 = new Electrical
-    thermistor_3 = new Electrical
-    thermistor_4 = new Electrical
-    thermistor_5 = new Electrical
-    thermistor_6 = new Electrical
+    # 48 thermistor interfaces
+    therm_1 = new Electrical
+    therm_2 = new Electrical
+    therm_3 = new Electrical
+    therm_4 = new Electrical
+    therm_5 = new Electrical
+    therm_6 = new Electrical
+    therm_7 = new Electrical
+    therm_8 = new Electrical
+    therm_9 = new Electrical
+    therm_10 = new Electrical
+    therm_11 = new Electrical
+    therm_12 = new Electrical
+    therm_13 = new Electrical
+    therm_14 = new Electrical
+    therm_15 = new Electrical
+    therm_16 = new Electrical
+    therm_17 = new Electrical
+    therm_18 = new Electrical
+    therm_19 = new Electrical
+    therm_20 = new Electrical
+    therm_21 = new Electrical
+    therm_22 = new Electrical
+    therm_23 = new Electrical
+    therm_24 = new Electrical
+    therm_25 = new Electrical
+    therm_26 = new Electrical
+    therm_27 = new Electrical
+    therm_28 = new Electrical
+    therm_29 = new Electrical
+    therm_30 = new Electrical
+    therm_31 = new Electrical
+    therm_32 = new Electrical
+    therm_33 = new Electrical
+    therm_34 = new Electrical
+    therm_35 = new Electrical
+    therm_36 = new Electrical
+    therm_37 = new Electrical
+    therm_38 = new Electrical
+    therm_39 = new Electrical
+    therm_40 = new Electrical
+    therm_41 = new Electrical
+    therm_42 = new Electrical
+    therm_43 = new Electrical
+    therm_44 = new Electrical
+    therm_45 = new Electrical
+    therm_46 = new Electrical
+    therm_47 = new Electrical
+    therm_48 = new Electrical
 
-    # --- J1: M8 upstream connector ---
+    # Auxiliary header interfaces
+    i2c_sda = new Electrical
+    """I2C SDA (board side, before 1k series R)."""
+
+    i2c_scl = new Electrical
+    """I2C SCL (board side, before 1k series R)."""
+
+    gpio_pa6 = new Electrical
+    """Spare GPIO PA6 (direct to header)."""
+
+    gpio_pa7 = new Electrical
+    """Spare GPIO PA7 (direct to header)."""
+
+    # =====================================================================
+    # J1: M8 upstream connector (unchanged from v1.0)
+    # =====================================================================
     j1 = new CAZN_M8_P4A_GPL_M8_JD_package
 
     j1.V24 ~ power_24v.hv
@@ -66,16 +149,111 @@ module Connectors:
     c5.p2 ~ power_24v.lv
     j1.SHELL2 ~ M8_SHIELD
 
-    # --- J2: 10-pin sensor header ---
-    j2 = new Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+    # =====================================================================
+    # J2: 60-pin thermistor header (2x30, 2.54mm pitch)
+    # =====================================================================
+    j2 = new XKB_Connectivity_X6521WV_2x30H_C60D30_package
 
-    j2.HEATER_A ~ heater_hi
-    j2.HEATER_B ~ heater_lo
-    j2.GND ~ power_24v.lv
-    j2.EXCITATION ~ excitation
-    j2.DATA1 ~ thermistor_1
-    j2.DATA2 ~ thermistor_2
-    j2.DATA3 ~ thermistor_3
-    j2.DATA4 ~ thermistor_4
-    j2.DATA5 ~ thermistor_5
-    j2.DATA6 ~ thermistor_6
+    # --- GND pins (9 total, ground fences between sensor groups) ---
+    j2.p1 ~ power_24v.lv
+    j2.p11 ~ power_24v.lv
+    j2.p12 ~ power_24v.lv
+    j2.p21 ~ power_24v.lv
+    j2.p31 ~ power_24v.lv
+    j2.p32 ~ power_24v.lv
+    j2.p41 ~ power_24v.lv
+    j2.p51 ~ power_24v.lv
+    j2.p52 ~ power_24v.lv
+
+    # --- EXC pins (3 total, one per mux group, all same signal) ---
+    j2.p2 ~ excitation
+    j2.p22 ~ excitation
+    j2.p42 ~ excitation
+
+    # --- Mux A thermistors (pins 3-10, 13-20 → therm 1-16) ---
+    j2.p3 ~ therm_1
+    j2.p4 ~ therm_2
+    j2.p5 ~ therm_3
+    j2.p6 ~ therm_4
+    j2.p7 ~ therm_5
+    j2.p8 ~ therm_6
+    j2.p9 ~ therm_7
+    j2.p10 ~ therm_8
+    j2.p13 ~ therm_9
+    j2.p14 ~ therm_10
+    j2.p15 ~ therm_11
+    j2.p16 ~ therm_12
+    j2.p17 ~ therm_13
+    j2.p18 ~ therm_14
+    j2.p19 ~ therm_15
+    j2.p20 ~ therm_16
+
+    # --- Mux B thermistors (pins 23-30, 33-40 → therm 17-32) ---
+    j2.p23 ~ therm_17
+    j2.p24 ~ therm_18
+    j2.p25 ~ therm_19
+    j2.p26 ~ therm_20
+    j2.p27 ~ therm_21
+    j2.p28 ~ therm_22
+    j2.p29 ~ therm_23
+    j2.p30 ~ therm_24
+    j2.p33 ~ therm_25
+    j2.p34 ~ therm_26
+    j2.p35 ~ therm_27
+    j2.p36 ~ therm_28
+    j2.p37 ~ therm_29
+    j2.p38 ~ therm_30
+    j2.p39 ~ therm_31
+    j2.p40 ~ therm_32
+
+    # --- Mux C thermistors (pins 43-50, 53-60 → therm 33-48) ---
+    j2.p43 ~ therm_33
+    j2.p44 ~ therm_34
+    j2.p45 ~ therm_35
+    j2.p46 ~ therm_36
+    j2.p47 ~ therm_37
+    j2.p48 ~ therm_38
+    j2.p49 ~ therm_39
+    j2.p50 ~ therm_40
+    j2.p53 ~ therm_41
+    j2.p54 ~ therm_42
+    j2.p55 ~ therm_43
+    j2.p56 ~ therm_44
+    j2.p57 ~ therm_45
+    j2.p58 ~ therm_46
+    j2.p59 ~ therm_47
+    j2.p60 ~ therm_48
+
+    # =====================================================================
+    # J3: 2-pin heater terminal (KF2EDGV-3.5-2P, 10A rated)
+    # =====================================================================
+    j3 = new Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package
+
+    j3.HEATER_HI ~ heater_hi
+    j3.HEATER_LO ~ heater_lo
+
+    # =====================================================================
+    # J4: 1x6 auxiliary header (2.54mm pitch)
+    # =====================================================================
+    j4 = new BOOMELE_2_54_1x6P_package
+
+    # 1k series resistors on I2C (5V protection for external devices)
+    r_aux_sda = new Resistor
+    r_aux_sda.resistance = 1kohm +/- 1%
+    r_aux_sda.package = "0603"
+
+    r_aux_scl = new Resistor
+    r_aux_scl.resistance = 1kohm +/- 1%
+    r_aux_scl.package = "0603"
+
+    # Pin 1-2: GND
+    j4.p1 ~ power_24v.lv
+    j4.p2 ~ power_24v.lv
+
+    # Pin 3-4: I2C through 1k series resistors
+    i2c_sda ~> r_aux_sda ~> j4.p3
+    i2c_scl ~> r_aux_scl ~> j4.p4
+
+    # Pin 5-6: Spare GPIOs (direct)
+    j4.p5 ~ gpio_pa6
+    j4.p6 ~ gpio_pa7
