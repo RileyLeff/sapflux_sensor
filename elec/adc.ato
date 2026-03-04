@@ -232,8 +232,9 @@ module ADCFrontEnd:
     l_esd = new Sunlord_GZ1608D601TF_package
     """600 ohm @ 100MHz. Isolates TVS transients from clean 3.3V rail."""
 
-    tvs_vcc = new Electrical
+    signal tvs_vcc
     """Dirty 3.3V for TVS arrays only."""
+    tvs_vcc.override_net_name = "V3V3_TVS"
 
     power.hv ~ l_esd.p1
     l_esd.p2 ~ tvs_vcc

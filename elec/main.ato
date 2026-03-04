@@ -291,3 +291,9 @@ module SapFluxAdapter:
     V24_BUCK.override_net_name = "V24_BUCK"
     sda.override_net_name = "SDA"
     scl.override_net_name = "SCL"
+    signal PGOOD ~ buck.pgood.line
+    PGOOD.override_net_name = "PGOOD"
+    signal NRST ~ mcu.nrst
+    NRST.override_net_name = "NRST"
+    signal EXC ~ adc.excitation_out
+    EXC.override_net_name = "EXC"
