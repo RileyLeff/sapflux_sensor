@@ -490,8 +490,8 @@ buck/heater split, carrying ALL current including heater (up to
 4.57A for 8 probes). The SS36 (3A) is undersized, and even an SS56
 (5A) has tight thermal margins at 8 heaters in hot enclosures.
 
-**v1.1 fix:** Move D1 after the V24_RAW split point so it protects
-only the buck branch (<50 mA). The heater path has no Schottky —
+**v1.1 fix:** Move D1 to the buck-only branch (after PTC) so it protects
+only the buck input (<50 mA). The heater path has no Schottky —
 the fuse is the protection element. D1 can remain an SS36 (or any
 small SMA Schottky) since it carries milliamps, not amps. Thermal
 concern is completely eliminated.
@@ -515,16 +515,16 @@ buck converter and heater. At 2+ heaters (1.14A), the PTC trips.
 
 **v1.1 topology:**
 ```
-                    ┌→ D1 (SS36) → PTC (1.1A) → buck input (20 mA steady)
+                    ┌→ PTC (1.1A) → D1 (SS36) → buck input (20 mA steady)
 J1 → TVS → V24_RAW ─┤
                     └→ [6A fuse] → heater MOSFET (4.57A pulsed)
 ```
 
-- D1 moves from the main series path to the buck-only branch. It now
-  protects only the electronics (<50 mA). No thermal concern.
 - PTC moves from the main series input path (v1.0: before TVS/Schottky)
-  to the buck-only branch (v1.1: after D1). It now protects only the
+  to the buck-only branch (v1.1: before D1). It now protects only the
   electronics path (20 mA steady), not the heater.
+- D1 moves from the main series path to the buck-only branch (after PTC).
+  It protects only the electronics (<50 mA). No thermal concern.
 - Heater path gets a **dedicated fuse** (6A fast-blow, 5x20mm).
   Populated by default — not optional. The fuse is the last line of
   defense for catastrophic shorts (e.g., cable insulation failure in
@@ -667,7 +667,7 @@ it reaches the clean rail.
 | PA3 | RS-485 RX | USART2_RX | -- |
 | PA4 | TPL5010 WAKE | GPIO | -- |
 | PA5 | TPL5010 DONE | GPIO | -- |
-| PA8 | Heater gate driver | GPIO | Now drives 2N7002 gate (inverted: LOW=on) |
+| PA8 | Heater gate driver | GPIO | Drives Q_CTRL gate (non-inverted: HIGH=on) via 10V gate driver |
 | PA13 | SWD data | SWDIO | -- |
 | PA14 | SWD clock / BOOT0 | SWCLK | -- |
 | PB0 | ADC ALERT/DRDY | GPIO (interrupt) | -- |
