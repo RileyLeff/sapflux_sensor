@@ -1,3 +1,8 @@
+# Build atopile project, then fix passive silkscreen layers
+build:
+    cd elec && ato build
+    python3 elec/fix_passive_layers.py
+
 # Add a component from LCSC to the local library
 add part_number:
     uvx JLC2KiCadLib {{part_number}} \

@@ -15,6 +15,6 @@ component Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package:
     trait has_designator_prefix<prefix="J">
     trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2303311930_Cixi-Kefa-Elec-KF2EDGV-3-5-2P_C441321.pdf">
 
-    # pins (2-pin heater terminal block)
-    signal HEATER_HI ~ pin 1
-    signal HEATER_LO ~ pin 2
+    # pins (2-pin terminal block, 3.5mm pitch, 10A rated)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2

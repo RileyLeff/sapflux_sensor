@@ -1,28 +1,21 @@
 """
-Connectors: M8 upstream (J1) + 60-pin thermistor header (J2) +
-2-pin heater terminal (J3) + 1x6 auxiliary header (J4) + shield cap.
+Connectors: Power input (J1) + 60-pin thermistor header (J2) +
+2-pin heater terminal (J3) + 1x6 auxiliary header (J4) +
+3-pin RS-485 terminal (J5).
 
-v1.1 changes:
-  - J2: 60-pin 2x30 replaces 10-pin KF2EDGV. 48 thermistors + 3 excitation
-    + 9 GND. Pin mapping per design doc Section 11.
-  - J3: 2-pin KF2EDGV-3.5-2P for heater (was pins 1-2 of old J2).
-  - J4: 1x6 auxiliary header. GND(x2), I2C SDA/SCL (through 1k series R
-    for 5V protection), spare GPIO PA6/PA7.
-  - J1: M8 4-pin unchanged.
+All screw terminals are KF2EDGV 3.5mm pitch, 10A rated.
+M8 connector removed for prototype — field connector TBD in production.
 
-J1 (M8 4-pin A-coded):
-  Pin 1: 24V power input
-  Pin 2: RS-485 A (+)
-  Pin 3: GND
-  Pin 4: RS-485 B (-)
-  Shell: C5 (100nF) to GND
+J1 (2-pin KF2EDGV-3.5-2P, power input):
+  Pin 1: V24 (24V battery/solar)
+  Pin 2: GND
 
 J2 (60-pin 2x30, 2.54mm pitch):
   Mux A (pins 1-20): GND, EXC, Therm 1-8, GND, GND, Therm 9-16
   Mux B (pins 21-40): GND, EXC, Therm 17-24, GND, GND, Therm 25-32
   Mux C (pins 41-60): GND, EXC, Therm 33-40, GND, GND, Therm 41-48
 
-J3 (2-pin KF2EDGV-3.5-2P, 10A rated):
+J3 (2-pin KF2EDGV-3.5-2P, heater output):
   Pin 1: Heater+ (switched 24V)
   Pin 2: Heater- (drain return)
 
@@ -33,6 +26,11 @@ J4 (1x6, 2.54mm pitch):
   Pin 4: I2C SCL (through 1k series R)
   Pin 5: GPIO PA6
   Pin 6: GPIO PA7
+
+J5 (3-pin KF2EDGV-3.5-3P, RS-485):
+  Pin 1: RS-485 A (+)
+  Pin 2: RS-485 B (-)
+  Pin 3: GND (signal reference)
 """
 
 #pragma experiment("BRIDGE_CONNECT")
@@ -41,14 +39,13 @@ import Resistor
 import ElectricPower
 import Electrical
 
-from "parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato" import CAZN_M8_P4A_GPL_M8_JD_package
 from "parts/XKB_Connectivity_X6521WV_2x30H_C60D30/XKB_Connectivity_X6521WV_2x30H_C60D30.ato" import XKB_Connectivity_X6521WV_2x30H_C60D30_package
 from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_2P/Cixi_Kefa_Elec_KF2EDGV_3_5_2P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package
+from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_3P/Cixi_Kefa_Elec_KF2EDGV_3_5_3P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_3P_package
 from "parts/BOOMELE_2_54_1x6P/BOOMELE_2_54_1x6P.ato" import BOOMELE_2_54_1x6P_package
-from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 
 module Connectors:
-    """M8 upstream, 60-pin thermistor, 2-pin heater, and 1x6 auxiliary."""
+    """Power input, RS-485, 60-pin thermistor, heater output, and aux header."""
 
     # --- External interfaces ---
     power_24v = new ElectricPower
@@ -133,21 +130,12 @@ module Connectors:
     """Spare GPIO PA7 (direct to header)."""
 
     # =====================================================================
-    # J1: M8 upstream connector (unchanged from v1.0)
+    # J1: 2-pin power input (KF2EDGV-3.5-2P, 10A rated)
     # =====================================================================
-    j1 = new CAZN_M8_P4A_GPL_M8_JD_package
+    j1 = new Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package
 
-    j1.V24 ~ power_24v.hv
-    j1.GND ~ power_24v.lv
-    j1.RS485_A ~ rs485_a
-    j1.RS485_B ~ rs485_b
-
-    # Shield cap (100nF, blocks ground loop DC, passes HF EMI)
-    signal M8_SHIELD ~ j1.SHELL1
-    c5 = new YAGEO_CC0603KRX7R9BB104_package
-    M8_SHIELD ~ c5.p1
-    c5.p2 ~ power_24v.lv
-    j1.SHELL2 ~ M8_SHIELD
+    j1.p1 ~ power_24v.hv
+    j1.p2 ~ power_24v.lv
 
     # =====================================================================
     # J2: 60-pin thermistor header (2x30, 2.54mm pitch)
@@ -229,8 +217,8 @@ module Connectors:
     # =====================================================================
     j3 = new Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package
 
-    j3.HEATER_HI ~ heater_hi
-    j3.HEATER_LO ~ heater_lo
+    j3.p1 ~ heater_hi
+    j3.p2 ~ heater_lo
 
     # =====================================================================
     # J4: 1x6 auxiliary header (2.54mm pitch)
@@ -257,3 +245,12 @@ module Connectors:
     # Pin 5-6: Spare GPIOs (direct)
     j4.p5 ~ gpio_pa6
     j4.p6 ~ gpio_pa7
+
+    # =====================================================================
+    # J5: 3-pin RS-485 terminal (KF2EDGV-3.5-3P, 10A rated)
+    # =====================================================================
+    j5 = new Cixi_Kefa_Elec_KF2EDGV_3_5_3P_package
+
+    j5.p1 ~ rs485_a
+    j5.p2 ~ rs485_b
+    j5.p3 ~ power_24v.lv

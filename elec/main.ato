@@ -8,9 +8,10 @@ Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
 wires connectors, and establishes shared buses (I2C, SPI, power rails).
 
 Power topology:
-  J1 (M8) → V24_RAW → TVS (shunt, passthrough) → V24_PROT
+  J1 (2-pin screw terminal) → V24_RAW → TVS (shunt, passthrough) → V24_PROT
   V24_PROT → F1 (PTC) → D1 (SS36 Schottky) → V24_BUCK → LM5165Y → V3V3
   V24_PROT → heater module (own fuse clips inside)
+  J5 (3-pin screw terminal) → RS-485 A/B + GND
 
 MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
   PA0:  RS-485 ~RE           PA8:  TIM1_CH1 (heater gate)
@@ -22,7 +23,7 @@ MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
   PA6:  Spare GPIO (aux J4)  PA14: SWCLK / BOOT0
   PA7:  Spare GPIO (aux J4)  PA15: (unused)
   PB0:  ADC1 ALERT/DRDY      PB6:  I2C1_SCL
-  PB1:  (unused)              PB7:  I2C1_SDA
+  PB1:  V24 monitor (divider)  PB7:  I2C1_SDA
   PB2:  (unused)              PB8:  (unused)
   PB3:  LED R (sink)          PB9:  (unused)
   PB4:  LED G (sink)          PB10: (unused)
@@ -72,7 +73,7 @@ module SapFluxAdapter:
 
     # === Subsystem instances ===
 
-    # Connectors (J1 M8, J2 60-pin, J3 heater, J4 aux)
+    # Connectors (J1 power, J2 60-pin, J3 heater, J4 aux, J5 RS-485)
     connectors = new Connectors
     power_24v_raw ~ connectors.power_24v
 
@@ -82,17 +83,17 @@ module SapFluxAdapter:
     input_protection.power_out ~ power_24v_protected
 
     # --- Buck input path: PTC + Schottky ---
-    f1 = new Littelfuse_2920L110_60MR_package
+    f_buck_ptc = new Littelfuse_2920L110_60MR_package
     """2920 PTC fuse. Limits sustained overcurrent to buck converter."""
 
-    d1 = new MDD_Microdiode_Electronics_SS36_package
+    d_buck_schottky = new MDD_Microdiode_Electronics_SS36_package
     """SS36 Schottky. Reverse polarity protection for buck path."""
 
     ptc_out = new Electrical
-    f1.p1 ~ power_24v_protected.hv
-    f1.p2 ~ ptc_out
-    d1.A ~ ptc_out
-    d1.K ~ power_buck.hv
+    f_buck_ptc.p1 ~ power_24v_protected.hv
+    f_buck_ptc.p2 ~ ptc_out
+    d_buck_schottky.A ~ ptc_out
+    d_buck_schottky.K ~ power_buck.hv
     power_24v_protected.lv ~ power_buck.lv
 
     # Buck converter (24V -> 3.3V)
@@ -127,14 +128,14 @@ module SapFluxAdapter:
 
     # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
     eeprom = new onsemi_CAT24C32WI_GT3_package
-    c_eeprom = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
+    c_eeprom_decouple = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
 
     # === EEPROM wiring ===
     # Power + decoupling
     eeprom.VCC ~ power_3v3.hv
     eeprom.VSS ~ power_3v3.lv
-    c_eeprom.p1 ~ power_3v3.hv
-    c_eeprom.p2 ~ power_3v3.lv
+    c_eeprom_decouple.p1 ~ power_3v3.hv
+    c_eeprom_decouple.p2 ~ power_3v3.lv
     # I2C
     sda ~ eeprom.SDA
     scl ~ eeprom.SCL
@@ -143,11 +144,11 @@ module SapFluxAdapter:
     eeprom.A1 ~ power_3v3.lv
     eeprom.A2 ~ power_3v3.lv
     # WP: firmware-controlled via PA12 with 10k pull-up (boot-safe: write-protected)
-    r_wp = new Resistor
-    r_wp.resistance = 10kohm +/- 1%
-    r_wp.package = "0603"
+    r_eeprom_wp = new Resistor
+    r_eeprom_wp.resistance = 10kohm +/- 1%
+    r_eeprom_wp.package = "0603"
     mcu.package.PA12PA10 ~ eeprom.WP
-    eeprom.WP ~> r_wp ~> power_3v3.hv
+    eeprom.WP ~> r_eeprom_wp ~> power_3v3.hv
 
     # === I2C bus wiring ===
     # ADC front-end I2C
@@ -175,7 +176,7 @@ module SapFluxAdapter:
     # Control GPIOs (PA1=DE, PA0=~RE)
     mcu.package.PA1 ~ rs485.de
     mcu.package.PA0 ~ rs485.n_re
-    # Bus lines to M8 connector
+    # Bus lines to J5 RS-485 terminal
     rs485.rs485_a ~ connectors.rs485_a
     rs485.rs485_b ~ connectors.rs485_b
 
@@ -273,12 +274,32 @@ module SapFluxAdapter:
     # === PGOOD monitoring ===
     # LM5165 PGOOD (open-drain) with 10k pull-up to 3.3V
     # Also gates SCR latch arming (prevents power-on reset from triggering latch)
-    r_pgood = new Resistor
-    r_pgood.resistance = 10kohm +/- 1%
-    r_pgood.package = "0603"
+    r_pgood_pu = new Resistor
+    r_pgood_pu.resistance = 10kohm +/- 1%
+    r_pgood_pu.package = "0603"
     mcu.package.PC7 ~ buck.pgood.line
-    buck.pgood.line ~> r_pgood ~> power_3v3.hv
+    buck.pgood.line ~> r_pgood_pu ~> power_3v3.hv
     buck.pgood.line ~ heater.pgood
+
+    # === 24V voltage monitor (resistor divider on PB1) ===
+    # 1M/100k divider: V24 * 100k/(1M+100k) = V24 * 0.0909
+    # At 24V → 2.18V, at 29V solar → 2.64V, at 33V TVS clamp → 3.0V
+    # 21.8 µA drain. 100nF filter (fc = 15.9 Hz with 100k||1M = 90.9k).
+    r_vmon_hi = new Resistor
+    r_vmon_hi.resistance = 1Mohm +/- 1%
+    r_vmon_hi.package = "0603"
+    r_vmon_lo = new Resistor
+    r_vmon_lo.resistance = 100kohm +/- 1%
+    r_vmon_lo.package = "0603"
+    c_vmon_filt = new YAGEO_CC0603KRX7R9BB104_package
+
+    vmon_mid = new Electrical
+    """Divider midpoint → PB1 (ADC1_IN9)."""
+    power_24v_protected.hv ~> r_vmon_hi ~> vmon_mid
+    vmon_mid ~> r_vmon_lo ~> power_3v3.lv
+    vmon_mid ~ c_vmon_filt.p1
+    c_vmon_filt.p2 ~ power_3v3.lv
+    mcu.package.PB1 ~ vmon_mid
 
     # === Net name overrides (readable names in KiCad) ===
     signal V3V3 ~ power_3v3.hv
