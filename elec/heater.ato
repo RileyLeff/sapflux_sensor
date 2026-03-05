@@ -11,7 +11,7 @@ v1.1 changes:
     replaces both functions.
 
 Gate driver circuit:
-  V24 ── R_GATE_PULL (1M) ──┬── Q1 Gate ── D_ZENER (10V) ── GND
+  V24 ── R_GATE_PULL (1M) ──┬── Q_HEATER Gate ── D_ZENER (10V) ── GND
                              │
                         Q_DRIVER drain (source to GND)
 
@@ -22,7 +22,7 @@ Gate driver circuit:
   Q_CTRL gate: PA8 ── R_CTRL (10k) ──┬── R_CTRL_PD (100k) ── GND
 
 PA8 HIGH → Q_CTRL ON → Q_DRIVER gate LOW → Q_DRIVER OFF →
-R_GATE_PULL charges Q1 gate to 10V (zener clamp) → heater ON.
+R_GATE_PULL charges Q_HEATER gate to 10V (zener clamp) → heater ON.
 
 SCR latch circuit (unchanged from v1.0):
   TPL5010 RSTn → D_ISO → R_BASE → Q2_INV (PNP)
@@ -68,7 +68,7 @@ module HeaterDriver:
     """Heater positive terminal (to 2-pin connector)."""
 
     heater_lo = new Electrical
-    """Heater negative terminal (to 2-pin connector, connects to Q1 drain)."""
+    """Heater negative terminal (to 2-pin connector, connects to Q_HEATER drain)."""
 
     gate_drive = new Electrical
     """MCU timer output PA8 (into Q_CTRL gate via R_CTRL)."""
@@ -86,11 +86,11 @@ module HeaterDriver:
     """PGOOD signal from buck converter. Gates latch arming."""
 
     # --- Power MOSFET (TM15N10D, DPAK) ---
-    q1 = new Tritech_MOS_TM15N10D_package
+    q_heater = new Tritech_MOS_TM15N10D_package
     """100V/15A N-FET heater switch. 75 mΩ @ Vgs=10V."""
 
     # --- Flyback diode (SS56, 5A SMA) ---
-    d4 = new hongjiacheng_SS56_package
+    d_flyback = new hongjiacheng_SS56_package
     """60V/5A flyback Schottky across heater."""
 
     # --- Fuse clips (2x, hold 5x20mm glass fuse) ---
@@ -98,7 +98,7 @@ module HeaterDriver:
     fuse_clip_2 = new Xucheng_Elec_5x20_package
 
     # --- Bulk decoupling on 24V ---
-    c4 = new Honor_Elec_VP1H101M0607_package
+    c_bulk_24v = new Honor_Elec_VP1H101M0607_package
     """100uF 50V electrolytic. Absorbs heater switching transients."""
 
     # --- Gate driver components ---
@@ -180,7 +180,7 @@ module HeaterDriver:
 
     # --- Internal nodes ---
     gate_node = new Electrical
-    """Q1 gate: R_GATE_PULL, D_ZENER cathode, Q_DRIVER drain, Q_WD drain."""
+    """Q_HEATER gate: R_GATE_PULL, D_ZENER cathode, Q_DRIVER drain, Q_WD drain."""
 
     driver_gate_node = new Electrical
     """Q_DRIVER gate: R_BIAS bottom, R_GATE_PD top, Q_CTRL drain."""
@@ -206,24 +206,24 @@ module HeaterDriver:
     power_24v.hv ~ fuse_clip_1.p1
     fuse_clip_2.p1 ~ fused_24v
 
-    # Fused 24V → heater_hi, heater_lo → Q1 → GND
+    # Fused 24V → heater_hi, heater_lo → Q_HEATER → GND
     fused_24v ~ heater_hi
-    heater_lo ~ q1.D
-    q1.S ~ power_24v.lv
+    heater_lo ~ q_heater.D
+    q_heater.S ~ power_24v.lv
 
     # Flyback diode across heater
-    d4.A ~ heater_lo
-    d4.K ~ fused_24v
+    d_flyback.A ~ heater_lo
+    d_flyback.K ~ fused_24v
 
     # Bulk cap on 24V rail (before fuse, on main rail)
-    power_24v.hv ~ c4.p1
-    c4.p2 ~ power_24v.lv
+    power_24v.hv ~ c_bulk_24v.p1
+    c_bulk_24v.p2 ~ power_24v.lv
 
     # =====================================================================
     # Gate driver circuit
     # =====================================================================
 
-    # R_GATE_PULL: 24V → 1M → gate_node (charges Q1 gate when Q_DRIVER OFF)
+    # R_GATE_PULL: 24V → 1M → gate_node (charges Q_HEATER gate when Q_DRIVER OFF)
     power_24v.hv ~> r_gate_pull ~> gate_node
 
     # D_ZENER: clamps gate_node to 10V (cathode at gate, anode to GND)
@@ -249,8 +249,8 @@ module HeaterDriver:
     ctrl_gate_node ~> r_ctrl_pd ~> power_24v.lv
     ctrl_gate_node ~ q_ctrl.G
 
-    # Q1 gate connection
-    gate_node ~ q1.G
+    # Q_HEATER gate connection
+    gate_node ~ q_heater.G
 
     # Q_WD (latch kill) clamps gate to GND on fault
     q_wd.D ~ gate_node

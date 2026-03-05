@@ -6,21 +6,21 @@ RILIM = 56k for 120mA peak / 50mA max PFM output.
 Design follows TI Design 2 (Section 8.2.2, Figure 50).
 
 Topology:
-  VIN (24V) --+-- C1 (4.7uF 50V) --+-- GND
-              |                      |
-              +-- C_VIN (100nF 50V) -+
+  VIN (24V) --+-- c_in_bulk (4.7uF 50V) --+-- GND
+              |                             |
+              +-- c_in_decouple (100nF 50V)-+
               |
            U_BUCK.VIN
               |
-           U_BUCK.SW --- L1 (68uH) --- VOUT (3.3V)
-              |                           |
-           U_BUCK.VOUT --+-- C2 (22uF) --+-- GND
+           U_BUCK.SW --- l_power (68uH) --- VOUT (3.3V)
+              |                               |
+           U_BUCK.VOUT --+-- c_out_bulk (22uF) --+-- GND
                          |
-                         +-- C6 (1uF 50V) --- GND
+                         +-- c_out_ldo (1uF 50V) --- GND
 
   RT -> GND (PFM mode)
   EN -> VIN (always on, internal UVLO at 2.9V)
-  ILIM -> R_ILIM (56k) -> GND
+  ILIM -> r_ilim (56k) -> GND
   SS -> open, HYS -> open
   EP -> GND
   PGOOD -> MCU (open-drain, needs external pull-up)
@@ -64,21 +64,21 @@ module BuckConverter:
     u_buck = new Texas_Instruments_LM5165YDRCR_package
 
     # --- Inductor ---
-    l1 = new XR_XRNR4018_68uH_M_package
+    l_power = new XR_XRNR4018_68uH_M_package
     """68uH, 470mA Isat, 1 ohm DCR, 4x4mm shielded."""
 
     # --- Input capacitors (24V rail, need 50V rating) ---
-    c1 = new FH_1206B475K500NT_package
+    c_in_bulk = new FH_1206B475K500NT_package
     """4.7uF 50V X7R, 1206. Bulk input energy reservoir."""
 
-    c_vin = new YAGEO_CC0603KRX7R9BB104_package
+    c_in_decouple = new YAGEO_CC0603KRX7R9BB104_package
     """100nF 50V, 0603. HF decoupling tight to VIN/GND pins."""
 
     # --- Output capacitors ---
-    c2 = new TDK_C2012X5R1A226KT000N_package
+    c_out_bulk = new TDK_C2012X5R1A226KT000N_package
     """22uF 10V X5R, 0805. Output ripple smoothing."""
 
-    c6 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    c_out_ldo = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
     """1uF 50V X5R, 0603. Internal VCC LDO decoupling on VOUT."""
 
     # --- Current limit resistor ---
@@ -90,12 +90,12 @@ module BuckConverter:
 
     # VIN rail
     power_in.hv ~ u_buck.VIN
-    power_in.hv ~ c1.p1
-    power_in.hv ~ c_vin.p1
+    power_in.hv ~ c_in_bulk.p1
+    power_in.hv ~ c_in_decouple.p1
 
     # Input caps to GND
-    c1.p2 ~ power_in.lv
-    c_vin.p2 ~ power_in.lv
+    c_in_bulk.p2 ~ power_in.lv
+    c_in_decouple.p2 ~ power_in.lv
 
     # GND connections
     power_in.lv ~ u_buck.GND
@@ -119,17 +119,17 @@ module BuckConverter:
     # === Output path ===
 
     # SW -> L1 -> VOUT
-    u_buck.SW ~ l1.p1
-    l1.p2 ~ u_buck.VOUT
+    u_buck.SW ~ l_power.p1
+    l_power.p2 ~ u_buck.VOUT
 
     # VOUT rail
     u_buck.VOUT ~ power_out.hv
-    u_buck.VOUT ~ c2.p1
-    u_buck.VOUT ~ c6.p1
+    u_buck.VOUT ~ c_out_bulk.p1
+    u_buck.VOUT ~ c_out_ldo.p1
 
     # Output caps to GND
-    c2.p2 ~ power_out.lv
-    c6.p2 ~ power_out.lv
+    c_out_bulk.p2 ~ power_out.lv
+    c_out_ldo.p2 ~ power_out.lv
 
     # === PGOOD output ===
     u_buck.PGOOD ~ pgood.line

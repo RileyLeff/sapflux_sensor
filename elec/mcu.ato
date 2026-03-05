@@ -3,7 +3,7 @@ STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, VDDA filtering,
 32.768 kHz RTC crystal, and VBAT backup (CR2032).
 
 Power topology:
-  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VREFpos
+  3.3V rail -> fb_vdda (600 ohm ferrite bead) -> MCU VDD_VDDA, VREFpos
   VBAT: BAT54S selects higher of VDDA_FILT or CR2032 (backup during power loss)
   Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
 
@@ -57,13 +57,13 @@ module MCU:
     # --- Internal filtered rail node (named signal for readable net name) ---
 
     # --- Bulk cap on VDDA (1uF, after ferrite bead) ---
-    c_vdda = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    c_vdda_bulk = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
 
     # --- Bypass caps (4x 100nF, after ferrite bead) ---
-    c_mcu1 = new YAGEO_CC0603KRX7R9BB104_package
-    c_mcu2 = new YAGEO_CC0603KRX7R9BB104_package
-    c_mcu3 = new YAGEO_CC0603KRX7R9BB104_package
-    c_mcu4 = new YAGEO_CC0603KRX7R9BB104_package
+    c_bypass_vdd1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_bypass_vdd2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_bypass_vdd3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_bypass_vdd4 = new YAGEO_CC0603KRX7R9BB104_package
 
     # --- NRST filter cap ---
     c_nrst = new YAGEO_CC0603KRX7R9BB104_package
@@ -75,14 +75,14 @@ module MCU:
 
     # --- 32.768 kHz Crystal ---
     crystal = new Seiko_Epson_Q13FC13500004_package
-    c_xtal1 = new FH_0402CG180J500NT_package  # 18pF load cap
-    c_xtal2 = new FH_0402CG180J500NT_package  # 18pF load cap
+    c_xtal_in = new FH_0402CG180J500NT_package   # 18pF load cap on OSC32_IN
+    c_xtal_out = new FH_0402CG180J500NT_package   # 18pF load cap on OSC32_OUT
 
     # --- VBAT backup ---
     bat54s = new hongjiacheng_BAT54S_package
     cr2032 = new Lian_Xin_Technology_BS_CR2032_8_package
-    c_vbat1 = new YAGEO_CC0603KRX7R9BB104_package  # 100nF VBAT decoupling
-    c_vbat2 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package  # 1uF VBAT bulk
+    c_vbat_decouple = new YAGEO_CC0603KRX7R9BB104_package     # 100nF VBAT decoupling
+    c_vbat_bulk = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package  # 1uF VBAT bulk
 
     # === Power path: 3.3V -> ferrite bead -> MCU pins ===
     power.hv ~ fb_vdda.p1
@@ -103,27 +103,27 @@ module MCU:
     cr2032.NEG ~ power.lv
 
     # VBAT decoupling (100nF + 1uF near pin)
-    bat54s.A ~ c_vbat1.p1
-    c_vbat1.p2 ~ power.lv
-    bat54s.A ~ c_vbat2.p1
-    c_vbat2.p2 ~ power.lv
+    bat54s.A ~ c_vbat_decouple.p1
+    c_vbat_decouple.p2 ~ power.lv
+    bat54s.A ~ c_vbat_bulk.p1
+    c_vbat_bulk.p2 ~ power.lv
 
     # === Bypass caps (after ferrite bead) ===
-    VDDA_FILT ~ c_mcu1.p1
-    c_mcu1.p2 ~ power.lv
+    VDDA_FILT ~ c_bypass_vdd1.p1
+    c_bypass_vdd1.p2 ~ power.lv
 
-    VDDA_FILT ~ c_mcu2.p1
-    c_mcu2.p2 ~ power.lv
+    VDDA_FILT ~ c_bypass_vdd2.p1
+    c_bypass_vdd2.p2 ~ power.lv
 
-    VDDA_FILT ~ c_mcu3.p1
-    c_mcu3.p2 ~ power.lv
+    VDDA_FILT ~ c_bypass_vdd3.p1
+    c_bypass_vdd3.p2 ~ power.lv
 
-    VDDA_FILT ~ c_mcu4.p1
-    c_mcu4.p2 ~ power.lv
+    VDDA_FILT ~ c_bypass_vdd4.p1
+    c_bypass_vdd4.p2 ~ power.lv
 
     # === VDDA bulk cap (after ferrite bead) ===
-    VDDA_FILT ~ c_vdda.p1
-    c_vdda.p2 ~ power.lv
+    VDDA_FILT ~ c_vdda_bulk.p1
+    c_vdda_bulk.p2 ~ power.lv
 
     # === NRST ===
     package.PF2_NRST ~ nrst
@@ -140,7 +140,7 @@ module MCU:
     crystal.p2 ~ package.PC15_OSC32_OUT
 
     # Load caps: 18pF C0G from each crystal pin to GND
-    c_xtal1.p1 ~ package.PC14_OSC32_IN
-    c_xtal1.p2 ~ power.lv
-    c_xtal2.p1 ~ package.PC15_OSC32_OUT
-    c_xtal2.p2 ~ power.lv
+    c_xtal_in.p1 ~ package.PC14_OSC32_IN
+    c_xtal_in.p2 ~ power.lv
+    c_xtal_out.p1 ~ package.PC15_OSC32_OUT
+    c_xtal_out.p2 ~ power.lv
