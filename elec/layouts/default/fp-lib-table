@@ -385,4 +385,11 @@
 		(options "")
 		(descr "atopile: part lib: FOJAN_FRC0603F2700TS")
 	)
+	(lib
+		(name "Cixi_Kefa_Elec_KF2EDGV_3_5_3P")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/Cixi_Kefa_Elec_KF2EDGV_3_5_3P")
+		(options "")
+		(descr "atopile: part lib: Cixi_Kefa_Elec_KF2EDGV_3_5_3P")
+	)
 )

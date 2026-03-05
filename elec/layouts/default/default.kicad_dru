@@ -29,11 +29,15 @@
 (rule "Minimum Copper Clearance"
     (constraint clearance (min 0.127mm)))
 
-# --- Via drill size ---
+# --- Via rules ---
 
 (rule "Via Minimum Drill"
     (condition "A.Type == 'via'")
     (constraint hole_size (min 0.3mm)))
+
+(rule "Via Annular Ring"
+    (condition "A.Type == 'via'")
+    (constraint annular_width (min 0.1mm)))
 
 # --- PTH rules ---
 
