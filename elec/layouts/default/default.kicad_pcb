@@ -337,7 +337,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "0043173e-af4c-4141-8d15-05ef4642524b")
-		(at 235.7 27.9 90)
+		(at 260.9 97.24 180)
 		(property "Reference" "R42"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -653,7 +653,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "007f4002-3ff6-4d22-8c63-21e94642524b")
-		(at 233.16 36.9 90)
+		(at 258.23 98.78 180)
 		(property "Reference" "C41"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -933,7 +933,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "0178f325-fdb3-4acd-a7ef-adaa4642524b")
-		(at 210.3 27.9 90)
+		(at 260.9 122.64 180)
 		(property "Reference" "R58"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -1249,7 +1249,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "03207b40-0240-42d8-9c42-2d744642524b")
-		(at 248.4 36.9 90)
+		(at 258.23 83.54 180)
 		(property "Reference" "C31"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -1529,7 +1529,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "0326b704-4a3b-4e7d-87d0-40ad4642524b")
-		(at 223 27.9 90)
+		(at 260.9 109.94 180)
 		(property "Reference" "R50"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -2079,7 +2079,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "062a8d1d-4e21-4726-98e9-e1b64642524b")
-		(at 230.62 27.9 90)
+		(at 260.9 102.32 180)
 		(property "Reference" "R46"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -3945,7 +3945,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "100d4800-08b1-4bcf-8a0b-75124642524b")
-		(at 238.24 33.9 90)
+		(at 258.23 94.7 180)
 		(property "Reference" "C36"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -4225,7 +4225,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "142d01fe-f338-4272-9568-4a954642524b")
-		(at 235.7 33.9 90)
+		(at 258.23 97.24 180)
 		(property "Reference" "C38"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -5393,7 +5393,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "15fb093a-06e4-417e-a46e-8a434642524b")
-		(at 205.22 27.9 90)
+		(at 260.9 127.72 180)
 		(property "Reference" "R62"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -6020,7 +6020,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "17a41af5-dbf0-48be-bb46-750d4642524b")
-		(at 225.54 30.9 90)
+		(at 260.9 106.4 180)
 		(property "Reference" "R49"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -6336,7 +6336,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "1adc8dac-e636-4037-93c9-76814642524b")
-		(at 212.84 27.9 90)
+		(at 260.9 120.1 180)
 		(property "Reference" "R56"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -6968,7 +6968,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "1d918f3b-cae4-49c6-a097-acb54642524b")
-		(at 200.14 36.9 90)
+		(at 258.23 131.8 180)
 		(property "Reference" "C61"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -7844,7 +7844,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "1e3742c4-b6eb-466b-93dd-8a104642524b")
-		(at 235.7 30.9 90)
+		(at 260.9 96.24 180)
 		(property "Reference" "R43"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -8160,7 +8160,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "200638c1-7091-42f0-ab3b-12e84642524b")
-		(at 192.52 30.9 90)
+		(at 260.9 139.42 180)
 		(property "Reference" "R71"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -8994,7 +8994,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "21b33159-19c8-47d8-9f2d-4e464642524b")
-		(at 197.6 30.9 90)
+		(at 260.9 134.34 180)
 		(property "Reference" "R67"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -10090,7 +10090,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "2733a8b0-a255-44c1-8028-84ee4642524b")
-		(at 210.3 36.9 90)
+		(at 258.23 121.64 180)
 		(property "Reference" "C55"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -10686,7 +10686,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "28899b0e-f1f5-4df8-871c-c0f94642524b")
-		(at 197.6 36.9 90)
+		(at 258.23 134.34 180)
 		(property "Reference" "C63"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -11246,7 +11246,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "294fcf3a-0e4e-4c19-a321-2fdb4642524b")
-		(at 233.16 27.9 90)
+		(at 260.9 99.78 180)
 		(property "Reference" "R44"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -11562,7 +11562,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "29597be9-169b-4cfd-bdd5-419d4642524b")
-		(at 238.24 27.9 90)
+		(at 260.9 94.7 180)
 		(property "Reference" "R40"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -12452,7 +12452,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "2aec4eb2-7ca3-4512-b303-82974642524b")
-		(at 207.76 30.9 90)
+		(at 260.9 124.18 180)
 		(property "Reference" "R61"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -14276,7 +14276,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "324d577b-ae43-40ed-9481-b2864642524b")
-		(at 238.24 30.9 90)
+		(at 260.9 93.7 180)
 		(property "Reference" "R41"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -15762,7 +15762,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "3400ec9f-ee11-447e-800f-f1de4642524b")
-		(at 273.5 52.5 180)
+		(at 258.23 73.38 180)
 		(property "Reference" "C17"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -16322,7 +16322,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "34721a42-4eed-4f79-8c79-bbe34642524b")
-		(at 195.06 27.9 90)
+		(at 260.9 137.88 180)
 		(property "Reference" "R68"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -17656,7 +17656,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "3733ca91-a0a6-4c6c-96d1-21834642524b")
-		(at 212.84 30.9 90)
+		(at 260.9 119.1 180)
 		(property "Reference" "R57"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -18252,7 +18252,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "398b42a8-afda-448d-95b7-e8554642524b")
-		(at 200.14 33.9 90)
+		(at 258.23 132.8 180)
 		(property "Reference" "C60"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -18812,7 +18812,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "3cf1316a-8bb8-4d23-afce-8c014642524b")
-		(at 217.92 36.9 90)
+		(at 258.23 114.02 180)
 		(property "Reference" "C51"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -19092,7 +19092,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "3cfe8a0d-0bf3-48c3-a7c1-98ae4642524b")
-		(at 195.06 30.9 90)
+		(at 260.9 136.88 180)
 		(property "Reference" "R69"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -19408,7 +19408,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "3d2756d9-cbf5-4de1-8802-4d004642524b")
-		(at 233.16 33.9 90)
+		(at 258.23 99.78 180)
 		(property "Reference" "C40"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -19688,7 +19688,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "3ed97408-914c-4809-976b-c4954642524b")
-		(at 220.46 33.9 90)
+		(at 258.23 112.48 180)
 		(property "Reference" "C48"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -20528,7 +20528,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "4279d30f-6956-4b92-b999-089e4642524b")
-		(at 225.54 33.9 90)
+		(at 258.23 107.4 180)
 		(property "Reference" "C44"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -20808,7 +20808,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "459eef08-ec5a-437a-b76a-a9724642524b")
-		(at 250.94 30.9 90)
+		(at 260.9 81.0 180)
 		(property "Reference" "R20"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -21404,7 +21404,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "470435be-42f0-4d59-a2a9-b1884642524b")
-		(at 250.94 36.9 90)
+		(at 258.23 81.0 180)
 		(property "Reference" "C29"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -22732,7 +22732,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "4d868822-338b-465d-93e6-89194642524b")
-		(at 230.62 33.9 90)
+		(at 258.23 102.32 180)
 		(property "Reference" "C42"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -23012,7 +23012,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "4e26bffc-2afe-40f5-b478-2b014642524b")
-		(at 270.1 54.64 180)
+		(at 258.23 76.92 180)
 		(property "Reference" "C18"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -24332,7 +24332,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "52afac37-4b5b-4b6c-b869-493d4642524b")
-		(at 270.1 52.1 180)
+		(at 258.23 74.38 180)
 		(property "Reference" "C16"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -24612,7 +24612,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "55b0b01a-a15a-4b29-bcf2-7b804642524b")
-		(at 235.7 36.9 90)
+		(at 258.23 96.24 180)
 		(property "Reference" "C39"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -25268,7 +25268,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "5ca5f9cd-e4c6-4ed1-968a-d1024642524b")
-		(at 248.4 33.9 90)
+		(at 258.23 84.54 180)
 		(property "Reference" "C30"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -25548,7 +25548,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "5ce68d1f-38dd-4d68-bcd5-f74b4642524b")
-		(at 210.3 30.9 90)
+		(at 260.9 121.64 180)
 		(property "Reference" "R59"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -25864,7 +25864,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "5dcafec5-d35a-4d9d-8444-d3c14642524b")
-		(at 197.6 27.9 90)
+		(at 260.9 135.34 180)
 		(property "Reference" "R66"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -26716,7 +26716,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "5f9aa4cb-d98f-4b8f-b35c-33f94642524b")
-		(at 200.14 30.9 90)
+		(at 260.9 131.8 180)
 		(property "Reference" "R65"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -27032,7 +27032,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "63ebd5f8-9911-44ea-b4a1-f7eb4642524b")
-		(at 207.76 33.9 90)
+		(at 258.23 125.18 180)
 		(property "Reference" "C56"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -27312,7 +27312,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "63f40088-3ef3-45a1-a036-73334642524b")
-		(at 245.86 27.9 90)
+		(at 260.9 87.08 180)
 		(property "Reference" "R36"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -28049,7 +28049,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "69b46985-1f21-4da8-87cb-62bd4642524b")
-		(at 250.94 27.9 90)
+		(at 260.9 82.0 180)
 		(property "Reference" "R14"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -28365,7 +28365,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "6b194b2b-5886-4953-86a8-27f14642524b")
-		(at 245.86 36.9 90)
+		(at 258.23 86.08 180)
 		(property "Reference" "C33"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -28961,7 +28961,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "6b73553d-ebc9-45f6-9947-80144642524b")
-		(at 230.62 30.9 90)
+		(at 260.9 101.32 180)
 		(property "Reference" "R47"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -29873,7 +29873,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "6ddb6d35-bf0b-4d41-90e5-13674642524b")
-		(at 264.1 54.64 180)
+		(at 260.9 76.92 180)
 		(property "Reference" "R12"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -31351,7 +31351,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "7229920f-049f-456d-80ec-1fe04642524b")
-		(at 195.06 36.9 90)
+		(at 258.23 136.88 180)
 		(property "Reference" "C65"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -31631,7 +31631,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "75081455-21fc-4c3e-a5b5-13964642524b")
-		(at 207.76 36.9 90)
+		(at 258.23 124.18 180)
 		(property "Reference" "C57"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -32457,7 +32457,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "7a1545f8-8666-448d-9997-eb544642524b")
-		(at 223 33.9 90)
+		(at 258.23 109.94 180)
 		(property "Reference" "C46"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -34470,7 +34470,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "7f829520-cbca-41a1-8d38-e40f4642524b")
-		(at 273.5 55.04 180)
+		(at 258.23 75.92 180)
 		(property "Reference" "C26"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -35066,7 +35066,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "806c14ed-92f9-4882-9119-f2be4642524b")
-		(at 195.06 33.9 90)
+		(at 258.23 137.88 180)
 		(property "Reference" "C64"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -35584,7 +35584,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "8326a69a-707b-4aef-b457-ef744642524b")
-		(at 248.4 27.9 90)
+		(at 260.9 84.54 180)
 		(property "Reference" "R24"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -36372,7 +36372,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "88d19719-aad1-43ab-8807-cc7a4642524b")
-		(at 220.46 36.9 90)
+		(at 258.23 111.48 180)
 		(property "Reference" "C49"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -36652,7 +36652,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "88f9e5a7-0e3e-4f10-8fc2-01354642524b")
-		(at 250.94 33.9 90)
+		(at 258.23 82.0 180)
 		(property "Reference" "C27"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -36932,7 +36932,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "89b5d20a-d595-4d57-bab0-8c2d4642524b")
-		(at 267.1 52.1 180)
+		(at 260.9 73.38 180)
 		(property "Reference" "R11"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -37528,7 +37528,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "8a209e0c-aa8d-4eaa-893a-fc974642524b")
-		(at 192.52 33.9 90)
+		(at 258.23 140.42 180)
 		(property "Reference" "C66"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -39893,7 +39893,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "92278df5-cc5d-4745-ba35-29bd4642524b")
-		(at 197.6 33.9 90)
+		(at 258.23 135.34 180)
 		(property "Reference" "C62"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -41819,7 +41819,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "9bf515ed-df93-4074-8b1c-eeb24642524b")
-		(at 220.46 30.9 90)
+		(at 260.9 111.48 180)
 		(property "Reference" "R53"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -44432,7 +44432,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "a476d80b-0bfa-4f6e-9596-05f74642524b")
-		(at 217.92 33.9 90)
+		(at 258.23 115.02 180)
 		(property "Reference" "C50"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -44992,7 +44992,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "a74ab4f4-0fd9-499e-93dd-aa6b4642524b")
-		(at 243.32 33.9 90)
+		(at 258.23 89.62 180)
 		(property "Reference" "C34"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -46009,7 +46009,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "aaca1d23-7cfb-4a84-8acf-341f4642524b")
-		(at 217.92 27.9 90)
+		(at 260.9 115.02 180)
 		(property "Reference" "R54"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -46605,7 +46605,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "aca7cdd7-d103-4f04-8808-201c4642524b")
-		(at 192.52 36.9 90)
+		(at 258.23 139.42 180)
 		(property "Reference" "C67"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -47845,7 +47845,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "ae296d7e-585a-4782-9675-a93e4642524b")
-		(at 264.1 52.1 180)
+		(at 260.9 74.38 180)
 		(property "Reference" "R10"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -48393,7 +48393,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "aeb4905b-b77e-4fe2-a013-a91e4642524b")
-		(at 245.86 33.9 90)
+		(at 258.23 87.08 180)
 		(property "Reference" "C32"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -48953,7 +48953,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "b282f59f-f756-4865-8cea-adbc4642524b")
-		(at 205.22 36.9 90)
+		(at 258.23 126.72 180)
 		(property "Reference" "C59"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -50049,7 +50049,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "b61a388b-d81c-4e9b-91a1-04944642524b")
-		(at 205.22 33.9 90)
+		(at 258.23 127.72 180)
 		(property "Reference" "C58"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -50329,7 +50329,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "bb13d551-da6f-4c0e-8f30-3b884642524b")
-		(at 225.54 36.9 90)
+		(at 258.23 106.4 180)
 		(property "Reference" "C45"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -52631,7 +52631,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "c2174b71-6f9c-47f5-90ea-6d6c4642524b")
-		(at 212.84 33.9 90)
+		(at 258.23 120.1 180)
 		(property "Reference" "C52"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -54848,7 +54848,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "c9b792a1-7e1c-413b-9050-55584642524b")
-		(at 233.16 30.9 90)
+		(at 260.9 98.78 180)
 		(property "Reference" "R45"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -56196,7 +56196,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "cecb8920-6f64-4a2b-84ad-2cb84642524b")
-		(at 243.32 30.9 90)
+		(at 260.9 88.62 180)
 		(property "Reference" "R39"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -56512,7 +56512,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "d04e37f6-93cf-41ca-b133-94df4642524b")
-		(at 243.32 36.9 90)
+		(at 258.23 88.62 180)
 		(property "Reference" "C35"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -56792,7 +56792,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "d054fa24-df75-42a6-a8a3-11744642524b")
-		(at 192.52 27.9 90)
+		(at 260.9 140.42 180)
 		(property "Reference" "R70"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -57346,7 +57346,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "d2fb7b0a-d001-43a3-9de6-2d464642524b")
-		(at 245.86 30.9 90)
+		(at 260.9 86.08 180)
 		(property "Reference" "R37"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -57662,7 +57662,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "d4c5c24d-b64a-4d75-a330-e9624642524b")
-		(at 225.54 27.9 90)
+		(at 260.9 107.4 180)
 		(property "Reference" "R48"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -58856,7 +58856,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "d71e693f-781c-4759-a6a5-fabb4642524b")
-		(at 248.4 30.9 90)
+		(at 260.9 83.54 180)
 		(property "Reference" "R35"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -59406,7 +59406,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "d951bdbb-0c7b-45a5-b2ab-ddca4642524b")
-		(at 207.76 27.9 90)
+		(at 260.9 125.18 180)
 		(property "Reference" "R60"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -60002,7 +60002,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "dfd2fb8e-9501-41fb-8624-2ae14642524b")
-		(at 238.24 36.9 90)
+		(at 258.23 93.7 180)
 		(property "Reference" "C37"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -60562,7 +60562,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "e0bd12ec-181f-4d3d-9d5a-ad984642524b")
-		(at 205.22 30.9 90)
+		(at 260.9 126.72 180)
 		(property "Reference" "R63"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -61112,7 +61112,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "e483e27b-7400-46a3-93f2-3d1b4642524b")
-		(at 200.14 27.9 90)
+		(at 260.9 132.8 180)
 		(property "Reference" "R64"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -62027,7 +62027,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "e8f92270-593c-4fb0-a05d-74934642524b")
-		(at 217.92 30.9 90)
+		(at 260.9 114.02 180)
 		(property "Reference" "R55"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -62623,7 +62623,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "ebc301c5-479d-4997-a9d1-ca2c4642524b")
-		(at 223 36.9 90)
+		(at 258.23 108.94 180)
 		(property "Reference" "C47"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -62903,7 +62903,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "ecdd87c3-181c-4d58-b171-f14a4642524b")
-		(at 243.32 27.9 90)
+		(at 260.9 89.62 180)
 		(property "Reference" "R38"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -63219,7 +63219,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "ed947f32-0d28-48fa-bcf8-46a74642524b")
-		(at 210.3 33.9 90)
+		(at 258.23 122.64 180)
 		(property "Reference" "C54"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -64287,7 +64287,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "f4750f98-3b59-4da3-b31f-e2ef4642524b")
-		(at 212.84 36.9 90)
+		(at 258.23 119.1 180)
 		(property "Reference" "C53"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -64847,7 +64847,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "f4fcdb16-dc1e-47ac-9066-e2f34642524b")
-		(at 267.1 54.64 180)
+		(at 260.9 75.92 180)
 		(property "Reference" "R13"
 			(at 0 -4 180)
 			(layer "F.Fab")
@@ -65641,7 +65641,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "f9316c75-1bbb-466f-b039-f95c4642524b")
-		(at 220.46 27.9 90)
+		(at 260.9 112.48 180)
 		(property "Reference" "R52"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -66475,7 +66475,7 @@
 	(footprint "UNI_ROYAL_0603WAF1001T5E:R0603"
 		(layer "F.Cu")
 		(uuid "f9fce3b9-066d-46fa-af24-74324642524b")
-		(at 223 30.9 90)
+		(at 260.9 108.94 180)
 		(property "Reference" "R51"
 			(at 0 -4 90)
 			(layer "F.Fab")
@@ -66791,7 +66791,7 @@
 	(footprint "YAGEO_CC0603KRX7R9BB104:C0603"
 		(layer "F.Cu")
 		(uuid "fae67641-c592-47e3-8e8a-5e5f4642524b")
-		(at 230.62 36.9 90)
+		(at 258.23 101.32 180)
 		(property "Reference" "C43"
 			(at 0 -4 90)
 			(layer "F.Fab")
