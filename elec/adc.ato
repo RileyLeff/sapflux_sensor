@@ -16,10 +16,17 @@ ESD rail isolation:
   V3V3 (clean) → L3 (ferrite 600Ω@100MHz) → V3V3_TVS (dirty)
   All 13 TVS arrays' VCC connects to dirty side only.
 
-Mux assignments:
-  Mux A: Y0-Y15 = thermistor 1-16 (PA9 = ~E)
-  Mux B: Y0-Y15 = thermistor 17-32 (PA10 = ~E)
-  Mux C: Y0-Y15 = thermistor 33-48 (PA11 = ~E)
+Mux assignments (routing-optimized, not sequential):
+  Mux oriented parallel to CN2: pin 12 top-right, pin 1 bottom-right.
+  Near side (Y0-Y7, right): even/odd pairs from top → bottom.
+  Far side (Y8-Y15, left): wrap-around, even/odd from top → bottom.
+
+  Mux A (PA9=~E): Y0=t2, Y1=t1, Y2=t4, Y3=t3, Y4=t6, Y5=t5, Y6=t8, Y7=t7
+                   Y15=t10, Y14=t9, Y13=t12, Y12=t11, Y11=t14, Y10=t13, Y9=t16, Y8=t15
+  Mux B (PA10=~E): Y0=t18, Y1=t17, Y2=t20, Y3=t19, Y4=t22, Y5=t21, Y6=t24, Y7=t23
+                    Y15=t26, Y14=t25, Y13=t28, Y12=t27, Y11=t30, Y10=t29, Y9=t32, Y8=t31
+  Mux C (PA11=~E): Y0=t34, Y1=t33, Y2=t36, Y3=t35, Y4=t38, Y5=t37, Y6=t40, Y7=t39
+                    Y15=t42, Y14=t41, Y13=t44, Y12=t43, Y11=t46, Y10=t45, Y9=t48, Y8=t47
   Shared: PD0-PD3 = S0-S3
 
 ADC1 (0x48): AIN0 = mux Z, AIN1 = excitation sense, AIN2/3 = AGND
@@ -598,97 +605,97 @@ module ADCFrontEnd:
     therm_1 ~> r_1 ~> prot_1
     prot_1 ~ c_1.p1
     c_1.p2 ~ power.lv
-    prot_1 ~ mux_a.Y0
+    prot_1 ~ mux_a.Y1
     # Ch 2: TVS1.ESD2
     therm_2 ~ tvs_1.ESD2
     therm_2 ~> r_2 ~> prot_2
     prot_2 ~ c_2.p1
     c_2.p2 ~ power.lv
-    prot_2 ~ mux_a.Y1
+    prot_2 ~ mux_a.Y0
     # Ch 3: TVS1.ESD4 (pin 3, near CN2 pin 5)
     therm_3 ~ tvs_1.ESD4
     therm_3 ~> r_3 ~> prot_3
     prot_3 ~ c_3.p1
     c_3.p2 ~ power.lv
-    prot_3 ~ mux_a.Y2
+    prot_3 ~ mux_a.Y3
     # Ch 4: TVS1.ESD3 (pin 1, near CN2 pin 6)
     therm_4 ~ tvs_1.ESD3
     therm_4 ~> r_4 ~> prot_4
     prot_4 ~ c_4.p1
     c_4.p2 ~ power.lv
-    prot_4 ~ mux_a.Y3
+    prot_4 ~ mux_a.Y2
     # Ch 5: TVS2.ESD1
     therm_5 ~ tvs_2.ESD1
     therm_5 ~> r_5 ~> prot_5
     prot_5 ~ c_5.p1
     c_5.p2 ~ power.lv
-    prot_5 ~ mux_a.Y4
+    prot_5 ~ mux_a.Y5
     # Ch 6: TVS2.ESD2
     therm_6 ~ tvs_2.ESD2
     therm_6 ~> r_6 ~> prot_6
     prot_6 ~ c_6.p1
     c_6.p2 ~ power.lv
-    prot_6 ~ mux_a.Y5
+    prot_6 ~ mux_a.Y4
     # Ch 7: TVS2.ESD4 (pin 3, routing swap)
     therm_7 ~ tvs_2.ESD4
     therm_7 ~> r_7 ~> prot_7
     prot_7 ~ c_7.p1
     c_7.p2 ~ power.lv
-    prot_7 ~ mux_a.Y6
+    prot_7 ~ mux_a.Y7
     # Ch 8: TVS2.ESD3 (pin 1, routing swap)
     therm_8 ~ tvs_2.ESD3
     therm_8 ~> r_8 ~> prot_8
     prot_8 ~ c_8.p1
     c_8.p2 ~ power.lv
-    prot_8 ~ mux_a.Y7
+    prot_8 ~ mux_a.Y6
     # Ch 9: TVS3.ESD1
     therm_9 ~ tvs_3.ESD1
     therm_9 ~> r_9 ~> prot_9
     prot_9 ~ c_9.p1
     c_9.p2 ~ power.lv
-    prot_9 ~ mux_a.Y8
+    prot_9 ~ mux_a.Y14
     # Ch 10: TVS3.ESD2
     therm_10 ~ tvs_3.ESD2
     therm_10 ~> r_10 ~> prot_10
     prot_10 ~ c_10.p1
     c_10.p2 ~ power.lv
-    prot_10 ~ mux_a.Y9
+    prot_10 ~ mux_a.Y15
     # Ch 11: TVS3.ESD4 (pin 3, routing swap)
     therm_11 ~ tvs_3.ESD4
     therm_11 ~> r_11 ~> prot_11
     prot_11 ~ c_11.p1
     c_11.p2 ~ power.lv
-    prot_11 ~ mux_a.Y10
+    prot_11 ~ mux_a.Y12
     # Ch 12: TVS3.ESD3 (pin 1, routing swap)
     therm_12 ~ tvs_3.ESD3
     therm_12 ~> r_12 ~> prot_12
     prot_12 ~ c_12.p1
     c_12.p2 ~ power.lv
-    prot_12 ~ mux_a.Y11
+    prot_12 ~ mux_a.Y13
     # Ch 13: TVS4.ESD1
     therm_13 ~ tvs_4.ESD1
     therm_13 ~> r_13 ~> prot_13
     prot_13 ~ c_13.p1
     c_13.p2 ~ power.lv
-    prot_13 ~ mux_a.Y12
+    prot_13 ~ mux_a.Y10
     # Ch 14: TVS4.ESD2
     therm_14 ~ tvs_4.ESD2
     therm_14 ~> r_14 ~> prot_14
     prot_14 ~ c_14.p1
     c_14.p2 ~ power.lv
-    prot_14 ~ mux_a.Y13
+    prot_14 ~ mux_a.Y11
     # Ch 15: TVS4.ESD4 (pin 3, routing swap)
     therm_15 ~ tvs_4.ESD4
     therm_15 ~> r_15 ~> prot_15
     prot_15 ~ c_15.p1
     c_15.p2 ~ power.lv
-    prot_15 ~ mux_a.Y14
+    prot_15 ~ mux_a.Y8
     # Ch 16: TVS4.ESD3 (pin 1, routing swap)
     therm_16 ~ tvs_4.ESD3
     therm_16 ~> r_16 ~> prot_16
     prot_16 ~ c_16.p1
     c_16.p2 ~ power.lv
-    prot_16 ~ mux_a.Y15
+    prot_16 ~ mux_a.Y9
 
     # =====================================================================
     # Mux B channels (therm 17-32) — TVS 5-8
@@ -697,82 +704,82 @@ module ADCFrontEnd:
     therm_17 ~> r_17 ~> prot_17
     prot_17 ~ c_17.p1
     c_17.p2 ~ power.lv
-    prot_17 ~ mux_b.Y0
+    prot_17 ~ mux_b.Y1
     therm_18 ~ tvs_5.ESD2
     therm_18 ~> r_18 ~> prot_18
     prot_18 ~ c_18.p1
     c_18.p2 ~ power.lv
-    prot_18 ~ mux_b.Y1
+    prot_18 ~ mux_b.Y0
     therm_19 ~ tvs_5.ESD4  # pin 3, routing swap
     therm_19 ~> r_19 ~> prot_19
     prot_19 ~ c_19.p1
     c_19.p2 ~ power.lv
-    prot_19 ~ mux_b.Y2
+    prot_19 ~ mux_b.Y3
     therm_20 ~ tvs_5.ESD3  # pin 1, routing swap
     therm_20 ~> r_20 ~> prot_20
     prot_20 ~ c_20.p1
     c_20.p2 ~ power.lv
-    prot_20 ~ mux_b.Y3
+    prot_20 ~ mux_b.Y2
     therm_21 ~ tvs_6.ESD1
     therm_21 ~> r_21 ~> prot_21
     prot_21 ~ c_21.p1
     c_21.p2 ~ power.lv
-    prot_21 ~ mux_b.Y4
+    prot_21 ~ mux_b.Y5
     therm_22 ~ tvs_6.ESD2
     therm_22 ~> r_22 ~> prot_22
     prot_22 ~ c_22.p1
     c_22.p2 ~ power.lv
-    prot_22 ~ mux_b.Y5
+    prot_22 ~ mux_b.Y4
     therm_23 ~ tvs_6.ESD4  # pin 3, routing swap
     therm_23 ~> r_23 ~> prot_23
     prot_23 ~ c_23.p1
     c_23.p2 ~ power.lv
-    prot_23 ~ mux_b.Y6
+    prot_23 ~ mux_b.Y7
     therm_24 ~ tvs_6.ESD3  # pin 1, routing swap
     therm_24 ~> r_24 ~> prot_24
     prot_24 ~ c_24.p1
     c_24.p2 ~ power.lv
-    prot_24 ~ mux_b.Y7
+    prot_24 ~ mux_b.Y6
     therm_25 ~ tvs_7.ESD1
     therm_25 ~> r_25 ~> prot_25
     prot_25 ~ c_25.p1
     c_25.p2 ~ power.lv
-    prot_25 ~ mux_b.Y8
+    prot_25 ~ mux_b.Y14
     therm_26 ~ tvs_7.ESD2
     therm_26 ~> r_26 ~> prot_26
     prot_26 ~ c_26.p1
     c_26.p2 ~ power.lv
-    prot_26 ~ mux_b.Y9
+    prot_26 ~ mux_b.Y15
     therm_27 ~ tvs_7.ESD4  # pin 3, routing swap
     therm_27 ~> r_27 ~> prot_27
     prot_27 ~ c_27.p1
     c_27.p2 ~ power.lv
-    prot_27 ~ mux_b.Y10
+    prot_27 ~ mux_b.Y12
     therm_28 ~ tvs_7.ESD3  # pin 1, routing swap
     therm_28 ~> r_28 ~> prot_28
     prot_28 ~ c_28.p1
     c_28.p2 ~ power.lv
-    prot_28 ~ mux_b.Y11
+    prot_28 ~ mux_b.Y13
     therm_29 ~ tvs_8.ESD1
     therm_29 ~> r_29 ~> prot_29
     prot_29 ~ c_29.p1
     c_29.p2 ~ power.lv
-    prot_29 ~ mux_b.Y12
+    prot_29 ~ mux_b.Y10
     therm_30 ~ tvs_8.ESD2
     therm_30 ~> r_30 ~> prot_30
     prot_30 ~ c_30.p1
     c_30.p2 ~ power.lv
-    prot_30 ~ mux_b.Y13
+    prot_30 ~ mux_b.Y11
     therm_31 ~ tvs_8.ESD4  # pin 3, routing swap
     therm_31 ~> r_31 ~> prot_31
     prot_31 ~ c_31.p1
     c_31.p2 ~ power.lv
-    prot_31 ~ mux_b.Y14
+    prot_31 ~ mux_b.Y8
     therm_32 ~ tvs_8.ESD3  # pin 1, routing swap
     therm_32 ~> r_32 ~> prot_32
     prot_32 ~ c_32.p1
     c_32.p2 ~ power.lv
-    prot_32 ~ mux_b.Y15
+    prot_32 ~ mux_b.Y9
 
     # =====================================================================
     # Mux C channels (therm 33-48) — TVS 9-12
@@ -781,82 +788,82 @@ module ADCFrontEnd:
     therm_33 ~> r_33 ~> prot_33
     prot_33 ~ c_33.p1
     c_33.p2 ~ power.lv
-    prot_33 ~ mux_c.Y0
+    prot_33 ~ mux_c.Y1
     therm_34 ~ tvs_9.ESD2
     therm_34 ~> r_34 ~> prot_34
     prot_34 ~ c_34.p1
     c_34.p2 ~ power.lv
-    prot_34 ~ mux_c.Y1
+    prot_34 ~ mux_c.Y0
     therm_35 ~ tvs_9.ESD4  # pin 3, routing swap
     therm_35 ~> r_35 ~> prot_35
     prot_35 ~ c_35.p1
     c_35.p2 ~ power.lv
-    prot_35 ~ mux_c.Y2
+    prot_35 ~ mux_c.Y3
     therm_36 ~ tvs_9.ESD3  # pin 1, routing swap
     therm_36 ~> r_36 ~> prot_36
     prot_36 ~ c_36.p1
     c_36.p2 ~ power.lv
-    prot_36 ~ mux_c.Y3
+    prot_36 ~ mux_c.Y2
     therm_37 ~ tvs_10.ESD1
     therm_37 ~> r_37 ~> prot_37
     prot_37 ~ c_37.p1
     c_37.p2 ~ power.lv
-    prot_37 ~ mux_c.Y4
+    prot_37 ~ mux_c.Y5
     therm_38 ~ tvs_10.ESD2
     therm_38 ~> r_38 ~> prot_38
     prot_38 ~ c_38.p1
     c_38.p2 ~ power.lv
-    prot_38 ~ mux_c.Y5
+    prot_38 ~ mux_c.Y4
     therm_39 ~ tvs_10.ESD4  # pin 3, routing swap
     therm_39 ~> r_39 ~> prot_39
     prot_39 ~ c_39.p1
     c_39.p2 ~ power.lv
-    prot_39 ~ mux_c.Y6
+    prot_39 ~ mux_c.Y7
     therm_40 ~ tvs_10.ESD3  # pin 1, routing swap
     therm_40 ~> r_40 ~> prot_40
     prot_40 ~ c_40.p1
     c_40.p2 ~ power.lv
-    prot_40 ~ mux_c.Y7
+    prot_40 ~ mux_c.Y6
     therm_41 ~ tvs_11.ESD1
     therm_41 ~> r_41 ~> prot_41
     prot_41 ~ c_41.p1
     c_41.p2 ~ power.lv
-    prot_41 ~ mux_c.Y8
+    prot_41 ~ mux_c.Y14
     therm_42 ~ tvs_11.ESD2
     therm_42 ~> r_42 ~> prot_42
     prot_42 ~ c_42.p1
     c_42.p2 ~ power.lv
-    prot_42 ~ mux_c.Y9
+    prot_42 ~ mux_c.Y15
     therm_43 ~ tvs_11.ESD4  # pin 3, routing swap
     therm_43 ~> r_43 ~> prot_43
     prot_43 ~ c_43.p1
     c_43.p2 ~ power.lv
-    prot_43 ~ mux_c.Y10
+    prot_43 ~ mux_c.Y12
     therm_44 ~ tvs_11.ESD3  # pin 1, routing swap
     therm_44 ~> r_44 ~> prot_44
     prot_44 ~ c_44.p1
     c_44.p2 ~ power.lv
-    prot_44 ~ mux_c.Y11
+    prot_44 ~ mux_c.Y13
     therm_45 ~ tvs_12.ESD1
     therm_45 ~> r_45 ~> prot_45
     prot_45 ~ c_45.p1
     c_45.p2 ~ power.lv
-    prot_45 ~ mux_c.Y12
+    prot_45 ~ mux_c.Y10
     therm_46 ~ tvs_12.ESD2
     therm_46 ~> r_46 ~> prot_46
     prot_46 ~ c_46.p1
     c_46.p2 ~ power.lv
-    prot_46 ~ mux_c.Y13
+    prot_46 ~ mux_c.Y11
     therm_47 ~ tvs_12.ESD4  # pin 3, routing swap
     therm_47 ~> r_47 ~> prot_47
     prot_47 ~ c_47.p1
     c_47.p2 ~ power.lv
-    prot_47 ~ mux_c.Y14
+    prot_47 ~ mux_c.Y8
     therm_48 ~ tvs_12.ESD3  # pin 1, routing swap
     therm_48 ~> r_48 ~> prot_48
     prot_48 ~ c_48.p1
     c_48.p2 ~ power.lv
-    prot_48 ~ mux_c.Y15
+    prot_48 ~ mux_c.Y9
 
     # Excitation sense: TVS13.ESD1
     filtered_exc ~ tvs_13.ESD1
