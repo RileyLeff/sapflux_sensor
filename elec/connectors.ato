@@ -31,6 +31,12 @@ J5 (3-pin KF2EDGV-3.5-3P, RS-485):
   Pin 1: RS-485 A (+)
   Pin 2: RS-485 B (-)
   Pin 3: GND (signal reference)
+
+J6 (1x4, 2.54mm pitch, SWD programming):
+  Pin 1: VCC (3.3V)
+  Pin 2: SWDIO (PA13)
+  Pin 3: SWCLK (PA14)
+  Pin 4: GND
 """
 
 #pragma experiment("BRIDGE_CONNECT")
@@ -43,13 +49,17 @@ from "parts/XKB_Connectivity_X6521WV_2x30H_C60D30/XKB_Connectivity_X6521WV_2x30H
 from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_2P/Cixi_Kefa_Elec_KF2EDGV_3_5_2P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_2P_package
 from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_3P/Cixi_Kefa_Elec_KF2EDGV_3_5_3P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_3P_package
 from "parts/BOOMELE_2_54_1x6P/BOOMELE_2_54_1x6P.ato" import BOOMELE_2_54_1x6P_package
+from "parts/XFCN_PZ254V_11_04P/XFCN_PZ254V_11_04P.ato" import XFCN_PZ254V_11_04P_package
 
 module Connectors:
     """Power input, RS-485, 60-pin thermistor, heater output, and aux header."""
 
     # --- External interfaces ---
     power_24v = new ElectricPower
-    """24V raw power from M8 connector."""
+    """24V raw power from screw terminal."""
+
+    power_3v3 = new ElectricPower
+    """3.3V rail (for SWD header VCC reference)."""
 
     rs485_a = new Electrical
     """RS-485 A line."""
@@ -128,6 +138,13 @@ module Connectors:
 
     gpio_pa7 = new Electrical
     """Spare GPIO PA7 (direct to header)."""
+
+    # SWD programming interfaces
+    swdio = new Electrical
+    """SWDIO (PA13)."""
+
+    swclk = new Electrical
+    """SWCLK (PA14)."""
 
     # =====================================================================
     # J1: 2-pin power input (KF2EDGV-3.5-2P, 10A rated)
@@ -254,3 +271,13 @@ module Connectors:
     j5.p1 ~ rs485_a
     j5.p2 ~ rs485_b
     j5.p3 ~ power_24v.lv
+
+    # =====================================================================
+    # J6: 1x4 SWD programming header (2.54mm pitch)
+    # =====================================================================
+    j6 = new XFCN_PZ254V_11_04P_package
+
+    j6.p1 ~ power_3v3.hv   # VCC (3.3V reference for programmer)
+    j6.p2 ~ swdio
+    j6.p3 ~ swclk
+    j6.p4 ~ power_3v3.lv   # GND

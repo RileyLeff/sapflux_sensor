@@ -1,0 +1,165 @@
+(footprint "XFCN_PZ254V_11_04P:HDR-TH_4P-P2.54-V-M"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "6c9cc9d1-966b-4440-b1ca-25583a7a84a5")
+	(property "Reference" "REF**"
+		(at 0 -4)
+		(layer "F.SilkS")
+		(uuid "f39ee406-7acb-4f82-af01-f97c32378eba")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "HDR-TH_4P-P2.54-V-M"
+		(at 0 4)
+		(layer "F.Fab")
+		(uuid "72e69361-ac1f-427a-b747-2bfe2093e011")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_circle
+		(center -5.08 1.25)
+		(end -5.05 1.25)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "d7e14e30-2da5-4a0e-a858-463c4fce89ab")
+	)
+	(fp_line
+		(start -2.52 -1.27)
+		(end 5.08 -1.27)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "70dafbf9-2010-4b1a-8de7-3c09cc2420c7")
+	)
+	(fp_line
+		(start 5.08 -1.27)
+		(end 5.08 1.27)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "cf94cd3b-503b-460c-bb52-c3f86df28651")
+	)
+	(fp_line
+		(start 5.08 1.27)
+		(end -5.08 1.27)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "3a6be63e-9de5-4e4f-ab0b-a1f5fccb738c")
+	)
+	(fp_line
+		(start -5.08 1.27)
+		(end -5.08 -1.27)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "7550c6fe-d487-460c-838b-5f727d72db14")
+	)
+	(fp_line
+		(start -5.08 -1.27)
+		(end -2.52 -1.27)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "f3f783bd-ef9b-4956-be91-d7b30c403dbc")
+	)
+	(fp_line
+		(start -2.52 -1.27)
+		(end -2.52 1.27)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "c2111f7a-cf27-4869-8b4d-e8b427672605")
+	)
+	(fp_text user "%R"
+		(at 0 0)
+		(layer "F.Fab")
+		(uuid "e872088c-455e-47a6-b241-cea638360050")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole rect
+		(at -3.81 0 0)
+		(size 1.7 1.7)
+		(drill 1.1000232)
+		(layers "*.Cu" "*.Mask")
+		(uuid "c43aa3a3-d30c-4885-83d8-93a75f3f9778")
+	)
+	(pad "2" thru_hole circle
+		(at -1.27 0 0)
+		(size 1.7 1.7)
+		(drill 1.1000232)
+		(layers "*.Cu" "*.Mask")
+		(uuid "df179395-c092-49f2-aec1-469c69998191")
+	)
+	(pad "3" thru_hole circle
+		(at 1.27 0 0)
+		(size 1.7 1.7)
+		(drill 1.1000232)
+		(layers "*.Cu" "*.Mask")
+		(uuid "0ca09d39-ea23-45bb-8370-efd6efa73c26")
+	)
+	(pad "4" thru_hole circle
+		(at 3.81 0 0)
+		(size 1.7 1.7)
+		(drill 1.1000232)
+		(layers "*.Cu" "*.Mask")
+		(uuid "b94537d4-40b0-4019-be02-ad95a764ad2f")
+	)
+	(model "${KIPRJMOD}/../../parts/XFCN_PZ254V_11_04P/HDR-TH_4P-P2.54-M-LI-1X4P.step"
+		(offset
+			(xyz 0 -0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

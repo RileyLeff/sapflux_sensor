@@ -73,9 +73,10 @@ module SapFluxAdapter:
 
     # === Subsystem instances ===
 
-    # Connectors (J1 power, J2 60-pin, J3 heater, J4 aux, J5 RS-485)
+    # Connectors (J1 power, J2 60-pin, J3 heater, J4 aux, J5 RS-485, J6 SWD)
     connectors = new Connectors
     power_24v_raw ~ connectors.power_24v
+    power_3v3 ~ connectors.power_3v3
 
     # Input protection (TVS shunt, passthrough)
     input_protection = new InputProtection
@@ -264,6 +265,10 @@ module SapFluxAdapter:
     # === Spare GPIOs to auxiliary header (J4) ===
     mcu.package.PA6 ~ connectors.gpio_pa6
     mcu.package.PA7 ~ connectors.gpio_pa7
+
+    # === SWD programming header (J6) ===
+    mcu.package.PA13 ~ connectors.swdio
+    mcu.package.PA14_BOOT0 ~ connectors.swclk
 
     # === LED wiring ===
     # MCU sinks current (GPIOs drive low to turn on)

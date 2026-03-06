@@ -1,0 +1,22 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XFCN_PZ254V_11_04P_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2691448", date="2026-03-05T19:59:43.485730+00:00", checksum="4568dd3af5b16f84147aec26ced476e1a1735e41db667e86753ad869a14b2eda">
+
+    trait is_atomic_part<manufacturer="XFCN", partnumber="PZ254V-11-04P", footprint="HDR-TH_4P-P2.54-V-M.kicad_mod", symbol="PZ254V-11-04P_C2691448.kicad_sym", model="HDR-TH_4P-P2.54-M-LI-1X4P.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2691448", manufacturer="XFCN", partno="PZ254V-11-04P">
+    trait has_designator_prefix<prefix="J">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2409302232_XFCN-PZ254V-11-04P_C2691448.pdf">
+
+    # pins (1x4 pin header, 2.54mm pitch)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+    signal p3 ~ pin 3
+    signal p4 ~ pin 4

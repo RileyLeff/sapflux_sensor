@@ -605,14 +605,14 @@ module ADCFrontEnd:
     prot_2 ~ c_2.p1
     c_2.p2 ~ power.lv
     prot_2 ~ mux_a.Y1
-    # Ch 3: TVS1.ESD3
-    therm_3 ~ tvs_1.ESD3
+    # Ch 3: TVS1.ESD4 (pin 3, near CN2 pin 5)
+    therm_3 ~ tvs_1.ESD4
     therm_3 ~> r_3 ~> prot_3
     prot_3 ~ c_3.p1
     c_3.p2 ~ power.lv
     prot_3 ~ mux_a.Y2
-    # Ch 4: TVS1.ESD4
-    therm_4 ~ tvs_1.ESD4
+    # Ch 4: TVS1.ESD3 (pin 1, near CN2 pin 6)
+    therm_4 ~ tvs_1.ESD3
     therm_4 ~> r_4 ~> prot_4
     prot_4 ~ c_4.p1
     c_4.p2 ~ power.lv

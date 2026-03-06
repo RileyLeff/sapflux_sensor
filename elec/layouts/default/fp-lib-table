@@ -392,4 +392,11 @@
 		(options "")
 		(descr "atopile: part lib: Cixi_Kefa_Elec_KF2EDGV_3_5_3P")
 	)
+	(lib
+		(name "XFCN_PZ254V_11_04P")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/XFCN_PZ254V_11_04P")
+		(options "")
+		(descr "atopile: part lib: XFCN_PZ254V_11_04P")
+	)
 )
