@@ -629,14 +629,14 @@ module ADCFrontEnd:
     prot_6 ~ c_6.p1
     c_6.p2 ~ power.lv
     prot_6 ~ mux_a.Y5
-    # Ch 7: TVS2.ESD3
-    therm_7 ~ tvs_2.ESD3
+    # Ch 7: TVS2.ESD4 (pin 3, routing swap)
+    therm_7 ~ tvs_2.ESD4
     therm_7 ~> r_7 ~> prot_7
     prot_7 ~ c_7.p1
     c_7.p2 ~ power.lv
     prot_7 ~ mux_a.Y6
-    # Ch 8: TVS2.ESD4
-    therm_8 ~ tvs_2.ESD4
+    # Ch 8: TVS2.ESD3 (pin 1, routing swap)
+    therm_8 ~ tvs_2.ESD3
     therm_8 ~> r_8 ~> prot_8
     prot_8 ~ c_8.p1
     c_8.p2 ~ power.lv
@@ -653,14 +653,14 @@ module ADCFrontEnd:
     prot_10 ~ c_10.p1
     c_10.p2 ~ power.lv
     prot_10 ~ mux_a.Y9
-    # Ch 11: TVS3.ESD3
-    therm_11 ~ tvs_3.ESD3
+    # Ch 11: TVS3.ESD4 (pin 3, routing swap)
+    therm_11 ~ tvs_3.ESD4
     therm_11 ~> r_11 ~> prot_11
     prot_11 ~ c_11.p1
     c_11.p2 ~ power.lv
     prot_11 ~ mux_a.Y10
-    # Ch 12: TVS3.ESD4
-    therm_12 ~ tvs_3.ESD4
+    # Ch 12: TVS3.ESD3 (pin 1, routing swap)
+    therm_12 ~ tvs_3.ESD3
     therm_12 ~> r_12 ~> prot_12
     prot_12 ~ c_12.p1
     c_12.p2 ~ power.lv
@@ -677,14 +677,14 @@ module ADCFrontEnd:
     prot_14 ~ c_14.p1
     c_14.p2 ~ power.lv
     prot_14 ~ mux_a.Y13
-    # Ch 15: TVS4.ESD3
-    therm_15 ~ tvs_4.ESD3
+    # Ch 15: TVS4.ESD4 (pin 3, routing swap)
+    therm_15 ~ tvs_4.ESD4
     therm_15 ~> r_15 ~> prot_15
     prot_15 ~ c_15.p1
     c_15.p2 ~ power.lv
     prot_15 ~ mux_a.Y14
-    # Ch 16: TVS4.ESD4
-    therm_16 ~ tvs_4.ESD4
+    # Ch 16: TVS4.ESD3 (pin 1, routing swap)
+    therm_16 ~ tvs_4.ESD3
     therm_16 ~> r_16 ~> prot_16
     prot_16 ~ c_16.p1
     c_16.p2 ~ power.lv
@@ -703,12 +703,12 @@ module ADCFrontEnd:
     prot_18 ~ c_18.p1
     c_18.p2 ~ power.lv
     prot_18 ~ mux_b.Y1
-    therm_19 ~ tvs_5.ESD3
+    therm_19 ~ tvs_5.ESD4  # pin 3, routing swap
     therm_19 ~> r_19 ~> prot_19
     prot_19 ~ c_19.p1
     c_19.p2 ~ power.lv
     prot_19 ~ mux_b.Y2
-    therm_20 ~ tvs_5.ESD4
+    therm_20 ~ tvs_5.ESD3  # pin 1, routing swap
     therm_20 ~> r_20 ~> prot_20
     prot_20 ~ c_20.p1
     c_20.p2 ~ power.lv
@@ -723,12 +723,12 @@ module ADCFrontEnd:
     prot_22 ~ c_22.p1
     c_22.p2 ~ power.lv
     prot_22 ~ mux_b.Y5
-    therm_23 ~ tvs_6.ESD3
+    therm_23 ~ tvs_6.ESD4  # pin 3, routing swap
     therm_23 ~> r_23 ~> prot_23
     prot_23 ~ c_23.p1
     c_23.p2 ~ power.lv
     prot_23 ~ mux_b.Y6
-    therm_24 ~ tvs_6.ESD4
+    therm_24 ~ tvs_6.ESD3  # pin 1, routing swap
     therm_24 ~> r_24 ~> prot_24
     prot_24 ~ c_24.p1
     c_24.p2 ~ power.lv
@@ -743,12 +743,12 @@ module ADCFrontEnd:
     prot_26 ~ c_26.p1
     c_26.p2 ~ power.lv
     prot_26 ~ mux_b.Y9
-    therm_27 ~ tvs_7.ESD3
+    therm_27 ~ tvs_7.ESD4  # pin 3, routing swap
     therm_27 ~> r_27 ~> prot_27
     prot_27 ~ c_27.p1
     c_27.p2 ~ power.lv
     prot_27 ~ mux_b.Y10
-    therm_28 ~ tvs_7.ESD4
+    therm_28 ~ tvs_7.ESD3  # pin 1, routing swap
     therm_28 ~> r_28 ~> prot_28
     prot_28 ~ c_28.p1
     c_28.p2 ~ power.lv
@@ -763,12 +763,12 @@ module ADCFrontEnd:
     prot_30 ~ c_30.p1
     c_30.p2 ~ power.lv
     prot_30 ~ mux_b.Y13
-    therm_31 ~ tvs_8.ESD3
+    therm_31 ~ tvs_8.ESD4  # pin 3, routing swap
     therm_31 ~> r_31 ~> prot_31
     prot_31 ~ c_31.p1
     c_31.p2 ~ power.lv
     prot_31 ~ mux_b.Y14
-    therm_32 ~ tvs_8.ESD4
+    therm_32 ~ tvs_8.ESD3  # pin 1, routing swap
     therm_32 ~> r_32 ~> prot_32
     prot_32 ~ c_32.p1
     c_32.p2 ~ power.lv
@@ -787,12 +787,12 @@ module ADCFrontEnd:
     prot_34 ~ c_34.p1
     c_34.p2 ~ power.lv
     prot_34 ~ mux_c.Y1
-    therm_35 ~ tvs_9.ESD3
+    therm_35 ~ tvs_9.ESD4  # pin 3, routing swap
     therm_35 ~> r_35 ~> prot_35
     prot_35 ~ c_35.p1
     c_35.p2 ~ power.lv
     prot_35 ~ mux_c.Y2
-    therm_36 ~ tvs_9.ESD4
+    therm_36 ~ tvs_9.ESD3  # pin 1, routing swap
     therm_36 ~> r_36 ~> prot_36
     prot_36 ~ c_36.p1
     c_36.p2 ~ power.lv
@@ -807,12 +807,12 @@ module ADCFrontEnd:
     prot_38 ~ c_38.p1
     c_38.p2 ~ power.lv
     prot_38 ~ mux_c.Y5
-    therm_39 ~ tvs_10.ESD3
+    therm_39 ~ tvs_10.ESD4  # pin 3, routing swap
     therm_39 ~> r_39 ~> prot_39
     prot_39 ~ c_39.p1
     c_39.p2 ~ power.lv
     prot_39 ~ mux_c.Y6
-    therm_40 ~ tvs_10.ESD4
+    therm_40 ~ tvs_10.ESD3  # pin 1, routing swap
     therm_40 ~> r_40 ~> prot_40
     prot_40 ~ c_40.p1
     c_40.p2 ~ power.lv
@@ -827,12 +827,12 @@ module ADCFrontEnd:
     prot_42 ~ c_42.p1
     c_42.p2 ~ power.lv
     prot_42 ~ mux_c.Y9
-    therm_43 ~ tvs_11.ESD3
+    therm_43 ~ tvs_11.ESD4  # pin 3, routing swap
     therm_43 ~> r_43 ~> prot_43
     prot_43 ~ c_43.p1
     c_43.p2 ~ power.lv
     prot_43 ~ mux_c.Y10
-    therm_44 ~ tvs_11.ESD4
+    therm_44 ~ tvs_11.ESD3  # pin 1, routing swap
     therm_44 ~> r_44 ~> prot_44
     prot_44 ~ c_44.p1
     c_44.p2 ~ power.lv
@@ -847,12 +847,12 @@ module ADCFrontEnd:
     prot_46 ~ c_46.p1
     c_46.p2 ~ power.lv
     prot_46 ~ mux_c.Y13
-    therm_47 ~ tvs_12.ESD3
+    therm_47 ~ tvs_12.ESD4  # pin 3, routing swap
     therm_47 ~> r_47 ~> prot_47
     prot_47 ~ c_47.p1
     c_47.p2 ~ power.lv
     prot_47 ~ mux_c.Y14
-    therm_48 ~ tvs_12.ESD4
+    therm_48 ~ tvs_12.ESD3  # pin 1, routing swap
     therm_48 ~> r_48 ~> prot_48
     prot_48 ~ c_48.p1
     c_48.p2 ~ power.lv
