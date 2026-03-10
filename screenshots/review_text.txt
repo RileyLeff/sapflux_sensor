@@ -1,0 +1,3723 @@
+--- FILE: elec/adc.ato ---
+"""
+ADC front-end: 2x ADS1115 + input protection + excitation filter.
+
+Signal path per thermistor channel:
+  J2 pin → [TVS ESD pin] → R_AIN (1k) → [C_AIN 100nF to GND] → ADC AIN pin
+
+Excitation path:
+  MCU GPIO → R_EXC (560 ohm) → filtered_exc → C_EXC (1uF to GND)
+                                      |→ J2 pin 4 (excitation to sensor)
+                                      |→ R_AIN_EXC (1k) → [TVS + C_AIN_EXC] → ADC1 AIN3
+
+TVS arrays (PRTR5V0U4D):
+  D_J2A: excitation sense + thermistors 1-3 (4 channels)
+  D_J2B: thermistors 4-6 + unused ESD4 (tied to GND)
+
+ADC1 (0x48): AIN0-AIN2 = thermistors 1-3, AIN3 = excitation sense
+ADC2 (0x49): AIN0-AIN2 = thermistors 4-6, AIN3 = unused
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "atopile/ti-ads1115/ti-ads1115.ato" import TI_ADS1115
+from "parts/TECH_PUBLIC_PRTR5V0U4D_TP/TECH_PUBLIC_PRTR5V0U4D_TP.ato" import TECH_PUBLIC_PRTR5V0U4D_TP_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module ADCFrontEnd:
+    """
+    2x ADS1115 16-bit ADCs with 7-channel input protection (RC filters + TVS)
+    and excitation filter for thermistor measurement.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply for ADCs and TVS arrays."""
+
+    sda = new Electrical
+    """I2C SDA line (shared bus, wired in top-level)."""
+
+    scl = new Electrical
+    """I2C SCL line (shared bus, wired in top-level)."""
+
+    excitation_gpio = new Electrical
+    """MCU GPIO output driving thermistor excitation."""
+
+    excitation_out = new Electrical
+    """Filtered excitation to J2 connector (sensor cable)."""
+
+    thermistor_1 = new Electrical
+    thermistor_2 = new Electrical
+    thermistor_3 = new Electrical
+    thermistor_4 = new Electrical
+    thermistor_5 = new Electrical
+    thermistor_6 = new Electrical
+
+    alert1 = new Electrical
+    """ADC1 ALERT/DRDY output to MCU."""
+
+    alert2 = new Electrical
+    """ADC2 ALERT/DRDY output to MCU."""
+
+    # --- ADC instances (registry package includes decoupling + I2C pull-ups + ALERT pull-up) ---
+    adc1 = new TI_ADS1115
+    adc2 = new TI_ADS1115
+
+    # Power
+    power ~ adc1.power
+    power ~ adc2.power
+
+    # I2C (direct line connections, avoid interface-level merging issues)
+    sda ~ adc1.i2c.sda.line
+    sda ~ adc2.i2c.sda.line
+    scl ~ adc1.i2c.scl.line
+    scl ~ adc2.i2c.scl.line
+
+    # Addresses: ADC1 = 0x48 (default), ADC2 = 0x49
+    # Addressor handles ADDR pin wiring internally
+    adc2.addressor.address = 0x49
+
+    # Tie unused ADC2 AIN3 to GND (prevents floating input from coupling noise)
+    adc2.inputs[3].line ~ power.lv
+
+    # ALERT/DRDY
+    alert1 ~ adc1.alert_ready.line
+    alert2 ~ adc2.alert_ready.line
+
+    # --- Excitation filter (R_EXC + C_EXC) ---
+    r_exc = new Resistor
+    r_exc.resistance = 560ohm +/- 1%
+    r_exc.package = "0603"
+
+    c_exc = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1uF 50V. RC = 560 ohm x 1uF = 560us, fc = 284Hz."""
+
+    filtered_exc = new Electrical
+
+    excitation_gpio ~> r_exc ~> filtered_exc
+    filtered_exc ~ c_exc.p1
+    c_exc.p2 ~ power.lv
+    filtered_exc ~ excitation_out
+
+    # --- TVS arrays ---
+    d_j2a = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+    d_j2b = new TECH_PUBLIC_PRTR5V0U4D_TP_package
+
+    d_j2a.VCC ~ power.hv
+    d_j2a.GND ~ power.lv
+    d_j2b.VCC ~ power.hv
+    d_j2b.GND ~ power.lv
+    d_j2b.ESD4 ~ power.lv
+
+    # Local decoupling for TVS arrays (absorbs ESD dump current, prevents 3.3V rail bounce)
+    c_esd_a = new YAGEO_CC0603KRX7R9BB104_package
+    c_esd_b = new YAGEO_CC0603KRX7R9BB104_package
+    c_esd_a.p1 ~ power.hv
+    c_esd_a.p2 ~ power.lv
+    c_esd_b.p1 ~ power.hv
+    c_esd_b.p2 ~ power.lv
+
+    # --- Input protection: 7 channels (1k series R + 100nF shunt C each) ---
+
+    # Series resistors (auto-pick 1k 0603)
+    r_ain1 = new Resistor
+    r_ain1.resistance = 1kohm +/- 1%
+    r_ain1.package = "0603"
+    r_ain2 = new Resistor
+    r_ain2.resistance = 1kohm +/- 1%
+    r_ain2.package = "0603"
+    r_ain3 = new Resistor
+    r_ain3.resistance = 1kohm +/- 1%
+    r_ain3.package = "0603"
+    r_ain4 = new Resistor
+    r_ain4.resistance = 1kohm +/- 1%
+    r_ain4.package = "0603"
+    r_ain5 = new Resistor
+    r_ain5.resistance = 1kohm +/- 1%
+    r_ain5.package = "0603"
+    r_ain6 = new Resistor
+    r_ain6.resistance = 1kohm +/- 1%
+    r_ain6.package = "0603"
+    r_ain_exc = new Resistor
+    r_ain_exc.resistance = 1kohm +/- 1%
+    r_ain_exc.package = "0603"
+
+    # Filter caps (100nF 50V explicit for voltage rating)
+    c_ain1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain4 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain5 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain6 = new YAGEO_CC0603KRX7R9BB104_package
+    c_ain_exc = new YAGEO_CC0603KRX7R9BB104_package
+
+    # Protected nodes (after series R, at TVS/cap/ADC junction)
+    prot_1 = new Electrical
+    prot_2 = new Electrical
+    prot_3 = new Electrical
+    prot_4 = new Electrical
+    prot_5 = new Electrical
+    prot_6 = new Electrical
+    prot_exc = new Electrical
+
+    # === Ch1: thermistor_1 → ADC1 AIN0, TVS D_J2A.ESD2 ===
+    thermistor_1 ~ d_j2a.ESD2
+    thermistor_1 ~> r_ain1 ~> prot_1
+    prot_1 ~ c_ain1.p1
+    c_ain1.p2 ~ power.lv
+    prot_1 ~ adc1.inputs[0].line
+
+    # === Ch2: thermistor_2 → ADC1 AIN1, TVS D_J2A.ESD3 ===
+    thermistor_2 ~ d_j2a.ESD3
+    thermistor_2 ~> r_ain2 ~> prot_2
+    prot_2 ~ c_ain2.p1
+    c_ain2.p2 ~ power.lv
+    prot_2 ~ adc1.inputs[1].line
+
+    # === Ch3: thermistor_3 → ADC1 AIN2, TVS D_J2A.ESD4 ===
+    thermistor_3 ~ d_j2a.ESD4
+    thermistor_3 ~> r_ain3 ~> prot_3
+    prot_3 ~ c_ain3.p1
+    c_ain3.p2 ~ power.lv
+    prot_3 ~ adc1.inputs[2].line
+
+    # === Ch4: thermistor_4 → ADC2 AIN0, TVS D_J2B.ESD1 ===
+    thermistor_4 ~ d_j2b.ESD1
+    thermistor_4 ~> r_ain4 ~> prot_4
+    prot_4 ~ c_ain4.p1
+    c_ain4.p2 ~ power.lv
+    prot_4 ~ adc2.inputs[0].line
+
+    # === Ch5: thermistor_5 → ADC2 AIN1, TVS D_J2B.ESD2 ===
+    thermistor_5 ~ d_j2b.ESD2
+    thermistor_5 ~> r_ain5 ~> prot_5
+    prot_5 ~ c_ain5.p1
+    c_ain5.p2 ~ power.lv
+    prot_5 ~ adc2.inputs[1].line
+
+    # === Ch6: thermistor_6 → ADC2 AIN2, TVS D_J2B.ESD3 ===
+    thermistor_6 ~ d_j2b.ESD3
+    thermistor_6 ~> r_ain6 ~> prot_6
+    prot_6 ~ c_ain6.p1
+    c_ain6.p2 ~ power.lv
+    prot_6 ~ adc2.inputs[2].line
+
+    # === Excitation sense → ADC1 AIN3, TVS D_J2A.ESD1 ===
+    filtered_exc ~ d_j2a.ESD1
+    filtered_exc ~> r_ain_exc ~> prot_exc
+    prot_exc ~ c_ain_exc.p1
+    c_ain_exc.p2 ~ power.lv
+    prot_exc ~ adc1.inputs[3].line
+
+--- FILE: elec/ato.yaml ---
+requires-atopile: ^0.14.0
+
+paths:
+  src: ./
+  layout: ./layouts
+
+builds:
+  default:
+    entry: main.ato:SapFluxAdapter
+dependencies:
+- type: registry
+  identifier: atopile/ti-ads1115
+  release: 0.2.0
+- type: registry
+  identifier: atopile/maxlinear-sp3485
+  release: 0.2.0
+- type: registry
+  identifier: atopile/microchip-24lc32
+  release: 0.3.0
+
+--- FILE: elec/buck.ato ---
+"""
+LM5165Y buck converter: 24V protected input to 3.3V output.
+
+PFM mode (RT shorted to GND) for 10.5uA quiescent current.
+RILIM = 56k for 120mA peak / 50mA max PFM output.
+Design follows TI Design 2 (Section 8.2.2, Figure 50).
+
+Topology:
+  VIN (24V) --+-- C1 (4.7uF 50V) --+-- GND
+              |                      |
+              +-- C_VIN (100nF 50V) -+
+              |
+           U_BUCK.VIN
+              |
+           U_BUCK.SW --- L1 (68uH) --- VOUT (3.3V)
+              |                           |
+           U_BUCK.VOUT --+-- C2 (22uF) --+-- GND
+                         |
+                         +-- C6 (1uF 50V) --- GND
+
+  RT -> GND (PFM mode)
+  EN -> VIN (always on, internal UVLO at 2.9V)
+  ILIM -> R_ILIM (56k) -> GND
+  SS -> open, HYS -> open
+  EP -> GND
+  PGOOD -> MCU (open-drain, needs external pull-up)
+
+Note: LM5165 VSON-10 has internal bootstrap — no external BST cap needed.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import ElectricLogic
+
+from "parts/Texas_Instruments_LM5165YDRCR/Texas_Instruments_LM5165YDRCR.ato" import Texas_Instruments_LM5165YDRCR_package
+from "parts/XR_XRNR4018_68uH_M/XR_XRNR4018_68uH_M.ato" import XR_XRNR4018_68uH_M_package
+from "parts/FH_1206B475K500NT/FH_1206B475K500NT.ato" import FH_1206B475K500NT_package
+from "parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato" import TDK_C2012X5R1A226KT000N_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module BuckConverter:
+    """
+    LM5165Y synchronous buck: 24V -> 3.3V, PFM mode, 10.5uA Iq.
+    150mA max output, 120mA peak current limit (RILIM=56k).
+    """
+
+    # --- External interfaces ---
+    power_in = new ElectricPower
+    """24V protected input rail."""
+
+    power_out = new ElectricPower
+    """3.3V regulated output rail."""
+
+    pgood = new ElectricLogic
+    """
+    Power-good output (open-drain). Goes high when 3.3V is in regulation.
+    Needs external 10k pull-up to 3.3V (in MCU module).
+    """
+
+    # --- IC ---
+    u_buck = new Texas_Instruments_LM5165YDRCR_package
+
+    # --- Inductor ---
+    l1 = new XR_XRNR4018_68uH_M_package
+    """68uH, 470mA Isat, 1 ohm DCR, 4x4mm shielded."""
+
+    # --- Input capacitors (24V rail, need 50V rating) ---
+    c1 = new FH_1206B475K500NT_package
+    """4.7uF 50V X7R, 1206. Bulk input energy reservoir."""
+
+    c_vin = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF 50V, 0603. HF decoupling tight to VIN/GND pins."""
+
+    # --- Output capacitors ---
+    c2 = new TDK_C2012X5R1A226KT000N_package
+    """22uF 10V X5R, 0805. Output ripple smoothing."""
+
+    c6 = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1uF 50V X5R, 0603. Internal VCC LDO decoupling on VOUT."""
+
+    # --- Current limit resistor ---
+    r_ilim = new Resistor
+    r_ilim.resistance = 56kohm +/- 1%
+    r_ilim.package = "0603"
+
+    # === Power connections ===
+
+    # VIN rail
+    power_in.hv ~ u_buck.VIN
+    power_in.hv ~ c1.p1
+    power_in.hv ~ c_vin.p1
+
+    # Input caps to GND
+    c1.p2 ~ power_in.lv
+    c_vin.p2 ~ power_in.lv
+
+    # GND connections
+    power_in.lv ~ u_buck.GND
+    power_in.lv ~ u_buck.EP
+    power_in.lv ~ power_out.lv
+
+    # === Control pin connections ===
+
+    # EN -> VIN (always on; internal UVLO at 2.9V handles startup)
+    u_buck.EN ~ power_in.hv
+
+    # RT -> GND (PFM mode, no timing resistor)
+    u_buck.RT ~ power_in.lv
+
+    # ILIM -> 56k -> GND (120mA peak current limit)
+    u_buck.ILIM ~> r_ilim ~> power_in.lv
+
+    # SS -> open (internal 900us soft-start) — no connection needed
+    # HYS -> open — no connection needed
+
+    # === Output path ===
+
+    # SW -> L1 -> VOUT
+    u_buck.SW ~ l1.p1
+    l1.p2 ~ u_buck.VOUT
+
+    # VOUT rail
+    u_buck.VOUT ~ power_out.hv
+    u_buck.VOUT ~ c2.p1
+    u_buck.VOUT ~ c6.p1
+
+    # Output caps to GND
+    c2.p2 ~ power_out.lv
+    c6.p2 ~ power_out.lv
+
+    # === PGOOD output ===
+    u_buck.PGOOD ~ pgood.line
+    pgood.reference ~ power_out
+
+--- FILE: elec/connectors.ato ---
+"""
+Connectors: M8 upstream (J1) + 10-pin sensor header (J2) + shield cap.
+
+J1 (M8 4-pin A-coded):
+  Pin 1: 24V power input
+  Pin 2: RS-485 A (+)
+  Pin 3: GND
+  Pin 4: RS-485 B (-)
+  Shell: C5 (100nF) to GND
+
+J2 (KF2EDGV 10-pin 3.5mm):
+  Pin 1-2: Heater A/B (24V, non-polar)
+  Pin 3: Ground
+  Pin 4: Excitation (filtered 3.3V)
+  Pin 5-10: Data 1-6 (thermistors)
+"""
+
+import ElectricPower
+import Electrical
+
+from "parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato" import CAZN_M8_P4A_GPL_M8_JD_package
+from "parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato" import Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module Connectors:
+    """M8 upstream connector, 10-pin sensor header, and shield cap."""
+
+    # --- External interfaces ---
+    power_24v = new ElectricPower
+    """24V raw power from M8 connector."""
+
+    rs485_a = new Electrical
+    """RS-485 A line."""
+
+    rs485_b = new Electrical
+    """RS-485 B line."""
+
+    heater_hi = new Electrical
+    """Heater positive terminal."""
+
+    heater_lo = new Electrical
+    """Heater negative terminal."""
+
+    excitation = new Electrical
+    """Filtered excitation output to sensor."""
+
+    thermistor_1 = new Electrical
+    thermistor_2 = new Electrical
+    thermistor_3 = new Electrical
+    thermistor_4 = new Electrical
+    thermistor_5 = new Electrical
+    thermistor_6 = new Electrical
+
+    # --- J1: M8 upstream connector ---
+    j1 = new CAZN_M8_P4A_GPL_M8_JD_package
+
+    j1.V24 ~ power_24v.hv
+    j1.GND ~ power_24v.lv
+    j1.RS485_A ~ rs485_a
+    j1.RS485_B ~ rs485_b
+
+    # Shield cap (100nF, blocks ground loop DC, passes HF EMI)
+    signal M8_SHIELD ~ j1.SHELL1
+    c5 = new YAGEO_CC0603KRX7R9BB104_package
+    M8_SHIELD ~ c5.p1
+    c5.p2 ~ power_24v.lv
+    j1.SHELL2 ~ M8_SHIELD
+
+    # --- J2: 10-pin sensor header ---
+    j2 = new Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package
+
+    j2.HEATER_A ~ heater_hi
+    j2.HEATER_B ~ heater_lo
+    j2.GND ~ power_24v.lv
+    j2.EXCITATION ~ excitation
+    j2.DATA1 ~ thermistor_1
+    j2.DATA2 ~ thermistor_2
+    j2.DATA3 ~ thermistor_3
+    j2.DATA4 ~ thermistor_4
+    j2.DATA5 ~ thermistor_5
+    j2.DATA6 ~ thermistor_6
+
+--- FILE: elec/heater.ato ---
+"""
+Heater driver + TPL5010 watchdog + SCR latch safety circuit.
+
+Q1 (XCHS3N12 N-FET) switches 24V heater current. TPL5010 external watchdog
+provides MCU-independent kill via PNP/NPN SCR latch. D_ISO isolates latch
+from NRST so MCU can still boot and report fault.
+
+PGOOD-gated arming: Q_ARM (N-FET in R_FB path) prevents the latch from
+self-sustaining until RC-delayed PGOOD charges arm_node above Vgs(th).
+This prevents the TPL5010 power-on reset (~60ms) from permanently
+triggering the latch at every boot. Arming delay ≥361ms (3.6× margin).
+
+Gate-kill circuit:
+  MCU timer → R_GATE (1k) → gate_node → R4 (10k) → GND
+                                  ↑
+                             Q_WD drain
+                             Q_WD source → GND
+                             Q_WD gate ← Q2_INV collector → R_FB (100k) → Q_ARM → Q_LATCH base
+                                            ↑                               ↑          ↑
+                                      R_WD_PD (10k) → GND           arm_node    R_LATCH_PD (1M) → GND
+                                      Q2_INV emitter → 3.3V            ↑        Q_LATCH emitter → GND
+                                      Q2_INV base ← R_BASE (10k) ← D_ISO ← RSTn
+                                            ↑  ↑          (anode)   (cathode)    ↑
+                                            |  R_PNP_BASE (100k) → 3.3V
+                                      Q_LATCH collector          R_WD_PU (100k) → 3.3V
+
+Latch arm circuit:
+  PGOOD → R_ARM (1M) → arm_node → C_ARM (1uF) → GND
+                           ↑
+                      Q_ARM gate
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/XCH_XCHS3N12/XCH_XCHS3N12.ato" import XCH_XCHS3N12_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+from "parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato" import Texas_Instruments_TPL5010DDCR_package
+from "parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato" import Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
+from "parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato" import Changjiang_Electronics_Tech_2N7002_package
+from "parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4148WS.ato" import Changjiang_Electronics_Tech_1N4148WS_package
+from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato" import Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
+from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+module HeaterDriver:
+    """
+    24V heater driver with 4-layer safety: hardware timer, IWDG, external
+    watchdog (TPL5010), and thermistor interlock. SCR latch provides
+    permanent lockout on watchdog fault.
+    """
+
+    # --- External interfaces ---
+    power_24v = new ElectricPower
+    """24V protected rail (heater power + bulk cap)."""
+
+    power_3v3 = new ElectricPower
+    """3.3V rail (watchdog, PNP emitter, pull-ups)."""
+
+    heater_hi = new Electrical
+    """Heater positive terminal (from J2, connects to 24V)."""
+
+    heater_lo = new Electrical
+    """Heater negative terminal (from J2, connects to Q1 drain)."""
+
+    gate_drive = new Electrical
+    """MCU timer output (into R_GATE)."""
+
+    wake = new Electrical
+    """TPL5010 WAKE output → MCU EXTI input."""
+
+    done = new Electrical
+    """TPL5010 DONE input ← MCU GPIO output."""
+
+    rstn = new Electrical
+    """TPL5010 RSTn node. Also connects to MCU NRST (wired in top-level)."""
+
+    pgood = new Electrical
+    """PGOOD signal from buck converter. Gates latch arming via RC delay."""
+
+    # --- Power FET and flyback ---
+    q1 = new XCH_XCHS3N12_package
+    """120V/3A N-FET heater switch."""
+
+    d4 = new MDD_Microdiode_Electronics_SS36_package
+    """60V/3A flyback Schottky across heater."""
+
+    # --- Bulk decoupling on 24V ---
+    c4 = new Honor_Elec_VP1H101M0607_package
+    """100uF 50V electrolytic. Absorbs heater switching transients."""
+
+    # --- TPL5010 watchdog ---
+    u_wdt = new Texas_Instruments_TPL5010DDCR_package
+
+    c_wd = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF bypass on TPL5010 VDD."""
+
+    r_delay = new Resistor
+    r_delay.resistance = 11kohm +/- 1%
+    r_delay.package = "0603"
+
+    # --- Gate control resistors ---
+    r_gate = new Resistor
+    r_gate.resistance = 1kohm +/- 1%
+    r_gate.package = "0603"
+
+    r4 = new Resistor
+    r4.resistance = 10kohm +/- 1%
+    r4.package = "0603"
+
+    # --- SCR latch components ---
+    q2_inv = new Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
+    """PNP inverter. Inverts RSTn to drive gate clamp."""
+
+    q_wd = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET gate clamp. Pulls Q1 gate to GND on fault."""
+
+    q_latch = new Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package
+    """NPN latch. Cross-coupled with Q2_INV for permanent lockout."""
+
+    d_iso = new Changjiang_Electronics_Tech_1N4148WS_package
+    """Isolation diode. Prevents latch from holding MCU in reset."""
+
+    r_base = new Resistor
+    r_base.resistance = 10kohm +/- 1%
+    r_base.package = "0603"
+
+    r_wd_pd = new Resistor
+    r_wd_pd.resistance = 10kohm +/- 1%
+    r_wd_pd.package = "0603"
+
+    r_wd_pu = new Resistor
+    r_wd_pu.resistance = 100kohm +/- 1%
+    r_wd_pu.package = "0603"
+
+    r_fb = new Resistor
+    r_fb.resistance = 100kohm +/- 1%
+    r_fb.package = "0603"
+
+    r_latch_pd = new Resistor
+    r_latch_pd.resistance = 1Mohm +/- 1%
+    r_latch_pd.package = "0603"
+
+    r_pnp_base = new Resistor
+    r_pnp_base.resistance = 100kohm +/- 1%
+    r_pnp_base.package = "0603"
+    """PNP base-emitter pull-up. Defines OFF state when D_ISO is reverse-biased
+    and Q_LATCH is off (normal operation). Without this, the PNP base floats
+    and leakage/noise could cause spurious heater lockout. 100kΩ gives 140×
+    margin over worst-case transistor leakage at 85°C, while still allowing
+    easy latch trigger (hFE needed = 1.4 vs MMBT3904 min 100)."""
+
+    # --- PGOOD-gated latch arm circuit ---
+    q_arm = new Changjiang_Electronics_Tech_2N7002_package
+    """N-FET in R_FB path. Breaks latch feedback loop until PGOOD charges
+    arm_node above Vgs(th). Prevents TPL5010 power-on reset from triggering
+    permanent heater lockout."""
+
+    r_arm = new Resistor
+    r_arm.resistance = 1Mohm +/- 1%
+    r_arm.package = "0603"
+    """Slow-charge resistor for arm RC delay. τ = 1MΩ × 1µF = 1s.
+    Arming delay ≥361ms (Vgs(th) min) vs 100ms max TPL5010 tRST."""
+
+    c_arm = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+    """1µF arm delay cap. Holds arm_node low during power-on reset,
+    preventing latch feedback until RC charges past Q_ARM threshold."""
+
+    # --- Internal nodes ---
+    gate_node = new Electrical
+    """Q1 gate: R_GATE output, R4 top, Q_WD drain."""
+
+    pnp_coll_node = new Electrical
+    """Q2_INV collector: R_WD_PD top, Q_WD gate, R_FB input."""
+
+    pnp_base_node = new Electrical
+    """Q2_INV base: R_BASE output, Q_LATCH collector."""
+
+    d_iso_anode_node = new Electrical
+    """D_ISO anode: R_BASE input (between D_ISO and PNP base)."""
+
+    fb_out_node = new Electrical
+    """R_FB output / Q_ARM drain junction."""
+
+    latch_base_node = new Electrical
+    """Q_LATCH base: Q_ARM source, R_LATCH_PD top."""
+
+    arm_node = new Electrical
+    """PGOOD-delayed arm signal. RC charges from PGOOD through R_ARM."""
+
+    # === Heater power path ===
+
+    # 24V → heater_hi, heater_lo → Q1 → GND
+    heater_hi ~ power_24v.hv
+    heater_lo ~ q1.D
+    q1.S ~ power_24v.lv
+
+    # Flyback diode across heater (anode at Q1 drain, cathode at 24V)
+    d4.A ~ heater_lo
+    d4.K ~ heater_hi
+
+    # Bulk cap on 24V rail
+    power_24v.hv ~ c4.p1
+    c4.p2 ~ power_24v.lv
+
+    # === Gate drive path ===
+
+    # MCU timer → R_GATE → gate_node → R4 → GND
+    gate_drive ~> r_gate ~> gate_node
+    gate_node ~> r4 ~> power_24v.lv
+
+    # Q1 gate
+    gate_node ~ q1.G
+
+    # Q_WD clamps gate to GND on fault
+    q_wd.D ~ gate_node
+    q_wd.S ~ power_24v.lv
+
+    # === TPL5010 watchdog ===
+
+    u_wdt.VDD ~ power_3v3.hv
+    u_wdt.GND ~ power_3v3.lv
+
+    # Bypass cap
+    power_3v3.hv ~ c_wd.p1
+    c_wd.p2 ~ power_3v3.lv
+
+    # Timeout resistor (11k → ~9.6s period)
+    u_wdt.DELAY_M_RST ~> r_delay ~> power_3v3.lv
+
+    # MCU interface
+    u_wdt.WAKE ~ wake
+    u_wdt.DONE ~ done
+
+    # DONE pull-down: keeps DONE low when MCU is in reset/unpowered,
+    # preventing floating input from confusing TPL5010
+    r_done_pd = new Resistor
+    r_done_pd.resistance = 100kohm +/- 1%
+    r_done_pd.package = "0603"
+    done ~> r_done_pd ~> power_3v3.lv
+
+    # RSTn with pull-up
+    u_wdt.RSTn ~ rstn
+    rstn ~> r_wd_pu ~> power_3v3.hv
+
+    # === SCR latch circuit ===
+
+    # PNP inverter (Q2_INV): emitter → 3.3V, base via R_BASE/D_ISO
+    q2_inv.E ~ power_3v3.hv
+    q2_inv.B ~ pnp_base_node
+    q2_inv.C ~ pnp_coll_node
+
+    # PNP collector drives Q_WD gate + feedback (through PGOOD-gated Q_ARM)
+    pnp_coll_node ~ q_wd.G
+    pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
+    pnp_coll_node ~> r_fb ~> fb_out_node
+
+    # Q_ARM gates the feedback path: latch can't sustain until armed
+    q_arm.D ~ fb_out_node
+    q_arm.S ~ latch_base_node
+    q_arm.G ~ arm_node
+
+    # D_ISO: cathode at RSTn, anode → R_BASE → PNP base
+    d_iso.K ~ rstn
+    d_iso.A ~ d_iso_anode_node
+    d_iso_anode_node ~> r_base ~> pnp_base_node
+
+    # NPN latch (Q_LATCH): collector → PNP base node, emitter → GND
+    q_latch.C ~ pnp_base_node
+    q_latch.E ~ power_3v3.lv
+    q_latch.B ~ latch_base_node
+
+    # PNP base-emitter pull-up (defines OFF state in normal operation)
+    pnp_base_node ~> r_pnp_base ~> power_3v3.hv
+
+    # === PGOOD-gated latch arm ===
+
+    # RC delay: PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
+    # τ = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max tRST.
+    # At power-on: arm_node low → Q_ARM off → R_FB disconnected → latch disabled.
+    # After ~400-800ms: arm_node charged → Q_ARM on → latch armed for real faults.
+    pgood ~> r_arm ~> arm_node
+    arm_node ~ c_arm.p1
+    c_arm.p2 ~ power_3v3.lv
+
+    # Latch base pull-down (noise immunity)
+    latch_base_node ~> r_latch_pd ~> power_3v3.lv
+
+--- FILE: elec/led.ato ---
+"""
+Status RGB LED: common-anode, MCU sinks current through resistors.
+
+  3.3V → LED anode
+  LED R cathode → R_R (680 ohm) → MCU GPIO (sink)
+  LED G cathode → R_G (200 ohm) → MCU GPIO (sink)
+  LED B cathode → R_B (220 ohm) → MCU GPIO (sink)
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/XINGLIGHT_XL_B1212RGBA_HF/XINGLIGHT_XL_B1212RGBA_HF.ato" import XINGLIGHT_XL_B1212RGBA_HF_package
+
+module StatusLED:
+    """Common-anode RGB LED with current-limiting resistors."""
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply (anode connection)."""
+
+    red = new Electrical
+    """MCU GPIO sink for red LED."""
+
+    green = new Electrical
+    """MCU GPIO sink for green LED."""
+
+    blue = new Electrical
+    """MCU GPIO sink for blue LED."""
+
+    # --- LED ---
+    led = new XINGLIGHT_XL_B1212RGBA_HF_package
+
+    # --- Current-limiting resistors ---
+    r_r = new Resistor
+    r_r.resistance = 680ohm +/- 1%
+    r_r.package = "0603"
+
+    r_g = new Resistor
+    r_g.resistance = 200ohm +/- 1%
+    r_g.package = "0603"
+
+    r_b = new Resistor
+    r_b.resistance = 220ohm +/- 1%
+    r_b.package = "0603"
+
+    # --- Wiring ---
+    # Anode to 3.3V
+    led.A ~ power.hv
+
+    # Cathodes through resistors to MCU GPIOs
+    led.R ~> r_r ~> red
+    led.G ~> r_g ~> green
+    led.B ~> r_b ~> blue
+
+--- FILE: elec/main.ato ---
+"""
+Sap Flux Sensor Adapter Board — atopile implementation.
+24V battery/solar powered, RS-485 comms, STM32G0B1 MCU,
+2x ADS1115 ADCs, heater driver with TPL5010 watchdog.
+
+Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
+wires connectors, and establishes shared buses (I2C, power rails).
+
+MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
+  PA0: RS-485 ~RE         PA8: TIM1_CH1 (heater gate)
+  PA1: RS-485 DE          PA13: SWDIO
+  PA2: USART2_TX          PA14: SWCLK / BOOT0
+  PA3: USART2_RX          PB0: ADC1 ALERT/DRDY
+  PA4: TPL5010 WAKE       PB1: ADC2 ALERT/DRDY
+  PA5: TPL5010 DONE       PB3: LED R (sink)
+  PB4: LED G (sink)       PB6: I2C1_SCL
+  PB5: LED B (sink)       PB7: I2C1_SDA
+  PC6: Excitation GPIO    PC7: PGOOD input
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import ElectricPower
+import Electrical
+import Resistor
+
+from "protection.ato" import InputProtection
+from "buck.ato" import BuckConverter
+from "mcu.ato" import MCU
+from "adc.ato" import ADCFrontEnd
+from "rs485.ato" import RS485Bus
+from "heater.ato" import HeaterDriver
+from "led.ato" import StatusLED
+from "connectors.ato" import Connectors
+from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module SapFluxAdapter:
+    """Top-level module for the sap flux sensor adapter board."""
+
+    # === Power rails ===
+    power_24v_raw = new ElectricPower
+    power_24v_protected = new ElectricPower
+    power_3v3 = new ElectricPower
+
+    # === Shared I2C bus nodes ===
+    sda = new Electrical
+    scl = new Electrical
+
+    # === Subsystem instances ===
+
+    # Connectors (J1 M8 upstream, J2 10-pin sensor)
+    connectors = new Connectors
+    power_24v_raw ~ connectors.power_24v
+
+    # Input protection (PTC + TVS + Schottky)
+    input_protection = new InputProtection
+    power_24v_raw ~ input_protection.power_in
+    input_protection.power_out ~ power_24v_protected
+
+    # Buck converter (24V -> 3.3V)
+    buck = new BuckConverter
+    power_24v_protected ~ buck.power_in
+    buck.power_out ~ power_3v3
+
+    # MCU
+    mcu = new MCU
+    power_3v3 ~ mcu.power
+
+    # ADC front-end (2x ADS1115 + input protection + excitation filter)
+    adc = new ADCFrontEnd
+    power_3v3 ~ adc.power
+
+    # RS-485 transceiver
+    rs485 = new RS485Bus
+    power_3v3 ~ rs485.power
+
+    # Heater driver + TPL5010 watchdog + SCR latch
+    heater = new HeaterDriver
+    power_24v_protected ~ heater.power_24v
+    power_3v3 ~ heater.power_3v3
+
+    # Status LED
+    led = new StatusLED
+    power_3v3 ~ led.power
+
+    # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
+    eeprom = new onsemi_CAT24C32WI_GT3_package
+    c_eeprom = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
+
+    # === EEPROM wiring ===
+    # Power + decoupling
+    eeprom.VCC ~ power_3v3.hv
+    eeprom.VSS ~ power_3v3.lv
+    c_eeprom.p1 ~ power_3v3.hv
+    c_eeprom.p2 ~ power_3v3.lv
+    # I2C
+    sda ~ eeprom.SDA
+    scl ~ eeprom.SCL
+    # Address = 0x50 (A0=A1=A2=GND)
+    eeprom.A0 ~ power_3v3.lv
+    eeprom.A1 ~ power_3v3.lv
+    eeprom.A2 ~ power_3v3.lv
+    # WP tied to GND (writes always allowed)
+    eeprom.WP ~ power_3v3.lv
+
+    # === I2C bus wiring ===
+    # ADC front-end I2C
+    sda ~ adc.sda
+    scl ~ adc.scl
+
+    # MCU I2C1 (PB7=SDA, PB6=SCL)
+    sda ~ mcu.package.PB7
+    scl ~ mcu.package.PB6
+
+    # === RS-485 wiring ===
+    # USART2 (PA2=TX, PA3=RX)
+    mcu.package.PA2 ~ rs485.uart_tx
+    mcu.package.PA3 ~ rs485.uart_rx
+    # Control GPIOs (PA1=DE, PA0=~RE)
+    mcu.package.PA1 ~ rs485.de
+    mcu.package.PA0 ~ rs485.n_re
+    # Bus lines to M8 connector
+    rs485.rs485_a ~ connectors.rs485_a
+    rs485.rs485_b ~ connectors.rs485_b
+
+    # === Heater wiring ===
+    # Gate drive from MCU timer (PA8 = TIM1_CH1, one-pulse mode)
+    mcu.package.PA8 ~ heater.gate_drive
+    # Watchdog I/O
+    mcu.package.PA4 ~ heater.wake
+    mcu.package.PA5 ~ heater.done
+    # RSTn shared with MCU NRST
+    mcu.nrst ~ heater.rstn
+    # Heater terminals to J2 connector
+    connectors.heater_hi ~ heater.heater_hi
+    connectors.heater_lo ~ heater.heater_lo
+
+    # === ADC wiring ===
+    # Excitation GPIO (PC6)
+    mcu.package.PC6 ~ adc.excitation_gpio
+    # Excitation output to J2 connector
+    adc.excitation_out ~ connectors.excitation
+    # Thermistor lines from J2 to ADC
+    connectors.thermistor_1 ~ adc.thermistor_1
+    connectors.thermistor_2 ~ adc.thermistor_2
+    connectors.thermistor_3 ~ adc.thermistor_3
+    connectors.thermistor_4 ~ adc.thermistor_4
+    connectors.thermistor_5 ~ adc.thermistor_5
+    connectors.thermistor_6 ~ adc.thermistor_6
+    # ALERT/DRDY to MCU (PB0=ADC1, PB1=ADC2)
+    mcu.package.PB0 ~ adc.alert1
+    mcu.package.PB1 ~ adc.alert2
+
+    # === LED wiring ===
+    # MCU sinks current (GPIOs drive low to turn on)
+    mcu.package.PB3 ~ led.red
+    mcu.package.PB4 ~ led.green
+    mcu.package.PB5 ~ led.blue
+
+    # === PGOOD monitoring ===
+    # LM5165 PGOOD (open-drain) with 10k pull-up to 3.3V
+    # Also gates SCR latch arming (prevents power-on reset from triggering latch)
+    r_pgood = new Resistor
+    r_pgood.resistance = 10kohm +/- 1%
+    r_pgood.package = "0603"
+    mcu.package.PC7 ~ buck.pgood.line
+    buck.pgood.line ~> r_pgood ~> power_3v3.hv
+    buck.pgood.line ~ heater.pgood
+
+    # === Net name overrides (readable names in KiCad) ===
+    # Workaround for atopile bug: override_net_name on ElectricPower.hv/.lv
+    # is shadowed by the class's pre-existing SUGGESTED trait (try_get_trait
+    # returns first match by insertion order). Standalone signals with
+    # override_net_name are found by the net naming algorithm's hierarchy walk.
+    signal V3V3 ~ power_3v3.hv
+    V3V3.override_net_name = "V3V3"
+    signal GND ~ power_3v3.lv
+    GND.override_net_name = "GND"
+    signal V24_RAW ~ power_24v_raw.hv
+    V24_RAW.override_net_name = "V24_RAW"
+    signal V24_PROT ~ power_24v_protected.hv
+    V24_PROT.override_net_name = "V24_PROT"
+    sda.override_net_name = "SDA"
+    scl.override_net_name = "SCL"
+
+--- FILE: elec/mcu.ato ---
+"""
+STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, and VDDA filtering.
+
+Power topology:
+  3.3V rail -> FB_VDDA (600 ohm ferrite bead) -> MCU VDD_VDDA, VBAT, VREFpos
+  Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
+
+Note: LQFP-48 merges VDD and VDDA into one pin (VDD_VDDA). Ferrite bead
+filters ALL MCU power. 200mA rating is ample for ~20mA MCU draw.
+
+BOOT0: 10k pull-down to GND (normal boot from flash).
+NRST: 100nF filter cap to GND. Exposed for TPL5010 RSTn connection.
+
+GPIO assignments are made in the top-level module via package pin access.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.ato" import STMicroelectronics_STM32G0B1CBT6_package
+from "parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato" import Sunlord_GZ1608D601TF_package
+from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module MCU:
+    """
+    STM32G0B1CBT6 with power filtering, decoupling, BOOT0 pull-down,
+    and NRST filter cap.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply rail (from buck converter)."""
+
+    nrst = new Electrical
+    """NRST node — exposed for TPL5010 RSTn + SCR latch connection."""
+
+    # --- Package (exposed for GPIO wiring in top-level) ---
+    package = new STMicroelectronics_STM32G0B1CBT6_package
+
+    # --- VDDA ferrite bead ---
+    fb_vdda = new Sunlord_GZ1608D601TF_package
+    """600 ohm @ 100MHz. Filters digital noise from MCU power pins."""
+
+    # --- Internal filtered rail node (named signal for readable net name) ---
+
+    # --- Bulk cap on VDDA (1uF, after ferrite bead) ---
+    c_vdda = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+
+    # --- Bypass caps (4x 100nF, after ferrite bead) ---
+    c_mcu1 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu2 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu3 = new YAGEO_CC0603KRX7R9BB104_package
+    c_mcu4 = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- NRST filter cap ---
+    c_nrst = new YAGEO_CC0603KRX7R9BB104_package
+
+    # --- BOOT0 pull-down ---
+    r_boot0 = new Resistor
+    r_boot0.resistance = 10kohm +/- 1%
+    r_boot0.package = "0603"
+
+    # === Power path: 3.3V -> ferrite bead -> MCU pins ===
+    power.hv ~ fb_vdda.p1
+    signal VDDA_FILT ~ fb_vdda.p2
+    VDDA_FILT.override_net_name = "VDDA_FILT"
+
+    # MCU power pins (all on filtered side)
+    VDDA_FILT ~ package.VDD_VDDA
+    VDDA_FILT ~ package.VBAT
+    VDDA_FILT ~ package.VREFpos
+    power.lv ~ package.VSS_VSSA
+
+    # === Bypass caps (after ferrite bead) ===
+    VDDA_FILT ~ c_mcu1.p1
+    c_mcu1.p2 ~ power.lv
+
+    VDDA_FILT ~ c_mcu2.p1
+    c_mcu2.p2 ~ power.lv
+
+    VDDA_FILT ~ c_mcu3.p1
+    c_mcu3.p2 ~ power.lv
+
+    VDDA_FILT ~ c_mcu4.p1
+    c_mcu4.p2 ~ power.lv
+
+    # === VDDA bulk cap (after ferrite bead) ===
+    VDDA_FILT ~ c_vdda.p1
+    c_vdda.p2 ~ power.lv
+
+    # === NRST ===
+    package.PF2_NRST ~ nrst
+    nrst ~ c_nrst.p1
+    c_nrst.p2 ~ power.lv
+
+    # === BOOT0 pull-down ===
+    signal BOOT0 ~ package.PA14_BOOT0
+    BOOT0 ~> r_boot0 ~> power.lv
+
+--- FILE: elec/parts/CAZN_M8_P4A_GPL_M8_JD/CAZN_M8_P4A_GPL_M8_JD.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component CAZN_M8_P4A_GPL_M8_JD_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C19108968", date="2026-02-19T02:25:44.567671+00:00", checksum="4b9136b4c80ef32688cb1777f923e8a0e48107ad3e35fcb5c95a25bf1e06f344">
+
+    trait is_atomic_part<manufacturer="CAZN", partnumber="M8-P4A-GPL M8-JD", footprint="CONN-TH_M8-P4A-GPL-M8-JD.kicad_mod", symbol="M8-P4A-GPLM8-JD.kicad_sym", model="CONN-TH_M8-P4A-GPL-M8-JD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C19108968", manufacturer="CAZN", partno="M8-P4A-GPL M8-JD">
+    trait has_designator_prefix<prefix="CN">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2311011001_CAZN-M8-P4A-GPL-M8-JD_C19108968.pdf">
+
+    # pins (M8 4-pin A-coded, right-angle male)
+    signal V24 ~ pin 1
+    signal RS485_A ~ pin 2
+    signal GND ~ pin 3
+    signal RS485_B ~ pin 4
+    signal SHELL1 ~ pin 5
+    signal SHELL2 ~ pin 6
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_1N4148WS/Changjiang_Electronics_Tech_1N4148WS.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_1N4148WS_package:
+    """1N4148WS T4"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2128", date="2026-02-19T02:25:39.470637+00:00", checksum="eef67aa31f800c776ae46946e19100def5d34938098f11384cfd1750db4c8a31">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="1N4148WS", footprint="SOD-323_L1.8-W1.3-LS2.5-RD.kicad_mod", symbol="1N4148WST4.kicad_sym", model="2.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2128", manufacturer="Changjiang Electronics Tech ", partno="1N4148WS">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1810101110_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--1N4148WS_C2128.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_2N7002_package:
+    """2N7002 7002"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8545", date="2026-02-19T02:25:18.745238+00:00", checksum="bc0bf605e69da4ded3641ed36e2257d5c1c20876e489dc4cc6a35b7beb318153">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="2N7002", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="2N7002.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8545", manufacturer="Changjiang Electronics Tech ", partno="2N7002">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--2N7002_C8545.pdf">
+
+    # pins
+    signal D ~ pin 3
+    signal G ~ pin 1
+    signal S ~ pin 2
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300_package:
+    """MMBT3904 1AM 100-300"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C20526", date="2026-02-19T02:25:41.677622+00:00", checksum="fa9608125b9fa576a968c3256d8885a63ab833e20da2f54b8df58affffbd7b9a">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="MMBT3904(RANGE:100-300)", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="MMBT3904-C20526.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C20526", manufacturer="Changjiang Electronics Tech ", partno="MMBT3904(RANGE:100-300)">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2207041900_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--MMBT3904-RANGE-100-300_C20526.pdf">
+
+    # pins
+    signal B ~ pin 1
+    signal C ~ pin 3
+    signal E ~ pin 2
+
+--- FILE: elec/parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package:
+    """SS8550 Y2 200-350"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8542", date="2026-02-19T02:25:16.471587+00:00", checksum="9430444a6815926d9ae1fa180751769e6c95cbdce935626f2e22e9e02d16f56c">
+
+    trait is_atomic_part<manufacturer="Changjiang Electronics Tech ", partnumber="SS8550 Y2(RANGE:200-350)", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="SS8550_C8542.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8542", manufacturer="Changjiang Electronics Tech ", partno="SS8550 Y2(RANGE:200-350)">
+    trait has_designator_prefix<prefix="Q">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1810161212_Jiangsu-Changjing-Electronics-Technology-Co---Ltd--SS8550-Y2-RANGE-200-350_C8542.pdf">
+
+    # pins
+    signal B ~ pin 1
+    signal C ~ pin 3
+    signal E ~ pin 2
+
+--- FILE: elec/parts/Cixi_Kefa_Elec_KF2EDGV_3_5_10P/Cixi_Kefa_Elec_KF2EDGV_3_5_10P.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Cixi_Kefa_Elec_KF2EDGV_3_5_10P_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C441318", date="2026-02-19T02:25:48.209512+00:00", checksum="bfccf92e9f8ee49479214f88fe3c924424d2c32907f1e67ed71935114ff1e4d7">
+
+    trait is_atomic_part<manufacturer="Cixi Kefa Elec", partnumber="KF2EDGV-3.5-10P", footprint="CONN-TH_10P-P3.50_KF2EDGV-3.5-10P.kicad_mod", symbol="KF2EDGV-3.5-10P.kicad_sym", model="CONN-TH_10P-P3.50_KF2EDGV-3.5-10P.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C441318", manufacturer="Cixi Kefa Elec", partno="KF2EDGV-3.5-10P">
+    trait has_designator_prefix<prefix="CN">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2303311930_Cixi-Kefa-Elec-KF2EDGV-3-5-10P_C441318.pdf">
+
+    # pins (10-pin pluggable terminal block, 3.5mm pitch)
+    signal HEATER_A ~ pin 1
+    signal HEATER_B ~ pin 2
+    signal GND ~ pin 3
+    signal EXCITATION ~ pin 4
+    signal DATA1 ~ pin 5
+    signal DATA2 ~ pin 6
+    signal DATA3 ~ pin 7
+    signal DATA4 ~ pin 8
+    signal DATA5 ~ pin 9
+    signal DATA6 ~ pin 10
+
+--- FILE: elec/parts/FH_1206B475K500NT/FH_1206B475K500NT.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component FH_1206B475K500NT_package:
+    """4.7uF (475) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C29823", date="2026-02-19T02:25:50.357176+00:00", checksum="3f5685005c4463ab1b17bcf6157439520cd30dc3121088ffbb93097d441bae22">
+
+    trait is_atomic_part<manufacturer="FH", partnumber="1206B475K500NT", footprint="C1206.kicad_mod", symbol="1206B475K500NT.kicad_sym", model="C1206_L3.2-W1.6-H1.3.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C29823", manufacturer="FH", partno="1206B475K500NT">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_FH--Guangdong-Fenghua-Advanced-Tech-1206B475K500NT_C29823.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/FTR_SMAJ33A/FTR_SMAJ33A.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component FTR_SMAJ33A_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C693627", date="2026-02-19T02:12:05.283849+00:00", checksum="f37b75617fe9022947f29af911791ea747e85e5ab8116c52cb32abd303ad073e">
+
+    trait is_atomic_part<manufacturer="FTR", partnumber="SMAJ33A", footprint="SMA_L4.3-W2.6-LS5.0-RD.kicad_mod", symbol="SMAJ33A_C693627.kicad_sym", model="SMA_L4.3-W2.6-LS5.0-RD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C693627", manufacturer="FTR", partno="SMAJ33A">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2008311005_FTR-SMAJ33A_C693627.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal C ~ pin 1
+
+--- FILE: elec/parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Honor_Elec_VP1H101M0607_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C4054386", date="2026-02-19T02:25:37.021502+00:00", checksum="9a9352fa829b79cc0c56aeed1dc2f52620a36116dfd9e4e90f06ac658b9a1384">
+
+    trait is_atomic_part<manufacturer="Honor Elec", partnumber="VP1H101M0607", footprint="CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.kicad_mod", symbol="VP1H101M0607.kicad_sym", model="CAP-SMD_BD6.3-L6.6-W6.6-LS7.2-FD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C4054386", manufacturer="Honor Elec", partno="VP1H101M0607">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2208181800_Honor-Elec-VP1H101M0607_C4054386.pdf">
+
+    # pins (electrolytic capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Littelfuse_2920L110_60MR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C315903", date="2026-02-19T02:11:58.297497+00:00", checksum="009f29de0d74cb2b2aab416bef67e099078d75e01fd580792e4107597191e583">
+
+    trait is_atomic_part<manufacturer="Littelfuse", partnumber="2920L110/60MR", footprint="F2920.kicad_mod", symbol="2920L110_60MR.kicad_sym", model="F2920-1.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C315903", manufacturer="Littelfuse", partno="2920L110/60MR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Littelfuse-2920L110-60MR_C315903.pdf">
+
+    # pins
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component MDD_Microdiode_Electronics_SS36_package:
+    """SS36"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C16015", date="2026-02-19T02:12:07.709248+00:00", checksum="73759f76687dff7e5430b490d90c08447bdd92e62198302295a0923bce581c0c">
+
+    trait is_atomic_part<manufacturer="MDD（Microdiode Electronics）", partnumber="SS36", footprint="SMA_L4.3-W2.6-LS5.2-RD.kicad_mod", symbol="SS36.kicad_sym", model="SMA_L4.3-W2.6-LS5.2-RD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C16015", manufacturer="MDD（Microdiode Electronics）", partno="SS36">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2408051031_MDD-Microdiode-Semiconductor-SS36_C16015.pdf">
+
+    # pins
+    signal A ~ pin 2
+    signal K ~ pin 1
+
+--- FILE: elec/parts/STMicroelectronics_STM32G0B1CBT6/STMicroelectronics_STM32G0B1CBT6.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component STMicroelectronics_STM32G0B1CBT6_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2847904", date="2026-02-19T02:25:09.495731+00:00", checksum="a9bfaa7e07948e87c86db616a045e335c9563fe07369f33b15632ab52835df01">
+
+    trait is_atomic_part<manufacturer="STMicroelectronics", partnumber="STM32G0B1CBT6", footprint="LQFP-48_L7.0-W7.0-P0.50-LS9.0-BL.kicad_mod", symbol="STM32G0B1CBT6.kicad_sym", model="LQFP-48_L7.0-W7.0-H1.4-LS9.0-P0.50.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2847904", manufacturer="STMicroelectronics", partno="STM32G0B1CBT6">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2108142230_STMicroelectronics-STM32G0B1CBT6_C2847904.pdf">
+
+    # pins
+    signal PA0 ~ pin 11
+    signal PA1 ~ pin 12
+    signal PA2 ~ pin 13
+    signal PA3 ~ pin 14
+    signal PA4 ~ pin 15
+    signal PA5 ~ pin 16
+    signal PA6 ~ pin 17
+    signal PA7 ~ pin 18
+    signal PA8 ~ pin 28
+    signal PA9 ~ pin 29
+    signal PA10 ~ pin 32
+    signal PA11PA9 ~ pin 33
+    signal PA12PA10 ~ pin 34
+    signal PA13 ~ pin 35
+    signal PA14_BOOT0 ~ pin 36
+    signal PA15 ~ pin 37
+    signal PB0 ~ pin 19
+    signal PB1 ~ pin 20
+    signal PB2 ~ pin 21
+    signal PB3 ~ pin 42
+    signal PB4 ~ pin 43
+    signal PB5 ~ pin 44
+    signal PB6 ~ pin 45
+    signal PB7 ~ pin 46
+    signal PB8 ~ pin 47
+    signal PB9 ~ pin 48
+    signal PB10 ~ pin 22
+    signal PB11 ~ pin 23
+    signal PB12 ~ pin 24
+    signal PB13 ~ pin 25
+    signal PB14 ~ pin 26
+    signal PB15 ~ pin 27
+    signal PC6 ~ pin 30
+    signal PC7 ~ pin 31
+    signal PC13 ~ pin 1
+    signal PC14_OSC32_IN ~ pin 2
+    signal PC15_OSC32_OUT ~ pin 3
+    signal PD0 ~ pin 38
+    signal PD1 ~ pin 39
+    signal PD2 ~ pin 40
+    signal PD3 ~ pin 41
+    signal PF0_OSC_IN ~ pin 8
+    signal PF1_OSC_OUT ~ pin 9
+    signal PF2_NRST ~ pin 10
+    signal VBAT ~ pin 4
+    signal VDD_VDDA ~ pin 6
+    signal VREFpos ~ pin 5
+    signal VSS_VSSA ~ pin 7
+
+--- FILE: elec/parts/Samsung_Electro_Mechanics_CL05B104KO5NNNC/Samsung_Electro_Mechanics_CL05B104KO5NNNC.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Samsung_Electro_Mechanics_CL05B104KO5NNNC_package:
+    """100nF (104) ±10% 16V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C1525", date="2026-02-19T02:45:12.734455+00:00", checksum="143f8f201b0b2dd6d5b41a0eb8ad1d5af5f9c872dcfb394ded4d86758b6bb3de">
+
+    trait is_atomic_part<manufacturer="Samsung Electro-Mechanics", partnumber="CL05B104KO5NNNC", footprint="C0402.kicad_mod", symbol="CL05B104KO5NNNC.kicad_sym", model="C0402_L1.0-W0.5-H0.5.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C1525", manufacturer="Samsung Electro-Mechanics", partno="CL05B104KO5NNNC">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Samsung-Electro-Mechanics-CL05B104KO5NNNC_C1525.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Samsung_Electro_Mechanics_CL10A105KB8NNNC_package:
+    """1uF (105) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C15849", date="2026-02-19T02:33:38.587534+00:00", checksum="cd0255d50bcdd1cb782e0d891d41285cb424e560ca11a1a010c68f8e43dfef71">
+
+    trait is_atomic_part<manufacturer="Samsung Electro-Mechanics", partnumber="CL10A105KB8NNNC", footprint="C0603.kicad_mod", symbol="CL10A105KB8NNNC.kicad_sym", model="C0603_L1.6-W0.8-H0.8.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C15849", manufacturer="Samsung Electro-Mechanics", partno="CL10A105KB8NNNC">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_Samsung-Electro-Mechanics-CL10A105KB8NNNC_C15849.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/Sunlord_GZ1608D601TF/Sunlord_GZ1608D601TF.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Sunlord_GZ1608D601TF_package:
+    """600Ω ±25% 100MHz"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C1002", date="2026-02-19T02:25:34.177444+00:00", checksum="a8119cc46357c1907e2cb1b1fefb9b8863878032f96758710d9a8da3f0650812">
+
+    trait is_atomic_part<manufacturer="Sunlord", partnumber="GZ1608D601TF", footprint="L0603.kicad_mod", symbol="GZ1608D601TF.kicad_sym", model="L0603_L1.6-W0.8-H0.5_BEAD.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C1002", manufacturer="Sunlord", partno="GZ1608D601TF">
+    trait has_designator_prefix<prefix="L">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2310301640_Sunlord-GZ1608D601TF_C1002.pdf">
+
+    # pins (ferrite bead, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component TDK_C2012X5R1A226KT000N_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C76634", date="2026-02-19T02:25:52.624111+00:00", checksum="b02f0f75b0e76412d994b32f941764abe4710e7f92d4512fb8e1b6d57a6eff96">
+
+    trait is_atomic_part<manufacturer="TDK", partnumber="C2012X5R1A226KT000N", footprint="C0805.kicad_mod", symbol="C2012X5R1A226KT000N.kicad_sym", model="C0805_L2.0-W1.3-H1.3.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C76634", manufacturer="TDK", partno="C2012X5R1A226KT000N">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2304140030_TDK-C2012X5R1A226KT000N_C76634.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/TECH_PUBLIC_PRTR5V0U4D_TP/TECH_PUBLIC_PRTR5V0U4D_TP.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component TECH_PUBLIC_PRTR5V0U4D_TP_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2835429", date="2026-02-19T02:25:14.186067+00:00", checksum="51d9977f19f589bacb268243ec597de45dbd02e59abd64d3393eb48088c3e702">
+
+    trait is_atomic_part<manufacturer="TECH PUBLIC", partnumber="PRTR5V0U4D-TP", footprint="SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR.kicad_mod", symbol="PRTR5V0U4D-TP.kicad_sym", model="SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2835429", manufacturer="TECH PUBLIC", partno="PRTR5V0U4D-TP">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2105251936_TECH-PUBLIC-PRTR5V0U4D-TP_C2835429.pdf">
+
+    # pins
+    signal ESD1 ~ pin 4
+    signal ESD2 ~ pin 6
+    signal ESD3 ~ pin 1
+    signal ESD4 ~ pin 3
+    signal GND ~ pin 2
+    signal VCC ~ pin 5
+
+--- FILE: elec/parts/Texas_Instruments_LM5165YDRCR/Texas_Instruments_LM5165YDRCR.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Texas_Instruments_LM5165YDRCR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C2071924", date="2026-02-19T02:25:03.476930+00:00", checksum="5c67e3cb2a35aab6b9428f4031586cbe661c15743d63ebea95d5acbf02cfb197">
+
+    trait is_atomic_part<manufacturer="Texas Instruments", partnumber="LM5165YDRCR", footprint="VSON-10_L3.0-W3.0-P0.50-TL-EP.kicad_mod", symbol="LM5165YDRCR.kicad_sym", model="VSON-10_L3.0-W3.0-H0.6-P0.50.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C2071924", manufacturer="Texas Instruments", partno="LM5165YDRCR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2303011930_Texas-Instruments-LM5165YDRCR_C2071924.pdf">
+
+    # pins
+    signal EN ~ pin 7
+    signal EP ~ pin 11
+    signal GND ~ pin 10
+    signal HYS ~ pin 9
+    signal ILIM ~ pin 3
+    signal PGOOD ~ pin 6
+    signal RT ~ pin 5
+    signal SS ~ pin 4
+    signal SW ~ pin 1
+    signal VIN ~ pin 2
+    signal VOUT ~ pin 8
+
+--- FILE: elec/parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component Texas_Instruments_TPL5010DDCR_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C473912", date="2026-02-19T02:25:23.708222+00:00", checksum="2e8369c712287f542e1af78fcd7b355873361e4d0c7642624d2219e3ad24f110">
+
+    trait is_atomic_part<manufacturer="Texas Instruments", partnumber="TPL5010DDCR", footprint="SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR.kicad_mod", symbol="TPL5010DDCR.kicad_sym", model="SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C473912", manufacturer="Texas Instruments", partno="TPL5010DDCR">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2002291407_Texas-Instruments-TPL5010DDCR_C473912.pdf">
+
+    # pins
+    signal DELAY_M_RST ~ pin 3
+    signal DONE ~ pin 4
+    signal GND ~ pin 2
+    signal RSTn ~ pin 6
+    signal VDD ~ pin 1
+    signal WAKE ~ pin 5
+
+--- FILE: elec/parts/UNI_ROYAL_0402WGF1002TCE/UNI_ROYAL_0402WGF1002TCE.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0402WGF1002TCE_package:
+    """10KΩ (1002) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25744", date="2026-02-19T02:45:13.372738+00:00", checksum="ec0ab747d59342791bdf72069c7d9b7565e7d52ecf24d6b6dffd281eac8d772c">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0402WGF1002TCE", footprint="R0402.kicad_mod", symbol="0402WGF1002TCE.kicad_sym", model="R0402_L1.0-W0.5-H0.4.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25744", manufacturer="UNI-ROYAL", partno="0402WGF1002TCE">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2411221126_UNI-ROYAL-Uniroyal-Elec-0402WGF1002TCE_C25744.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1001T5E/UNI_ROYAL_0603WAF1001T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1001T5E_package:
+    """1KΩ (1001) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C21190", date="2026-02-19T02:45:48.856266+00:00", checksum="374b7f2f2b274299c2cb90737efc41b95ed68254db7028925b020990e8008195">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1001T5E", footprint="R0603.kicad_mod", symbol="0603WAF1001T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C21190", manufacturer="UNI-ROYAL", partno="0603WAF1001T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1001T5E_C21190.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1002T5E/UNI_ROYAL_0603WAF1002T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1002T5E_package:
+    """10KΩ (1002) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25804", date="2026-02-19T02:38:17.107058+00:00", checksum="d859cc50bed38cf44141ccf8a993e40326d36a73d49364a9fd0e61e668885142">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1002T5E", footprint="R0603.kicad_mod", symbol="0603WAF1002T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25804", manufacturer="UNI-ROYAL", partno="0603WAF1002T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1002T5E_C25804.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1003T5E/UNI_ROYAL_0603WAF1003T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1003T5E_package:
+    """100KΩ (1003) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25803", date="2026-02-19T02:51:21.005421+00:00", checksum="a339d7e7e29c72301612b3336ee63a474a29657398925a68ea08766954ecfedb">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1003T5E", footprint="R0603.kicad_mod", symbol="0603WAF1003T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25803", manufacturer="UNI-ROYAL", partno="0603WAF1003T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1003T5E_C25803.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1004T5E/UNI_ROYAL_0603WAF1004T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1004T5E_package:
+    """1MΩ (1004) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22935", date="2026-02-19T02:57:05.417440+00:00", checksum="0031b0ac6c7ed01740acd65586b3484f0901b609a3ddabfc04a7cd7ba2519a90">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1004T5E", footprint="R0603.kicad_mod", symbol="0603WAF1004T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22935", manufacturer="UNI-ROYAL", partno="0603WAF1004T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1004T5E_C22935.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1102T5E/UNI_ROYAL_0603WAF1102T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1102T5E_package:
+    """11KΩ (1102) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C25950", date="2026-02-19T02:57:06.201336+00:00", checksum="91ef7e52b930459b9005cc26c8bfecb3754c9e471edf4623004bbb4b3bf0fed6">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1102T5E", footprint="R0603.kicad_mod", symbol="0603WAF1102T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C25950", manufacturer="UNI-ROYAL", partno="0603WAF1102T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1102T5E_C25950.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF1200T5E/UNI_ROYAL_0603WAF1200T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF1200T5E_package:
+    """120Ω (1200) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22787", date="2026-02-19T02:51:21.641484+00:00", checksum="058aa6951909a6cc12bf0856fba03a09c52a1cc29d0306ca2b2f142e4600a8fe">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF1200T5E", footprint="R0603.kicad_mod", symbol="0603WAF1200T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22787", manufacturer="UNI-ROYAL", partno="0603WAF1200T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1200T5E_C22787.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF2000T5E/UNI_ROYAL_0603WAF2000T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF2000T5E_package:
+    """200Ω (2000) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C8218", date="2026-02-19T03:02:59.603779+00:00", checksum="e1dae7bd6735f1b33050349f70f401114f8bdf3a388b0c855960835b9ec8284f">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF2000T5E", footprint="R0603.kicad_mod", symbol="0603WAF2000T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C8218", manufacturer="UNI-ROYAL", partno="0603WAF2000T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010216_UNI-ROYAL-Uniroyal-Elec-0603WAF2000T5E_C8218.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF2200T5E/UNI_ROYAL_0603WAF2200T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF2200T5E_package:
+    """220Ω (2200) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22962", date="2026-02-19T03:02:58.583539+00:00", checksum="a50e2d53a23a800b54d82c306763abef5e5c7b584211a52ec51ab08a8f2da177">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF2200T5E", footprint="R0603.kicad_mod", symbol="0603WAF2200T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22962", manufacturer="UNI-ROYAL", partno="0603WAF2200T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF2200T5E_C22962.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF5600T5E/UNI_ROYAL_0603WAF5600T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF5600T5E_package:
+    """560Ω (5600) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C23204", date="2026-02-19T02:49:08.956569+00:00", checksum="1d6ba60a79296e3521f3cede9cb394577e23febb21c9dd24cc48898f2df239b6">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF5600T5E", footprint="R0603.kicad_mod", symbol="0603WAF5600T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C23204", manufacturer="UNI-ROYAL", partno="0603WAF5600T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010116_UNI-ROYAL-Uniroyal-Elec-0603WAF5600T5E_C23204.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF5602T5E/UNI_ROYAL_0603WAF5602T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF5602T5E_package:
+    """56KΩ (5602) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C23206", date="2026-02-19T02:35:21.207515+00:00", checksum="af3636635b6b96bb447959af3bd4d0214afe34d46da6167072c49e9f105b3c0e">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF5602T5E", footprint="R0603.kicad_mod", symbol="0603WAF5602T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C23206", manufacturer="UNI-ROYAL", partno="0603WAF5602T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010116_UNI-ROYAL-Uniroyal-Elec-0603WAF5602T5E_C23206.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/UNI_ROYAL_0603WAF6800T5E/UNI_ROYAL_0603WAF6800T5E.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component UNI_ROYAL_0603WAF6800T5E_package:
+    """680Ω (6800) ±1%"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C23228", date="2026-02-19T03:03:00.375853+00:00", checksum="ec82994343d4950d673c448656ade775afcdda01f45ef8d4c332ba11ef3a595c">
+
+    trait is_atomic_part<manufacturer="UNI-ROYAL", partnumber="0603WAF6800T5E", footprint="R0603.kicad_mod", symbol="0603WAF6800T5E.kicad_sym", model="R0603.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C23228", manufacturer="UNI-ROYAL", partno="0603WAF6800T5E">
+    trait has_designator_prefix<prefix="R">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2206010100_UNI-ROYAL-Uniroyal-Elec-0603WAF6800T5E_C23228.pdf">
+
+    # pins
+    pin 2
+    pin 1
+
+--- FILE: elec/parts/XCH_XCHS3N12/XCH_XCHS3N12.ato ---
+#pragma experiment("TRAITS")
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XCH_XCHS3N12_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C48928121", date="2026-02-19T02:25:21.351673+00:00", checksum="4f855a7348212e4b5849f6785d572ed3fd88adcaf263436f185302201b2e7ff2">
+
+    trait is_atomic_part<manufacturer="XCH", partnumber="XCHS3N12", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="XCHS3N12.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C48928121", manufacturer="XCH", partno="XCHS3N12">
+    trait has_designator_prefix<prefix="Q">
+
+    # pins
+    signal D ~ pin 3
+    signal G ~ pin 1
+    signal S ~ pin 2
+
+--- FILE: elec/parts/XINGLIGHT_XL_B1212RGBA_HF/XINGLIGHT_XL_B1212RGBA_HF.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XINGLIGHT_XL_B1212RGBA_HF_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C22461780", date="2026-02-19T02:25:31.709829+00:00", checksum="125ab94ef5e2b5af9c04d02fcddbc8ac7a64d0bb8e043c2cabcd7ac925f8c119">
+
+    trait is_atomic_part<manufacturer="XINGLIGHT", partnumber="XL-B1212RGBA-HF", footprint="LED-SMD_4P-L1.2-W1.2_BR.kicad_mod", symbol="XL-B1212RGBA-HF.kicad_sym", model="LED-SMD_4P-L1.2-W1.2_BR.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22461780", manufacturer="XINGLIGHT", partno="XL-B1212RGBA-HF">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2406131539_XINGLIGHT-XL-B1212RGBA-HF_C22461780.pdf">
+
+    # pins (common-anode RGB)
+    signal A ~ pin 2
+    signal R ~ pin 1
+    signal G ~ pin 3
+    signal B ~ pin 4
+
+--- FILE: elec/parts/XR_XRNR4018_68uH_M/XR_XRNR4018_68uH_M.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component XR_XRNR4018_68uH_M_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C5289353", date="2026-02-19T02:25:06.147204+00:00", checksum="684b0efbc87412a12cb684c6cbbff7a0e6bdd1660ee9b229cc1ed6283242900e">
+
+    trait is_atomic_part<manufacturer="XR", partnumber="XRNR4018-68uH/M", footprint="IND-SMD_L4.0-W4.0.kicad_mod", symbol="XRNR4018-68UH_M.kicad_sym", model="IND-SMD_L4.0-W4.0-H1.9.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C5289353", manufacturer="XR", partno="XRNR4018-68uH/M">
+    trait has_designator_prefix<prefix="L">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2211290930_XR-XRNR4018-68uH-M_C5289353.pdf">
+
+    # pins (inductor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component YAGEO_CC0603KRX7R9BB104_package:
+    """100nF (104) ±10% 50V"""
+
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C14663", date="2026-02-19T02:33:34.771374+00:00", checksum="b141163ed83c86a7ff58f4a5c2f5bdd47ee19db36e9ac59583c2c74bdad1f50d">
+
+    trait is_atomic_part<manufacturer="YAGEO", partnumber="CC0603KRX7R9BB104", footprint="C0603.kicad_mod", symbol="CC0603KRX7R9BB104.kicad_sym", model="C0603_L1.6-W0.8-H0.8.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C14663", manufacturer="YAGEO", partno="CC0603KRX7R9BB104">
+    trait has_designator_prefix<prefix="C">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2211101700_YAGEO-CC0603KRX7R9BB104_C14663.pdf">
+
+    # pins (capacitor, 2-terminal)
+    signal p1 ~ pin 1
+    signal p2 ~ pin 2
+
+--- FILE: elec/parts/hongjiacheng_SM712/hongjiacheng_SM712.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_SM712_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C7420375", date="2026-02-19T02:25:11.761916+00:00", checksum="5a2acc190c7ecd69b6c89cf53e51b84e39a6d72cf9bb5570b89d8c76aeb668a4">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="SM712", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="SM712_C7420375.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C7420375", manufacturer="hongjiacheng", partno="SM712">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2308281515_hongjiacheng-SM712_C7420375.pdf">
+
+    # pins (SM712: asymmetric dual TVS for RS-485)
+    signal A ~ pin 1
+    signal GND ~ pin 2
+    signal B ~ pin 3
+
+--- FILE: elec/parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato ---
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component onsemi_CAT24C32WI_GT3_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C81193", date="2026-02-19T03:34:13.724821+00:00", checksum="ed2d5e156f21b57ad7670ae0ef57c33e512f1d19e7eb07e1f5aca3f629b909b0">
+
+    trait is_atomic_part<manufacturer="onsemi", partnumber="CAT24C32WI-GT3", footprint="SOIC-8_L5.0-W4.0-P1.27-LS6.0-BL.kicad_mod", symbol="CAT24C32WI-GT3.kicad_sym", model="SOIC-8_L4.9-W3.9-H1.7-LS6.0-P1.27.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C81193", manufacturer="onsemi", partno="CAT24C32WI-GT3">
+    trait has_designator_prefix<prefix="U">
+    trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_1809291220_onsemi-CAT24C32WI-GT3_C81193.pdf">
+
+    # pins
+    signal A0 ~ pin 1
+    signal A1 ~ pin 2
+    signal A2 ~ pin 3
+    signal SCL ~ pin 6
+    signal SDA ~ pin 5
+    signal VCC ~ pin 8
+    signal VSS ~ pin 4
+    signal WP ~ pin 7
+
+--- FILE: elec/protection.ato ---
+"""
+Input protection circuit: PTC fuse + TVS clamp + Schottky reverse polarity.
+
+Topology:
+  J1 (24V) --> F1 (PTC) --> node_a --> D1 (Schottky, anode->cathode) --> +24V Protected
+                                |
+                              D2 (TVS, cathode to node_a, anode to GND)
+                                |
+                               GND
+"""
+
+import Electrical
+import ElectricPower
+
+from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
+from "parts/FTR_SMAJ33A/FTR_SMAJ33A.ato" import FTR_SMAJ33A_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+
+module InputProtection:
+    """
+    24V input protection: PTC fuse (1.1A hold, 60V),
+    TVS clamp (33V standoff, ~53V clamp), Schottky reverse polarity (60V/3A).
+    """
+
+    # External interfaces
+    power_in = new ElectricPower
+    power_out = new ElectricPower
+
+    # Components
+    f1 = new Littelfuse_2920L110_60MR_package
+    d2_tvs = new FTR_SMAJ33A_package
+    d1_schottky = new MDD_Microdiode_Electronics_SS36_package
+
+    # Internal node between fuse output and diodes
+    node_a = new Electrical
+
+    # F1: series fuse from input to node_a
+    power_in.hv ~ f1.p1
+    f1.p2 ~ node_a
+
+    # D2: TVS clamp, cathode to node_a, anode to GND
+    d2_tvs.C ~ node_a
+    d2_tvs.A ~ power_in.lv
+
+    # D1: Schottky, anode to node_a, cathode to output
+    d1_schottky.A ~ node_a
+    d1_schottky.K ~ power_out.hv
+
+    # Ground passthrough
+    power_in.lv ~ power_out.lv
+
+--- FILE: elec/rs485.ato ---
+"""
+RS-485 transceiver: SP3485 + AC termination + SM712 TVS + boot pull-ups/downs.
+
+Topology:
+  MCU UART TX → SP3485 DI
+  MCU UART RX ← SP3485 RO
+  MCU GPIO DE → SP3485 DE (R_DE_PD 100k pull-down: driver OFF during boot)
+  MCU GPIO ~RE → SP3485 ~RE (R_RE_PD 100k pull-down: receiver ON during boot)
+
+  SP3485 A/B → SM712 TVS → M8 connector (via top-level wiring)
+  A-B: R_TERM (120 ohm) + C_TERM (100nF) in series (AC termination)
+
+No bias resistors — SP3485 fail-safe receiver handles floating bus.
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import Resistor
+import ElectricPower
+import Electrical
+
+from "atopile/maxlinear-sp3485/maxlinear-sp3485.ato" import MaxLinear_SP3485
+from "parts/hongjiacheng_SM712/hongjiacheng_SM712.ato" import hongjiacheng_SM712_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+
+module RS485Bus:
+    """
+    SP3485 half-duplex RS-485 transceiver with AC termination,
+    SM712 TVS protection, and boot-safe pull resistors.
+    """
+
+    # --- External interfaces ---
+    power = new ElectricPower
+    """3.3V supply."""
+
+    uart_tx = new Electrical
+    """MCU UART TX → SP3485 DI (data in)."""
+
+    uart_rx = new Electrical
+    """MCU UART RX ← SP3485 RO (receiver out)."""
+
+    de = new Electrical
+    """MCU GPIO → SP3485 DE (driver enable, active high)."""
+
+    n_re = new Electrical
+    """MCU GPIO → SP3485 ~RE (receiver enable, active low)."""
+
+    rs485_a = new Electrical
+    """RS-485 A line (to M8 connector)."""
+
+    rs485_b = new Electrical
+    """RS-485 B line (to M8 connector)."""
+
+    # --- SP3485 transceiver (registry: includes 100nF decoupling) ---
+    transceiver = new MaxLinear_SP3485
+    power ~ transceiver.power
+
+    # UART connections
+    uart_tx ~ transceiver.uart.tx.line
+    uart_rx ~ transceiver.uart.rx.line
+
+    # Control lines
+    de ~ transceiver.driver_enable.line
+    n_re ~ transceiver.n_receiver_enable.line
+
+    # RS-485 bus
+    rs485_a ~ transceiver.rs485_bus.p.line
+    rs485_b ~ transceiver.rs485_bus.n.line
+
+    # --- Boot-state pull resistors (100k, auto-pick) ---
+    r_de_pd = new Resistor
+    r_de_pd.resistance = 100kohm +/- 1%
+    r_de_pd.package = "0603"
+
+    r_re_pd = new Resistor
+    r_re_pd.resistance = 100kohm +/- 1%
+    r_re_pd.package = "0603"
+
+    # DE pull-down: driver OFF during boot (Hi-Z GPIOs)
+    de ~> r_de_pd ~> power.lv
+
+    # ~RE pull-down: receiver ON during boot (enables USART wakeup from Stop)
+    n_re ~> r_re_pd ~> power.lv
+
+    # --- AC termination (120 ohm + 100nF in series between A and B) ---
+    r_term = new Resistor
+    r_term.resistance = 120ohm +/- 1%
+    r_term.package = "0603"
+
+    c_term = new YAGEO_CC0603KRX7R9BB104_package
+    """100nF 50V. Blocks DC, terminates signal edges. |Z| = 123 ohm at 115200 baud."""
+
+    signal RS485_TERM
+    rs485_a ~> r_term ~> RS485_TERM
+    RS485_TERM ~ c_term.p1
+    c_term.p2 ~ rs485_b
+
+    # --- SM712 TVS (asymmetric dual, purpose-built for RS-485) ---
+    d_rs485 = new hongjiacheng_SM712_package
+    """7V/12V standoff, 16V/26V clamp. Place near M8 connector."""
+
+    d_rs485.A ~ rs485_a
+    d_rs485.B ~ rs485_b
+    d_rs485.GND ~ power.lv
+
+--- FILE: justfile ---
+# Add a component from LCSC to the local library
+add part_number:
+    uvx JLC2KiCadLib {{part_number}} \
+      -dir common_lib \
+      -symbol_lib_dir symbol \
+      -symbol_lib sap_symbols \
+      -footprint_lib sap_footprints \
+      -model_dir ../3d_models \
+      -model_base_variable '${KIPRJMOD}/common_lib/3d_models'
+
+--- FILE: proposed_v1.1_revisions.md ---
+# Proposed v1.1 Revisions
+
+Changes for the next board revision. v1.0 design documented in
+`riley_design.md`. All part numbers verified against JLCPCB stock
+as of 2026-02-26.
+
+**v1.0 baseline:** 39 BOM lines, 83 components, ~$116 for 5 boards.
+
+**v1.1 vision:** Scale from a single East30 sensor to **8 independent
+sap flux probes** (32 thermistor channels) off one logic board. Target
+cost: ~$100/plot for 8-tree coverage. 71x cheaper than commercial
+alternatives (~$1,375/tree).
+
+---
+
+## 1. RTC Crystal + Software Temperature Compensation
+
+**Goal:** Autonomous timekeeping with <5 min/year drift when not
+connected to a logger.
+
+**Parts to add:**
+- Q13FC13500004 (C32346) -- 32.768 kHz crystal, +/-20 ppm, SMD3215-2P,
+  basic (no setup fee), $0.18, 659K stock, CL = 12.5 pF
+- 2x FH 0402CG180J500NT (C1549) -- 18 pF C0G/NP0 50V, 0402,
+  **basic** (no setup fee), $0.001 each, 1.5M stock.
+  18 pF gives CL = 12.0 pF assuming 3 pF stray. STM32 RTC CALR
+  calibration register compensates +/-488 ppm, so exact cap value is
+  non-critical. Tune after first board bring-up if desired.
+
+**Firmware:**
+- One-time frequency calibration using STM32 RTC smooth calibration
+  register (+/-488 ppm range, 0.954 ppm steps). Eliminates initial
+  +/-20 ppm crystal tolerance.
+- Software temperature compensation using STM32 internal die temp
+  sensor (+/-1.5C). Crystal parabolic model:
+  delta_f/f = -0.034 ppm/C^2 * (T - 25)^2
+- RS-485 time sync from logger when connected (eliminates long-term drift).
+
+**Expected accuracy:** ~1.3 min/year worst case (0C winter), ~0.3 min/year
+at typical forest temps (10-30C). No dedicated crystal temp sensor needed --
+MCU sleeps 99.3% of the time so die temp ~= ambient.
+
+**MCU pins:** PC14 (OSC32_IN), PC15 (OSC32_OUT) -- dedicated RTC crystal
+pins, no conflict with existing assignments.
+
+**Layout constraints:** Crystal traces < 5 mm. Ground guard ring around
+crystal and traces. No switching signals (SPI, mux select, heater gate)
+nearby. Load caps placed symmetrically, close to crystal pads.
+
+---
+
+## 2. ADC Architecture: Dual Mux, 32 Thermistor Channels
+
+**Goal:** Support up to 8 sap flux probes (4 thermistors each = 32
+channels) with a single ADS1115, using two cascaded 16:1 analog muxes.
+
+**Change:** Remove one ADS1115. Add 2x 74HC4067 16:1 analog muxes.
+All thermistor lines route through muxes into ADS1115 AIN0. Excitation
+sense goes directly to AIN1 (single-ended ratiometric measurement).
+
+| | v1.0 (2x ADS1115) | v1.1 (1x ADS1115 + 2x mux) |
+|---|---|---|
+| ADC chips | 2 | 1 |
+| Max thermistors | 6 | 32 (2x 16-channel mux) |
+| Resolution | 16-bit | 16-bit (same ADC) |
+| Interface | I2C | I2C + 4 GPIO (shared select) + 2 GPIO (enables) |
+| Idle power | 1 uA | 0.5 uA + ~0 (mux is CMOS, nA leakage) |
+| Price delta | -- | -$0.16 (drop ADC + passives, add 2x mux) |
+
+### Mux part
+
+74HC4067PW,118 (C179326) -- Nexperia, 16:1, 80 ohm Ron, TSSOP-24,
+31K stock, $0.57 each, extended. Qty 2.
+
+### How it works
+
+Two muxes share select lines S0-S3 (4 GPIOs). Each mux has its own
+enable pin (~E, active low). Only one mux is enabled at a time:
+
+```
+Thermistors 1-16  → Mux A (channels 0-15) → ──┐
+                                                ├→ ADS1115 AIN0
+Thermistors 17-32 → Mux B (channels 0-15) → ──┘
+```
+
+Firmware cycle: set S0-S3 → enable mux A (disable B) → start ADC →
+read result → next channel. After mux A channel 15, switch to mux B.
+
+Enable toggling prevents crosstalk: the disabled mux's output is
+high-impedance, so charge injection from its channels can't corrupt
+the active measurement.
+
+### Single excitation line
+
+One GPIO pin (PC6) drives all 32 thermistor half-bridges through a
+single RC filter:
+
+- R_EXC = 270 ohm (C22966, UNI-ROYAL 0603WAF2700T5E, basic, $0.001)
+- C_EXC = 1 uF (C15849, existing BOM)
+- Filter cutoff: fc = 1 / (2 * pi * 270 * 1e-6) = 589 Hz
+
+At 8 sensors (32 half-bridges, ~20k each): R_load = 625 ohm.
+V_exc = 3.3 * 625 / (625 + 270) = 2.30V. I_steady = 3.7 mA.
+I_inrush = 3.3 / 270 = 12.2 mA (safe, under STM32 20 mA GPIO limit).
+
+Firmware: enable PC6 before scan, read all 32 mux channels across
+both muxes, disable PC6. Simpler than dual-excitation (no per-group
+enable/disable sequencing).
+
+### Excitation sense: ratiometric on AIN1
+
+The single excitation line connects to AIN1 through a 1k series
+resistor + 100 nF filter cap (matching the thermistor path protection).
+Firmware reads excitation as a **separate single-ended conversion**
+(AINp=AIN1, AINn=GND) once per scan cycle, then divides each
+thermistor reading by excitation to get ratiometric values:
+
+  T = steinhart_hart(V_therm / V_exc)
+
+Ratiometric measurement cancels excitation voltage uncertainty
+(GPIO output variation, R_EXC voltage divider, supply noise). The
+2.30V excitation is not a problem — only the ratio matters.
+
+This loses hardware differential CMRR vs v1.0, but:
+
+- Ground bounce is already managed (no ADC during heater pulses)
+- Common-mode noise during quiescent reads is minimal (no switching)
+- Avoids adding an analog switch IC (saves BOM complexity)
+- Temperature differencing (heated - reference) cancels remaining
+  systematic errors
+
+AIN2, AIN3: tied to AGND through 1k resistors (prevent noise coupling).
+
+### Scan rates and noise
+
+ADS1115 data rates and noise (PGA = +/-4.096V, LSB = 125 uV):
+
+| Data Rate | Conversion Time | Noise (uVrms) | Temp Noise (mC) | 32-ch Scan | Scan Rate |
+|-----------|----------------|---------------|-----------------|------------|-----------|
+| 8 SPS | 125 ms | 7.8 | 0.6 | 8.0 s | 0.13 Hz |
+| 16 SPS | 62.5 ms | 11 | 0.9 | 4.0 s | 0.25 Hz |
+| 32 SPS | 31.3 ms | 16 | 1.3 | 2.0 s | 0.50 Hz |
+| 64 SPS | 15.6 ms | 23 | 1.8 | 1.0 s | 1.0 Hz |
+| 128 SPS | 7.81 ms | 31 | 2.5 | 0.50 s | 2.0 Hz |
+| 250 SPS | 4.0 ms | 47 | 3.8 | 0.26 s | 3.9 Hz |
+| 475 SPS | 2.1 ms | 64 | 5.1 | 0.13 s | 7.4 Hz |
+| 860 SPS | 1.16 ms | 94 | 7.5 | 0.07 s | 13.4 Hz |
+
+**Note:** Each channel requires a dummy conversion after mux switch
+(ADS1115 sampling cap needs to settle). Use fast-dummy trick: run
+dummy at 860 SPS (1.16 ms), real conversion at desired SPS. This adds
+only 1.16 ms overhead per channel instead of doubling scan time.
+
+**Derivative noise insight:** For sap flux, we measure dT/dt. Derivative
+noise = sqrt(2) * temp_noise / dt. Faster scanning is NOT always better
+for derivatives -- the noise/dt term grows. Sweet spot: 64-250 SPS.
+
+### Adaptive scan strategy
+
+| Phase | Time Window | Data Rate | 32-ch Rate | Purpose |
+|-------|------------|-----------|------------|---------|
+| Fast (heating) | 0-5 s | 860 SPS | 13.4 Hz | Capture initial transient |
+| Medium | 5-30 s | 250 SPS | 3.9 Hz | Track decay curve |
+| Slow (tail) | 30-120 s | 64 SPS | 1.0 Hz | High-precision baseline |
+
+Alternative: always collect at 860 SPS (max speed), filter in software.
+Trades flash storage (~16 KB/cycle at 860 SPS) for simplicity. At 32 MB
+flash capacity: ~2M measurement cycles = years of data.
+
+### Supported sensor configurations
+
+| Config | Thermistors | Mux A | Mux B | 860 SPS Rate |
+|--------|-------------|-------|-------|-------------|
+| 1x East30 (4-pin) | 4 | 4 ch | idle | 96 Hz |
+| 2x East30 | 8 | 8 ch | idle | 51 Hz |
+| 4x East30 | 16 | 16 ch | idle | 26 Hz |
+| 8x East30 | 32 | 16 ch | 16 ch | 13 Hz |
+| 6x 4-pin generic | 24 | 16 ch | 8 ch | 18 Hz |
+
+Rates assume 2 conversions per mux channel (dummy + real for settling)
+plus 1 excitation read per scan cycle.
+
+### MCU pins for mux
+
+| Pin | Function | Notes |
+|-----|----------|-------|
+| PD0 | Mux select S0 | Shared between both muxes |
+| PD1 | Mux select S1 | Shared |
+| PD2 | Mux select S2 | Shared |
+| PD3 | Mux select S3 | Shared |
+| PA9 | Mux A enable (~E) | Active low. 10k pull-up to 3.3V (boot-safe: mux disabled). |
+| PA10 | Mux B enable (~E) | Active low. 10k pull-up to 3.3V (boot-safe: mux disabled). |
+
+PB1 freed (was ADC2 ALERT/DRDY in v1.0).
+
+---
+
+## 3. 32 MB NOR Flash
+
+**Goal:** Autonomous data logging for 6-12 months when not connected to
+a logger.
+
+**Part:** W25Q256JVFIQ (C779876)
+- 32 MB (256 Mbit), SPI, SOIC-16
+- 1 uA typical standby / 10 uA max
+- Deep power-down: 0.5 uA typical (enter via SPI command between cycles)
+- 100K erase cycles, 20-year retention
+- $3.92 (qty 10+; $4.26 qty 1), 28K stock, extended
+
+**Pin notes (SOIC-16):**
+- Pin 1 RESET#/IO3: tie to VCC (quad-SPI not used; also serves as /HOLD)
+- Pin 2 VCC: 3.3V + 100 nF decoupling cap (C14663, existing part)
+- Pin 3 RESET#: tie to VCC (active-low reset, keep deasserted)
+- Pins 4-6, 11-14: N/C
+- Pin 7 CS#: PB12 + 10k pull-up to VCC (boot-safe: flash deselected
+  while MCU GPIOs are high-Z during reset)
+- Pin 8 DO/IO1: PB14 (MISO)
+- Pin 9 WP#/IO2: tie to VCC (no hardware write-protect needed)
+- Pin 10 GND
+- Pin 15 DI/IO0: PB15 (MOSI)
+- Pin 16 CLK: PB13 (SCK)
+
+**Data budget (int16 storage, adaptive scan for 120 s after each 2 s
+heater pulse, 30-min intervals, 32 channels):**
+
+| Item | Size |
+|------|------|
+| Per sample | 32 ch x 2 bytes = 64 bytes |
+| Per measurement cycle (adaptive) | ~250 scans x 64 B + 8 B header = ~16 KB |
+| Per measurement cycle (860 SPS constant) | ~1,587 scans x 64 B = ~99 KB |
+| Per day (48 cycles, adaptive) | ~750 KB |
+| 32 MB capacity (adaptive) | ~44 days at 32 ch |
+| With 4 channels (1 probe, adaptive) | ~350 days |
+
+Adaptive scan: 860 SPS x 5s (66 scans) + 250 SPS x 25s (96 scans) +
+64 SPS x 90s (89 scans) = ~250 scans per cycle. At constant 860 SPS:
+~1,587 scans/cycle (~99 KB) = ~7 days at 32 ch.
+
+**MCU pins:** SPI2 bus (PB13=SCK, PB14=MISO, PB15=MOSI) + PB12 (CS).
+SPI1 is blocked -- PA5 (SPI1_SCK) is already used by TPL5010 DONE.
+
+---
+
+## 4. Connector Topology, Multi-Heater Support & Gate Driver
+
+**Goal:** Support 1-8 heater probes with safe, efficient high-current
+switching. Anti-footgun design: safe at any pulse duration, any number
+of heaters.
+
+### Connector layout: two separate blocks on the same board edge
+
+**Heater block (2-pin):** KF2EDGV-3.5-2P (C441321)
+- Pin 1: Heater+ (24V switched)
+- Pin 2: Heater- (drain return)
+- $0.06, 11K stock, extended
+- Width: 7 mm
+
+Users wire 1-8 heater elements in parallel at the cable level. The
+board just provides switched 24V. Each heater is ~42 ohm, so 8 in
+parallel = 5.25 ohm = 4.57 A total.
+
+**Thermistor/signal block:** 2x24 pin header (48P), XFCN PZ254V-12-48P
+(C22465947), $0.30, extended.
+- 32 thermistor inputs
+- GND (thermistor ground return)
+- Excitation (GPIO-switched 3.3V via 270 ohm filter)
+- Spare pins for: unused GPIOs, SPI bus, I2C bus, etc.
+- See Section 11 for full pinout.
+
+Total connector edge footprint: ~70-80 mm. Fits on the board edge.
+
+**Why separate blocks:**
+- Physical isolation of high-current (4.57 A) heater path from
+  microvolt-level thermistor signals
+- Can disconnect heater cable without disturbing thermistor wiring
+- Simpler cable assemblies (power wires are thicker gauge)
+
+### Gate driver circuit (NEW in v1.1)
+
+The v1.0 design drives the heater MOSFET gate directly from a 3.3V
+MCU GPIO. At v1.1 currents (up to 4.57A for 8 heaters), even a
+low-Vgs(th) MOSFET at 3.3V gate has significant Rds(on) and wastes
+heat. A 6-component gate driver boosts gate voltage to 10V from the
+existing 24V rail, dropping Rds(on) to spec-sheet values.
+
+**Circuit:**
+
+```
+                    R_GATE_PULL (1M)                            Node A
+V24_PROT ──────────────────────────────┬───────── Q1 Gate
+                                       │
+                            D_ZENER (10V, cathode at A, anode to GND)
+                                       │
+                            Q_DRIVER (drain at A, source to GND)
+
+                                           R_PA8_PU (10k)
+                                                │
+Q_DRIVER gate path:                            V3V3
+    PA8 (MCU) ── R_GATE_DRV (10k) ── Q_DRIVER gate ── R_GATE_PD (100k) ── GND
+```
+
+**How it works (normal operation):**
+1. PA8 HIGH → Q_DRIVER ON → drain at ~0V → Q1 gate at ~0V
+   (R_GATE_PULL sinks 24V/1M = 24µA through Q_DRIVER) → **heater OFF**
+2. PA8 LOW → Q_DRIVER OFF → R_GATE_PULL pulls Q1 gate toward 24V →
+   D_ZENER clamps at 10V (cathode at gate, anode to GND — zener
+   conducts 14µA at steady state) → **heater ON** at full Rds(on) spec
+
+**Inverted logic (PA8 LOW = heater ON).** During normal operation,
+firmware drives PA8 HIGH to keep heater off, then briefly drives
+PA8 LOW for the 2-second heater pulse.
+
+**Why not N-channel PGOOD gating?** An earlier revision attempted to
+place a 2N7002 (Q_PGOOD) in series with R_GATE_PULL to disconnect
+the pull-up during boot. This doesn't work: in an N-channel MOSFET
+used as a high-side switch, the source voltage follows the output.
+As Q1 gate charges above ~2V, Vgs drops below threshold and the
+switch turns off — defeating the purpose. A P-channel high-side
+switch would work but adds complexity (level shifting for the 24V
+gate drive). The R_PA8_PU approach below is simpler and cheaper.
+
+**Boot behavior (R_PA8_PU provides default-ON for Q_DRIVER):**
+
+R_PA8_PU (10k from V3V3 to PA8 node) pulls Q_DRIVER gate HIGH as
+the 3.3V rail ramps during buck startup. This makes Q_DRIVER turn
+ON before R_GATE_PULL can charge Q1 gate to dangerous levels.
+
+1. Power applied. V24_PROT rises. Buck starts up. R_GATE_PULL (1M)
+   begins charging Q1 gate (τ = 1MΩ × 1.8nF = 1.8 ms).
+2. V3V3 ramps from 0V to 3.3V (~2 ms soft-start). R_PA8_PU pulls
+   PA8 node toward V3V3. Through R_GATE_DRV (10k), Q_DRIVER gate
+   voltage = V3V3 × 100k/(10k+10k+100k) = V3V3 × 0.83.
+3. When V3V3 reaches ~1.8V (~1.1 ms into ramp): Q_DRIVER gate
+   exceeds Vgs(th) ~1.5V → Q_DRIVER turns ON → clamps Q1 gate
+   to ~0V. Any charge accumulated on Q1 gate discharges instantly
+   (Ciss × Rds(on) = 1.8nF × 5Ω = 9 ns).
+4. MCU boots (~2 ms after V3V3 stable). Firmware drives PA8 HIGH
+   (same state as pull-up) → seamless handoff.
+5. Only after firmware explicitly drives PA8 LOW can heater turn ON.
+
+**Boot glitch: ~1 ms at partial gate voltage.** Between t≈116µs
+(Q1 gate reaches Vgs(th) = 1.5V through 1M) and t≈1.1ms (Q_DRIVER
+turns ON via 3.3V ramp), the heater conducts briefly. Gate voltage
+reaches ~11V before Q_DRIVER clamps it. Worst case energy at 8
+heaters: ~106 mJ → 0.11°C wood temperature rise. Thermally
+negligible. This is comparable to the v1.0 ~2ms glitch but shorter
+due to the 1M pull-up slowing gate charge.
+
+**MCU crash behavior (SCR latch kill path):** If firmware locks up
+with PA8 LOW (heater stuck on), the TPL5010 watchdog fires within
+9.6 seconds. The kill sequence:
+
+1. TPL5010 asserts RST (active low) on MCU NRST pin
+2. D_ISO (1N4148WS) blocks RST from reaching the SCR latch directly
+   (latch only triggers through the watchdog path, not MCU resets)
+3. Q_LATCH (MMBT3904 NPN + SS8550 PNP cross-coupled) latches ON
+4. Q_WD (2N7002, driven by latch output) pulls Q1 gate to GND
+   **permanently** — heater OFF until power cycle
+5. Latch overrides R_GATE_PULL (1M): Q_WD sinks only 24 µA,
+   pulling gate to ~0.1 mV
+6. MCU still boots and can report the fault via RS-485 (D_ISO
+   isolates latch from NRST so MCU reset works normally)
+
+**Recovery:** Power cycle only. The SCR latch is self-sustaining
+once triggered — R_FB (100k) provides base current to maintain the
+cross-coupled state. R_LATCH_PD (1M) bleeds the latch when VDD
+is removed. This is intentional: a latched heater fault should
+require human intervention, not auto-recover.
+
+**Parts:**
+- Q_DRIVER: 2N7002 (C8545, already in BOM) -- N-channel, SOT-23
+- D_ZENER: MM3Z10 (C19077459, preferred, $0.012) -- 10V, SOD-323
+- R_GATE_PULL: 1M (C22935, already in BOM)
+- R_GATE_DRV: 10k (C25804, already in BOM)
+- R_GATE_PD: 100k (C25803, already in BOM)
+- R_PA8_PU: 10k (C25804, already in BOM) -- boot-safe pull-up
+
+Net new unique parts: 1 (zener diode). All resistors are existing
+values. v1.0's R_GATE (1k) and R4 (10k gate pulldown) are removed —
+Q_DRIVER replaces both functions.
+
+### MOSFET upgrade
+
+**Current (v1.0):** XCHS3N12 (C48928121), 120V/3A, SOT-23, $0.03
+**New:** TM15N10D (C7422818), 100V/15A, DPAK (TO-252-3L), $0.087
+
+| Parameter | v1.0 (3.3V gate) | v1.1 (10V gate via driver) |
+|-----------|------------------|---------------------------|
+| Vgs(th) | 0.5-1.5V | 1.0-2.0V |
+| Rds(on) | ~267 mohm @ 3.3V (est.) | 75 mohm @ 10V (spec) |
+| Pdiss @ 1 heater | 87 mW | 24 mW |
+| Pdiss @ 2 heaters | 350 mW | 98 mW |
+| Pdiss @ 4 heaters | 1.4 W | 391 mW |
+| Pdiss @ 8 heaters | 5.6 W (unsafe) | 1,565 mW |
+| Package | SOT-23 | DPAK (TO-252-3L) |
+
+**Thermal at 8 heaters:** 1.57W × 20°C/W (DPAK Rth,j-a) = 31°C rise.
+At 40°C ambient: Tj = 71°C. At 50°C: Tj = 81°C. Max Tj = 175°C —
+comfortable margin. Not trivial dissipation (1.57W), but well within
+DPAK capability for 2-second pulses every 30 minutes.
+
+DPAK thermal pad: exposed drain tab must be soldered to copper pour
+with thermal vias to inner layers. Standard DPAK practice.
+
+### D1 (reverse polarity Schottky) upgrade
+
+**CRITICAL FIX:** D1 is in the SERIES power path. Topology from
+protection.ato: `J1 → PTC → TVS → D1 → V24_PROT → {buck, heater}`.
+D1 carries ALL current including heater (up to 4.57A for 8 probes).
+The v1.0 SS36 (3A) is undersized for v1.1.
+
+- **Current:** SS36 (C16015), 3A/60V, SMA
+- **New:** SS56 (C18199169), 5A/60V, SMA, **preferred** (no setup fee), $0.045
+- Same SMA footprint -- drop-in replacement
+- 5A continuous + 120A surge handles 4.57A with margin
+
+**Thermal constraint at 8 heaters:** At 4.57A, Vf ~0.65V →
+~3.0W dissipation during the 2-second pulse. SMA transient thermal
+impedance at 2s is ~30% of steady-state Rth(j-a): junction rise
+~80°C. At 40°C ambient (sun-heated enclosure): Tj ~120°C, leaving
+30°C margin to Tj,max=150°C. Acceptable for 2-second pulses every
+30 minutes (average power: 0.003W). In extreme heat (>50°C ambient),
+margin narrows to ~20°C -- monitor D1 temp on first field boards.
+
+**Layout mitigation:** Place 4-6 thermal vias (0.3mm drill) under
+D1's SMA anode pad, connected to the GND plane (In1.Cu). Add a
+copper pour on B.Cu under the diode for additional heat spreading.
+This reduces Rth(j-a) by ~30-40%, improving the hot-ambient margin.
+
+**Fallback:** If thermal testing at 8 heaters in >50°C ambient
+shows Tj approaching limits, upgrade to a higher-rated SMA Schottky
+(e.g., SS56 SMA with better thermal specs). Note: SMA and SMC
+footprints are NOT compatible (SMA: 4.3x2.6mm, SMC: 7.7x5.9mm).
+An SMC upgrade would require a board respin.
+
+### PTC fuse split topology
+
+**Problem:** v1.0 PTC (1.1A hold) is in the series path before both the
+buck converter and heater. At 2+ heaters (1.14A), the PTC trips.
+
+**v1.1 topology:**
+```
+                          ┌→ PTC (1.1A) → buck input (20 mA steady)
+J1 → TVS → Schottky → V24_PROT ─┤
+                          └→ [6A fuse footprint] → heater MOSFET (4.57A pulsed)
+```
+
+- PTC moves from the main series input path (v1.0: before TVS/Schottky)
+  to the buck-only branch (v1.1: after the V24_PROT split). It now
+  protects only the electronics path (20 mA steady), not the heater.
+- Heater path gets a **dedicated fuse** (6A fast-blow, 5x20mm).
+  Populated by default — not optional. The fuse is the last line of
+  defense for catastrophic shorts (e.g., cable insulation failure in
+  the field). User-supplied: any 5-6A fast-blow 5x20mm glass fuse.
+- The 4-layer watchdog/latch system handles normal fault modes. The
+  fuse handles wiring faults that bypass the electronics entirely.
+- Combined input (TVS + Schottky) sees full current (heater + buck)
+  during pulses. The TVS only conducts during transients (microamp
+  leakage in steady state). The SS56 Schottky handles 4.57A -- see
+  thermal note below.
+
+### Multi-heater table
+
+| Heaters | Total current | MOSFET Pdiss (75mΩ @ 10V) | D1 load | Status |
+|---------|--------------|---------------------------|---------|--------|
+| 1 | 0.57 A | 24 mW | 11% | Easy |
+| 2 | 1.14 A | 98 mW | 23% | Easy |
+| 4 | 2.29 A | 391 mW | 46% | OK (Tj rise ~8°C) |
+| 8 | 4.57 A | 1,565 mW | 91% | OK (Tj rise ~31°C) |
+
+---
+
+## 5. Input Protection (All Channels)
+
+**Goal:** Identical ESD/EMI protection on all 33 connector-facing analog
+lines (32 thermistors + 1 excitation).
+
+Each line gets three protection stages:
+
+1. **TVS array (PRTR5V0U4D):** ESD clamp at connector side. Each IC
+   protects 4 lines. 33 lines / 4 = 9 arrays (3 spare channels).
+   - v1.0: 2 arrays. v1.1: 9 arrays. Add 7x PRTR5V0U4D (C2835429, $0.06 each).
+
+2. **1k ohm series resistor:** Current limiter + RC filter partner.
+   Limits fault current to 3.3 mA. 33 resistors total.
+   - v1.0: 7 resistors. v1.1: 33. Add 26x 1k ohm 0603 (C21190, $0.01 each).
+
+3. **100 nF filter cap:** Low-pass filter (fc = 1.6 kHz with 1k ohm).
+   Blocks EMI from cables. 33 caps total.
+   - v1.0: 7 caps. v1.1: 33. Add 26x 100 nF 0603 (C14663, $0.01 each).
+
+**Zero measurement impact:** The 1k ohm series resistance appears on
+BOTH thermistor sense lines AND the excitation sense line (AIN1). In
+the ratiometric calculation (V_therm / V_exc), identical voltage
+dividers formed by 1k + ADS1115 input impedance (>1 GOhm) cancel.
+Mux Ron (~80 ohm) appears only in the thermistor path, but with >1 GOhm
+load, the voltage drop is negligible (16 uV from input leakage).
+
+**Unused mux channels:** Tie to GND. Prevents floating CMOS inputs
+from coupling noise.
+
+**Cost for additional channels:** +$0.94 (7 TVS + 26 R + 26 C)
+
+---
+
+## 6. GPIO Pin Assignment (STM32G0B1CBT6, LQFP-48)
+
+### v1.0 assignments (unchanged unless noted)
+
+| Pin | Function | Peripheral | v1.1 Change |
+|-----|----------|------------|-------------|
+| PA0 | RS-485 ~RE | GPIO | -- |
+| PA1 | RS-485 DE | GPIO | -- |
+| PA2 | RS-485 TX | USART2_TX | -- |
+| PA3 | RS-485 RX | USART2_RX | -- |
+| PA4 | TPL5010 WAKE | GPIO | -- |
+| PA5 | TPL5010 DONE | GPIO | -- |
+| PA8 | Heater gate driver | GPIO | Now drives 2N7002 gate (inverted: LOW=on) |
+| PA13 | SWD data | SWDIO | -- |
+| PA14 | SWD clock / BOOT0 | SWCLK | -- |
+| PB0 | ADC ALERT/DRDY | GPIO (interrupt) | -- |
+| PB3 | LED red (sink) | GPIO | -- |
+| PB4 | LED green (sink) | GPIO | -- |
+| PB5 | LED blue (sink) | GPIO | -- |
+| PB6 | I2C clock | I2C1_SCL | -- |
+| PB7 | I2C data | I2C1_SDA | -- |
+| PC6 | Excitation enable | GPIO | -- |
+| PC7 | PGOOD input | GPIO | -- |
+
+### v1.1 new assignments
+
+| Pin | Function | Peripheral | Notes |
+|-----|----------|------------|-------|
+| PB12 | Flash CS | SPI2_NSS | Active low |
+| PB13 | Flash SCK | SPI2_SCK | |
+| PB14 | Flash MISO | SPI2_MISO | |
+| PB15 | Flash MOSI | SPI2_MOSI | |
+| PD0 | Mux select S0 | GPIO | Shared S0-S3 for both muxes |
+| PD1 | Mux select S1 | GPIO | |
+| PD2 | Mux select S2 | GPIO | |
+| PD3 | Mux select S3 | GPIO | |
+| PA9 | Mux A enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
+| PA10 | Mux B enable (~E) | GPIO | Active low, 10k pull-up (boot-safe) |
+| PA12 | EEPROM WP | GPIO | Active high = write protect. 10k pull-up (boot-safe: writes blocked until firmware enables) |
+| PC14 | RTC crystal | OSC32_IN | Dedicated |
+| PC15 | RTC crystal | OSC32_OUT | Dedicated |
+
+### Power pin changes
+
+- VBAT (pin 1): disconnected from VDDA_FILT, routed through BAT54S
+  from VDD and CR2032
+
+### Freed pins
+
+- PB1: was ADC2 ALERT/DRDY (2nd ADS1115 removed)
+
+### Spare GPIOs (13 total)
+
+PA6, PA7, PA11, PA15, PB1, PB2, PB8, PB9, PB10, PB11, PC13,
+PF0, PF1
+
+**LQFP-48 port availability (verified):** PA0-PA15, PB0-PB15,
+PC6, PC7, PC13, PC14, PC15, PD0-PD3, PF0, PF1. No other PC or PD
+pins exist on this package (PC0-PC5, PC8-PC12, PD4+ are only on
+LQFP-64/100).
+
+**SPI1 conflict note:** SPI1_SCK maps to PA5, which is already used by
+TPL5010 DONE. SPI2 on PB12-PB15 avoids this conflict entirely.
+
+**I2C note:** Run at 100 kHz (standard mode). With single ADS1115's
+10k pull-ups, rise time is 424 ns at 50 pF bus -- fine for standard
+mode (spec: < 1000 ns) but marginal for 400 kHz fast mode (spec:
+< 300 ns). No hardware change needed. If external I2C sensors are
+connected via the 48-pin header (pins 43-44) on long cables, the
+added bus capacitance may require stronger pull-ups (4.7k or 2.2k).
+Evaluate after first field deployment.
+
+---
+
+## 7. BOM Impact Summary
+
+### Parts added
+
+| Part | LCSC | Qty | Unit cost | Total | Library |
+|------|------|-----|-----------|-------|---------|
+| 32.768 kHz crystal | C32346 | 1 | $0.18 | $0.18 | basic |
+| 18 pF C0G 0402 load caps | C1549 | 2 | $0.001 | $0.002 | basic |
+| 74HC4067 mux | C179326 | 2 | $0.57 | $1.14 | extended |
+| W25Q256JVFIQ flash | C779876 | 1 | $3.92 | $3.92 | extended |
+| TM15N10D MOSFET | C7422818 | 1 | $0.09 | $0.09 | extended |
+| SS56 flyback diode | C18199169 | 1 | $0.05 | $0.05 | preferred |
+| SS56 reverse polarity (D1) | C18199169 | 1 | $0.05 | $0.05 | preferred |
+| MM3Z10 10V zener (gate driver) | C19077459 | 1 | $0.012 | $0.012 | preferred |
+| 5x20mm fuse clips (heater) | C3130 | 2 | $0.027 | $0.054 | extended |
+| 2x24 pin header (48P, 2.54mm) | C22465947 | 1 | $0.30 | $0.30 | extended |
+| KF2EDGV-3.5-2P heater conn | C441321 | 1 | $0.06 | $0.06 | extended |
+| PRTR5V0U4D TVS | C2835429 | 7 | $0.06 | $0.42 | extended |
+| 1k ohm 0603 | C21190 | 26 | $0.01 | $0.26 | basic |
+| 100 nF 0603 | C14663 | 29 | $0.01 | $0.29 | basic |
+| CR2032 holder (SMD) | C7498149 | 1 | $0.21 | $0.21 | extended |
+| BAT54S Schottky | C7420333 | 1 | $0.01 | $0.01 | preferred |
+| 270 ohm 0603 (R_EXC, replaces 560 ohm) | C22966 | 1 | $0.001 | $0.001 | basic |
+| 100 nF decoupling (mux x2, flash x1) | C14663 | (counted above) | -- | -- | basic |
+| 1k resistors (AIN2, AIN3 tie to AGND) | C21190 | (counted above) | -- | -- | basic |
+| 10k pull-ups (mux ~E x2, flash CS, EEPROM WP, R_PA8_PU) | C25804 | 5 | $0.01 | $0.05 | basic |
+| 1 uF VBAT buffer cap | C15849 | (counted above) | -- | -- | basic |
+
+**Note:** Gate driver resistors (1M x1, 100k x1, 10k x2) and Q_DRIVER
+(2N7002) are existing BOM parts/values -- no new line items. The 5x
+10k pull-ups (mux ~E x2, flash CS, EEPROM WP, PA8 gate driver) use
+existing C25804. The 270 ohm R_EXC (C22966) replaces the v1.0 560 ohm
+R_EXC (C23204) — value swap, not a new line item. The VBAT 1 uF cap
+uses existing C15849.
+
+### Parts removed
+
+| Part | LCSC | Qty | Unit cost | Saved |
+|------|------|-----|-----------|-------|
+| ADS1115 (2nd) | C37593 | 1 | $1.30 | $1.30 |
+| ADS1115 passives (2nd) | various | ~4 | ~$0.03 | $0.10 |
+| XCHS3N12 MOSFET | C48928121 | 1 | $0.03 | $0.03 |
+| SS36 (D6 flyback) | C16015 | 1 | $0.05 | $0.05 |
+| SS36 (D1 reverse polarity) | C16015 | 1 | $0.04 | $0.04 |
+| R_GATE (1k, MCU→Q1 gate) | C21190 | 1 | $0.01 | $0.01 |
+| R4 (10k, Q1 gate pulldown) | C25804 | 1 | $0.01 | $0.01 |
+| R_EXC (560 ohm, replaced by 270 ohm) | C23204 | 1 | $0.001 | $0.001 |
+| KF2EDGV-3.5-10P | C441318 | 1 | $0.19 | $0.19 |
+
+### Net cost delta
+
+| | Per board | Notes |
+|---|----------|-------|
+| Parts added | +$7.10 | |
+| Parts removed | -$1.71 | |
+| **Net parts delta** | **+$5.37** | |
+| Extended part fees | +$24.00 | 8 new unique extended parts x $3 |
+| | | (flash, mux, MOSFET, fuse clips, 48P header, 2P heater, PRTR5V0U4D, CR2032) |
+
+**Per-board cost at 5 boards:** ~$5.37 + ($24/5) = **$10.17/board**
+**Per-board cost at 50 boards:** ~$5.37 + ($24/50) = **$5.85/board**
+
+**Through-hole assembly note:** The M8 connector, 48-pin header, 2-pin
+heater terminal, and fuse clips are TH parts. JLCPCB charges extra for
+TH assembly (~$0.20/joint). Budget ~$2-3/board for TH assembly surcharge.
+
+**Stock warnings (as of 2026-03):**
+- PRTR5V0U4D (C2835429): 2,617 stock. At 7 per board, supports ~374
+  boards. Fine for prototyping but verify before production runs.
+  Backup: NXP PRTR5V0U4D (original, typically higher stock).
+- 48-pin header (C22465947): 817 stock. Fine for 5-50 boards. Backup:
+  any 2x24 2.54mm pin header (common form factor, many vendors).
+
+**User-supplied (not in BOM):** CR2032 coin cell (~$0.30 retail),
+5x20mm fast-blow fuse (5-6A).
+5x20mm glass fuse for heater path (~$0.10, any 5-6A fast-blow).
+
+---
+
+## 8. CR2032 VBAT Backup (RTC + Backup Registers)
+
+**Goal:** Keep the RTC running (with calibration intact) across power
+cycles and during extended shelf storage, without requiring users to set
+the clock at deployment time.
+
+### Why this matters (the Campbell footgun)
+
+Campbell dataloggers use a CR2032 to keep both the RTC *and* RAM alive.
+Their VBAT load is 50-100 uA, which drains the coin cell in 3-5 years.
+Users routinely discover dead clocks at deployment. Our design draws
+**0.8 uA** from VBAT (RTC + LSE oscillator only, no RAM). The CR2032
+lasts 24+ years on self-discharge alone.
+
+### STM32G0B1 VBAT domain
+
+| Resource | Survives on VBAT | Notes |
+|----------|-----------------|-------|
+| RTC (counter + alarms) | Yes | Autonomous 32.768 kHz counter |
+| RTC CALR (smooth calibration) | Yes | Hardware pulse add/remove runs autonomously |
+| LSE oscillator | Yes | Powers the 32.768 kHz crystal |
+| TAMP registers | Yes | Tamper detection + 5 backup registers |
+| 5 backup registers (20 bytes) | Yes | General-purpose 32-bit words |
+| Temperature compensation firmware | **No** | Needs MCU core + ADC (VDD domain) |
+| RAM | **No** | All RAM powered by VDD |
+
+**Key insight:** CALR *does* survive on VBAT. Factory calibration runs
+autonomously via hardware pulse correction. Only dynamic temperature
+compensation stops when VDD is removed -- OK because shelf storage is
+at roughly constant temperature.
+
+### Shelf drift analysis
+
+| Scenario | Temp | Annual drift | 2 years |
+|----------|------|-------------|---------|
+| Warehouse (20-25C) | 25C | 0.3 s | 0.6 s |
+| Cool warehouse | 15C | 3.7 s | 7.3 s |
+| Worst case (0C) | 0C | 21.3 s | 42.5 s |
+
+Even worst case: 42 seconds drift over 2 years. Corrected on first
+RS-485 contact.
+
+### UX flow
+
+1. **Factory:** Board assembled, CR2032 installed, RTC set to UTC,
+   smooth calibration performed. Temperature compensation running.
+2. **Shelf:** CR2032 keeps RTC alive with static CALR correction.
+   Drift: 0-40 seconds per year at room temp.
+3. **Deployment:** User connects 24V. Temperature compensation resumes.
+   Clock accurate to <1 minute.
+4. **Logger sync:** First RS-485 connection zeros out shelf drift.
+5. **LED indication:** Yellow blink = time not sync'd since power-up.
+   Green blink = time sync'd.
+
+### Backup register allocation
+
+| Register | Contents | Notes |
+|----------|----------|-------|
+| BKP0 | Last calibration temp (Q16.16) | For temperature compensation restart |
+| BKP1 | Calibration timestamp | When CALR was last tuned |
+| BKP2 | Boot counter + flags | Cold boot detection, dirty shutdown |
+| BKP3 | Last logger sync timestamp | For drift tracking |
+| BKP4 | Reserved | Future use |
+
+### Circuit
+
+```
+VDD (3.3V) ─── Anode 1 ──┐
+                          ├── Common cathode ──── VBAT pin (STM32)
+CR2032+ ────── Anode 2 ──┘
+CR2032- ────── GND
+
+Plus 100nF + 1uF decoupling caps on VBAT pin.
+```
+
+**Parts:**
+- BAT54S (C7420333) -- dual series Schottky, SOT-23, preferred, $0.012
+- BS-CR2032-8 (C7498149) -- SMD coin cell holder, $0.21, extended
+- 100 nF decoupling cap -- C14663, already in BOM
+- 1 uF buffer cap -- C15849 (1uF 50V X5R 0603, basic, $0.01)
+
+The 1 uF cap provides bulk charge during VBAT domain switchover
+(VDD drops, BAT54S commutates to CR2032). Without it, a brief
+voltage dip on VBAT during the transition could glitch the RTC
+counter. The 100 nF handles high-frequency decoupling; the 1 uF
+handles the transient current spike.
+
+### Cold weather performance
+
+| Temp | CR2032 voltage | VBAT (after Schottky) | Margin above 1.55V |
+|------|---------------|----------------------|---------------------|
+| 25C | 3.0V | 2.7V | 1.15V |
+| 0C | 2.95V | 2.65V | 1.10V |
+| -20C | 2.85V | 2.55V | 1.00V |
+| -30C | 2.75V | 2.45V | 0.90V |
+
+### MCU pin: VBAT (pin 1 on LQFP-48)
+
+Dedicated power pin. v1.1 disconnects VBAT from ferrite path and routes
+through BAT54S instead. VBAT is protected from input transients:
+VDD comes from the regulated 3.3V buck output (already filtered), and
+the BAT54S provides reverse blocking from both paths.
+
+---
+
+## 9. RS-485 Auto-Wake UX
+
+**Goal:** Zero-configuration RS-485 responsiveness.
+
+### The problem
+
+RS-485 receiver (SP3485) draws 800 uA always-on. In polling mode
+(receiver off, wake every 10s), it drops to ~15-20 uA. But a 10-second
+response lag is terrible UX when connecting a laptop in the field.
+
+### Solution: adaptive mode switching
+
+```
+                        ┌─────────────────┐
+          power on      │  ALWAYS-ON MODE │
+        ──────────────► │  (10s safety    │
+                        │   boot window)  │
+                        └───────┬─────────┘
+                                │ 10s expires, no contact
+                                ▼
+                        ┌─────────────────┐
+                        │  POLLING MODE   │◄── idle timer expires
+                        │  (10s wake, RX  │    (default 5 min)
+                        │   off between)  │
+                        └───────┬─────────┘
+                                │ RS-485 frame detected
+                                │ during polling window
+                                ▼
+                        ┌─────────────────┐
+                        │  ALWAYS-ON MODE │◄── any TX or RX
+                        │  (RX enabled,   │    resets idle timer
+                        │   instant resp) │
+                        └───────┬─────────┘
+                                │ idle timer expires
+                                │ (configurable, default 5 min)
+                                ▼
+                        ┌─────────────────┐
+                        │  POLLING MODE   │
+                        └─────────────────┘
+```
+
+### How it works
+
+1. **Boot:** Enters ALWAYS-ON mode for 10 seconds. This lets a connected
+   logger immediately establish contact without waiting for a polling
+   window. (This is the safety boot window.)
+2. **No contact after 10s:** Drops to POLLING mode. MCU wakes every
+   10 seconds (EEPROM-configurable), enables receiver for ~5 ms,
+   checks for bus activity, goes back to sleep.
+3. **First contact:** During a polling wake window, the MCU sees a valid
+   MODBUS frame. Switches to ALWAYS-ON mode. Responds immediately.
+   Starts idle timer.
+4. **Active session:** Every TX or RX resets the idle timer. Response
+   latency: <1 ms (USART interrupt from Stop mode).
+5. **Session end:** If idle timer expires (default 5 minutes, EEPROM-
+   configurable), drop back to POLLING mode.
+
+### Power impact
+
+| Mode | Current from 24V | Notes |
+|------|-----------------|-------|
+| Polling (default) | ~15-20 uA | Wake every 10s, ~0.05% duty |
+| Always-on | ~130-243 uA | SP3485 receiver + USART clocked |
+
+At 8 heaters, heater energy dominates (94% of cycle budget). The
+difference between modes is <1 day of battery life out of ~31 days.
+
+### Why no physical button
+
+The first RS-485 frame *is* the button. 10-second worst-case first
+contact delay is acceptable. No mechanical failure points.
+
+---
+
+## 10. Sleep Power Budget Update
+
+v1.1 changes vs v1.0:
+- Remove 1x ADS1115: -0.5 uA
+- Add flash (deep power-down): +0.5 uA
+- Add 2x mux: +~0 uA (nA leakage)
+- Add crystal/LSE: on VBAT, not main supply
+- Gate driver quiescent: +24 uA from 24V (R_GATE_PULL 1M through
+  Q_DRIVER to GND — constant current whenever heater is OFF). This is
+  ~0.6 uA referred to 3.3V equivalent via buck efficiency.
+- Net change: ~+0.6 uA from 3.3V equivalent (wash)
+
+Bottom line doesn't change materially from v1.0. The gate driver's
+24µA from the 24V rail is comparable to v1.0's ~20µA sleep budget.
+
+---
+
+## 11. Connector Pinout (48-pin, 2x24, 2.54mm)
+
+**Part:** XFCN PZ254V-12-48P (C22465947) -- 2x24 pin header, 2.54mm
+pitch, through-hole, $0.30, extended.
+
+**Board footprint:** 61mm wide x ~5mm deep. Sits on board edge alongside
+the 2-pin heater screw terminal (7mm). Total edge: ~73mm, fits on
+100mm board.
+
+**Heater connector** is separate: KF2EDGV-3.5-2P (C441321), 2-pin screw
+terminal, rated 10A. Carries up to 4.57A (8 heaters in parallel) for
+2-second pulses. 46% of 10A rating = comfortable margin.
+
+### Pinout
+
+```
+Pin    Row A (odd)  |  Row B (even)    Pin
+--- --------------  |  -------------- ---
+  1            GND  |  EXC              2     Sensor 1
+  3        Therm 1  |  Therm 2          4
+  5        Therm 3  |  Therm 4          6
+  7        Therm 5  |  Therm 6          8     Sensor 2
+  9        Therm 7  |  Therm 8         10
+ 11            GND  |  GND             12     ground fence
+ 13        Therm 9  |  Therm 10        14     Sensor 3
+ 15       Therm 11  |  Therm 12        16
+ 17       Therm 13  |  Therm 14        18     Sensor 4
+ 19       Therm 15  |  Therm 16        20
+ --- -- mux A/B boundary ------------ ---
+ 21            GND  |  EXC             22     Sensor 5
+ 23       Therm 17  |  Therm 18        24
+ 25       Therm 19  |  Therm 20        26
+ 27       Therm 21  |  Therm 22        28     Sensor 6
+ 29       Therm 23  |  Therm 24        30
+ 31            GND  |  GND             32     ground fence
+ 33       Therm 25  |  Therm 26        34     Sensor 7
+ 35       Therm 27  |  Therm 28        36
+ 37       Therm 29  |  Therm 30        38     Sensor 8
+ 39       Therm 31  |  Therm 32        40
+ --- -- auxiliary ------------------- ---
+ 41            GND  |  GND             42
+ 43        I2C SDA  |  I2C SCL         44
+ 45     GPIO (PA6)  |  GPIO (PA7)      46
+ 47     GPIO (PB1)  |  GPIO (PB2)      48
+```
+
+**Signal summary:** 32 thermistors, 2 excitation (same net, pin 2+22),
+8 GND, 2 I2C, 4 GPIO. Both EXC pins carry the same signal — wired to
+the same filtered excitation line. Two pins for convenience (one per
+mux group's cable bundle).
+
+**Design rationale:**
+- Thermistors grouped in blocks of 4 (one sensor per block). Each
+  sensor's wires land on consecutive pins -- breakout board traces
+  run straight with zero crossings.
+- Mux A sensors (1-4) on pins 1-20, mux B sensors (5-8) on pins
+  21-40. Mirrored layout.
+- GND fences every 8-10 pins. Double-GND at mux boundary (11/12)
+  and mid-group (31/32) for crosstalk isolation.
+- Single excitation: one PC6 GPIO drives all 32 half-bridges through
+  270 ohm filter (3.7 mA steady). Pin 2 and pin 22 are the same net
+  — two physical pins for cable routing convenience.
+- Auxiliary block (41-48): I2C for external sensors, 4 spare GPIOs,
+  extra GND pair.
+- No 3.3V export (PFM-mode buck has ~23 mA headroom during scan but
+  ripple is unsuitable for external analog loads; unknown external
+  loads could also exceed 50 mA limit during flash writes).
+
+### Physical interface
+
+**Lab/bench testing:** Push Dupont jumper wires or crimp housings
+directly onto pin header. No breakout board needed. Wire one sensor
+in 30 seconds.
+
+**Field deployment:** IDC ribbon cable from pin header to a breakout
+board inside the weatherproof enclosure. Breakout board has screw
+terminals grouped per sensor position. Sensor cables enter enclosure
+through IP68 cable glands.
+
+**Breakout board** (separate, simple PCB -- just connectors and traces):
+- 8 groups of 6-position screw terminals (GND + EXC + 4 thermistors)
+- GND and excitation bussed internally per mux group
+- Connects to logic board via ~10cm IDC ribbon cable
+- Different breakout variants for different deployments (2-sensor,
+  4-sensor, 8-sensor)
+- Cost: ~$3-5 for PCB + connectors
+
+---
+
+## Resolved Items (formerly open)
+
+### PTC inrush: non-issue
+
+Peak inrush: 10-37A depending on cable length, duration 200-700 us.
+PTC fuses are thermal devices -- need 100+ ms of sustained overcurrent
+to trip. Sub-millisecond capacitor charging pulse cannot trip a PTC.
+Steady-state through PTC: ~20 mA (55x below 1.1A hold). Keep as-is.
+
+### Board size: 100 x 80 mm
+
+At 40% component density, estimated minimum area is ~8,630 mm^2.
+100x80 = 8,000 mm^2 (tight but feasible with CR2032 on back side).
+Stays within JLCPCB's cheapest 100x100mm tier. If layout is tight,
+100x90mm gives comfortable margin.
+
+### Extended part fee optimization: not worth pursuing
+
+No basic/preferred alternatives exist for 74HC4067, flash, MOSFET,
+or mechanical connectors. The $3 extended fees are one-time per order
+(not per board). At 50 boards: $0.42/board. Rounding error vs the
+$3.92 flash chip.
+
+---
+
+## Resolved Items (second batch)
+
+### Excitation simplified to single line
+
+Originally proposed as dual excitation (EXC_A on PC6, EXC_B on PA11)
+with both connected to AIN1 through resistors. External review found
+that the dual-line AIN1 topology created a summing node — when the
+inactive GPIO was low, AIN1 read ~2.0V instead of the expected
+excitation voltage.
+
+**Fix:** Single excitation line (PC6 only, 270 ohm R_EXC). Eliminates
+the AIN1 summing bug entirely. Frees PA11 as spare GPIO. R_EXC reduced
+from 560 to 270 ohm to maintain adequate V_exc (2.30V) at 32 bridges.
+Ratiometric measurement (V_therm / V_exc) cancels the voltage divider.
+
+### Pin availability: PD4, PD5, PC8 do not exist on LQFP-48
+
+Verified against atopile package definition. LQFP-48 has only:
+PC6, PC7, PC13, PC14, PC15 (no PC0-PC5 or PC8-PC12) and PD0-PD3
+(no PD4+). Reassigned: PD4→PA9 (mux A ~E), PD5→PA10 (mux B ~E).
+EXC_B eliminated (single excitation on PC6). All with appropriate
+boot-state pull resistors.
+
+### Gate driver boot glitch: reduced to ~1 ms
+
+Originally the heater was briefly ON (~2 ms) during every MCU
+boot/reset. An earlier revision attempted PGOOD-gating with an
+N-channel MOSFET (Q_PGOOD) in the pull-up path, but N-channel
+MOSFETs cannot gate high-side pull-ups (source follows output,
+Vgs goes negative → switch turns off). Redesigned with R_PA8_PU
+(10k pull-up from V3V3 to PA8), which makes Q_DRIVER default-ON
+as the 3.3V rail ramps. Combined with R_GATE_PULL increased to
+1MΩ (slows gate charge, τ = 1.8 ms), the boot glitch is reduced
+to ~1 ms at partial gate voltage. Energy: 106 mJ → 0.11°C wood
+temperature rise. Thermally negligible. Sleep current: 24 µA from
+24V (R_GATE_PULL through Q_DRIVER), comparable to v1.0 budget.
+
+---
+
+## Firmware Notes (from external review)
+
+### LSE drive strength (LSEDRV)
+
+The STM32G0B1 RTC_CR register includes LSEDRV[1:0] bits that control
+the LSE oscillator drive current. Default is lowest drive (0b00).
+At cold temperatures (<-20°C) and with the 32.768 kHz crystal's
+increased ESR, the oscillator may fail to start or take >2 seconds.
+
+**Action:** Set LSEDRV = 0b11 (highest drive) during LSE init.
+Measure startup time on first boards across temperature range. If
+startup is reliable at 0b10 or 0b01, reduce drive to save ~0.1 uA.
+
+### Flash erase scheduling
+
+W25Q256 sector erases (4 KB) take up to 400 ms. Page programs take
+up to 3 ms. During erase, SPI is busy and cannot be interrupted.
+
+**Action:** Schedule flash erases during heater-off periods (the
+30-minute inter-measurement gap). Never erase during a measurement
+scan. Use the W25Q256's suspend/resume feature if an urgent ADC
+read is needed mid-erase.
+
+### ADC health monitoring
+
+The ADS1115 ALERT/DRDY pin can signal conversion-ready. If a
+conversion doesn't complete within the expected window (2x the
+nominal conversion time), the firmware should:
+
+1. Log the timeout to flash
+2. Reset the ADS1115 (I2C general-call reset, 0x06)
+3. Retry the conversion
+4. If 3 consecutive failures: flag the channel as faulted, skip it,
+   report via RS-485
+
+### EEPROM write protection
+
+PA12 controls CAT24C32 WP pin (active high = protected). Boot-safe:
+10k pull-up holds WP HIGH during reset, blocking all EEPROM writes.
+Firmware must drive PA12 LOW before writing config/calibration data,
+then drive HIGH immediately after. This prevents accidental EEPROM
+corruption during brown-outs or firmware crashes.
+
+---
+
+## Open Items
+
+None. All design items resolved.
+
+--- FILE: riley_design.md ---
+# Sap Flux Sensor Adapter Board
+
+## Bill of Materials
+
+24V input, 3.3V regulated output, heater driver. For JLCPCB PCBA.
+
+### Protection
+
+These parts sit between the 24V power input and the rest of the board. They protect the circuit from common real-world electrical hazards.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| F1 | PTC Fuse | C315903 | Littelfuse 2920L110/60MR | 1.1A hold, 60V, 2920 | $0.21 | Extended | Resettable fuse. If current exceeds ~1.1A, it goes high-resistance, cutting off power. Resets when cooled. 60V rating handles solar-charged battery (up to 29V+). |
+| D1 | Schottky (reverse polarity) | C16015 | MDD SS36 | 60V/3A, SMA | $0.04 | Extended | Blocks reverse-polarity wiring. Low ~0.5V forward drop in normal operation. |
+| D2 | TVS Diode | C693627 | FTR SMAJ33A | 33V standoff, ~53.3V clamp, SMA | $0.018 | Extended | Clamps voltage spikes (lightning, ESD) to ~53V. 33V standoff gives 4V margin above solar max (29V+). Clamp 67V below Q1 MOSFET (120V). |
+
+### Buck Converter (24V to 3.3V)
+
+LM5165Y ultra-low Iq synchronous buck, fixed 3.3V output. PFM mode (RT shorted to GND) for 10.5µA sleep current. Design follows [TI Design 2](https://www.ti.com/lit/ds/snvsa47a/snvsa47a.pdf) (Section 8.2.2, Figure 50, page 26).
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| U_BUCK | Buck Regulator | C2071924 | TI LM5165YDRCR | 3-65V in, 150mA, fixed 3.3V, 10.5µA Iq, VSON-10 | $1.07 | Extended | Synchronous buck. No external freewheeling diode or feedback divider needed. |
+| L1 | Inductor | C5289353 | XR XRNR4018-68uH/M | 68µH, 470mA Isat, 1Ω DCR, 4x4mm shielded | $0.036 | Extended | 68µH for margin on minimum on-time constraint (LF(min) = 30V x 180ns / 120mA = 45µH). Worst-case 54.4µH at -20% tolerance still clears 45µH. Shielded. |
+| C1 | Input Cap | C29823 | Fenghua 1206B475K500NT | 4.7µF 50V X7R, 1206 | $0.04 | **Basic** | Local energy reservoir for buck switching pulses. Note: X7R DC bias derating at 24V may reduce effective capacitance to ~2µF. Acceptable for LM5165's low current draw (<50mA) in PFM mode. |
+| C_VIN | VIN HF Decoupling | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | Place tight to LM5165 VIN/GND pins. Handles HF switching edges that the 4.7µF C1 is too slow for. Same part as bypass caps. |
+| C2 | Output Cap | C76634 | TDK C2012X5R1A226KT000N | 22µF 10V X5R, 0805 | $0.03 | Extended | Smooths 3.3V output ripple. TI Design 2 uses 10µF; 22µF is conservative. |
+| C6 | VCC Decoupling | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.006 | **Basic** | Decouples U_BUCK's internal VCC LDO (pin 10). |
+| R_ILIM | Current Limit | C23206 | UNI-ROYAL 0603WAF5602T5E | 56kΩ 1%, 0603 | $0.001 | **Basic** | ILIM pin to GND. Sets 120mA peak current / 50mA max PFM output per Design 2. |
+
+**Pin connections:** RT → GND (PFM mode, no resistor). EN → VIN (always on; internal UVLO at 2.9V is sufficient since the data logger controls power — no need for an external EN divider). BST → SW (internal bootstrap, no external cap needed — P-FET high side). SS → open (internal 900µs soft-start). HYS → open. PGOOD → MCU GPIO via 10kΩ pull-up (see MCU section).
+
+### Analog-to-Digital Converters
+
+2x ADS1115 (16-bit I2C, 4-ch each) for 6 thermistor channels. Single-shot mode: 0.5µA idle. Internal reference. Shares I2C bus with EEPROM.
+
+**PGA setting: +/-4.096V (all channels).** The default +/-2.048V FSR saturates on thermistor channels below ~15°C (10kΩ NTC voltage exceeds 2.048V as resistance rises with cold) and cannot read the ~3.2V excitation voltage on AIN3. At +/-4.096V (LSB = 125µV), worst-case temperature resolution is 0.009°C/count at 70°C — still far exceeding the ~0.01°C needed for sap flux measurements. Note: ADS1115 input voltage is capped by VDD (3.3V) regardless of PGA setting.
+
+**East30 sensor specs** (see `east30docs/` for datasheets and QA certs):
+- Thermistors: 10kΩ NTC at 25°C, North Star Sensors Curve 44 (Steinhart-Hart 4-coeff, 0-70°C range)
+- Reference resistors: 6x 10kΩ, internal to probe (half-bridge dividers built into sensor assembly)
+- Heater resistance: ~40-44Ω (measured per-unit on QA cert)
+- Cable length: 2m per QA cert, but design supports arbitrary lengths (25m+). All protection, filtering, and signal integrity choices assume long field cables.
+- Wiring: 1 excitation (red), 6 thermistor sense wires (color-coded per needle/position), 2 heater (black), 1 ground
+
+**Ratiometric compensation:** The ADS1115 uses a fixed internal reference (2.048V), not the excitation rail. Any drift in the 3.3V excitation (thermal drift, load regulation, PFM ripple) becomes measurement error. Fix: route the filtered excitation voltage (after R_EXC/C_EXC) through R_AIN_EXC (1kΩ series protection + C_AIN_EXC filter, same as thermistor channels) into a spare ADC channel (U_ADC1 AIN3). Firmware reads excitation alongside thermistors and divides out drift, making the system pseudo-ratiometric.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| U_ADC1 | 16-bit ADC | C37593 | TI ADS1115IDGSR | 16-bit, 4-ch, I2C, VSSOP-10 | $1.08 | Extended | Channels 1-3 + excitation sense (AIN3). ADDR→GND = 0x48. ALERT/DRDY → MCU GPIO (conversion-ready interrupt). |
+| U_ADC2 | 16-bit ADC | C37593 | TI ADS1115IDGSR | 16-bit, 4-ch, I2C, VSSOP-10 | $1.08 | Extended | Channels 4-6. ADDR→VDD = 0x49. ALERT/DRDY → MCU GPIO. Same setup fee as U_ADC1. |
+| R_ALRT1 | ADC1 ALERT Pull-up | — | — | 10kΩ 1%, 0402 | — | — | *Included in ADS1115 registry package.* ALERT/DRDY open-drain pull-up to 3.3V. |
+| R_ALRT2 | ADC2 ALERT Pull-up | — | — | 10kΩ 1%, 0402 | — | — | *Included in ADS1115 registry package.* Same for U_ADC2. |
+
+### EEPROM
+
+Calibration, config, device identity. Written rarely. NOT used for heater safety state.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| U_EEPROM | I2C EEPROM | C81193 | onsemi CAT24C32WI-GT3 | 32Kbit (4KB), I2C, SOIC-8 | $0.18 | Extended | 1M write cycle endurance. Shares I2C bus. Standby ~2µA. A0/A1/A2 → GND = address 0x50 (no conflict with ADCs at 0x48/0x49). |
+
+### MCU
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| U_MCU | Microcontroller | C2847904 | ST STM32G0B1CBT6 | ARM Cortex-M0+, 64MHz, 128KB flash, 144KB RAM, LQFP-48 | $2.22 | Extended | 44 GPIOs, 2x I2C, 6x USART, 12x timer channels, 12-bit ADC. 1.7-3.6V. |
+| R_BOOT0 | BOOT0 Pull-down | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | BOOT0 to GND. Ensures normal boot from flash. TP_BOOT0 test pad allows pulling high for system bootloader access. Same part as R4. |
+
+**MCU peripheral allocation** (pin assignment deferred to PCB layout phase, will use STM32CubeMX):
+- **Power:** 4x 100nF on VDD/VDDA pins, FB_VDDA (600Ω ferrite bead) + 1µF bulk on VDDA, 100nF on NRST
+- **I2C:** SDA + SCL (shared bus: 2x ADC + EEPROM, 5kΩ effective pull-ups from ADS1115 registry packages)
+- **USART + RS-485 control:** TX, RX, DE, ~RE (4 pins). SP3485 receiver always on (~RE=0 via R_RE_PD pull-down). USART wakeup from Stop mode on RX start bit detection. R_DE_PD (100kΩ) pulls DE low during boot (prevents bus driving). Split DE/~RE enables firmware-configurable polling mode.
+- **Timer output:** One channel for heater gate via R_GATE (one-pulse mode)
+- **Watchdog I/O:** WAKE (EXTI input) + DONE (output) for TPL5010. RSTn → NRST.
+- **GPIOs:** 3x LED (R/G/B sink), 1x PGOOD input, 2x ADC ALERT/DRDY inputs (conversion-ready interrupts, one per ADS1115)
+- **SWD:** SWDIO + SWCLK to test pads
+- **BOOT0:** R_BOOT0 (10kΩ) to GND, routed to TP_BOOT0
+- **Excitation:** MCU GPIO (push-pull) through R_EXC/C_EXC filter to J2 Pin 4. GPIO-driven allows cutting ~1mA excitation current during sleep. Ratiometric measurement on AIN3 compensates for GPIO output voltage variation.
+
+### RS-485 Transceiver
+
+Converts MCU UART to differential RS-485 on the M8 cable. Half-duplex. Receiver always on for USART wakeup from Stop mode — logger can reach the adapter instantly via RS-485. SP3485 fail-safe receiver outputs clean idle when bus is floating (no bias resistors needed).
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| U_RS485 | RS-485 Transceiver | C8963 | MaxLinear SP3485EN-L/TR | 3.3V, half-duplex, 10Mbps, SOIC-8 | $0.20 | **Basic** | DE and ~RE on separate MCU GPIOs. Default mode: receive (DE=0/~RE=0, 800µA typ / 1500µA max per datasheet). Transmit: DE=1/~RE=1. Shutdown (DE=0/~RE=1) available for firmware polling mode. Fail-safe receiver: outputs HIGH (UART idle) when bus is floating — no external bias needed. |
+| R_DE_PD | DE Default Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | DE pin to GND. STM32 GPIOs are Hi-Z during reset/boot — without this, DE floats and SP3485 may drive the bus. 100kΩ is high enough to not interfere with MCU drive. Same part as R_WD_PU. |
+| R_RE_PD | ~RE Default Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | ~RE pin to GND. Ensures receiver is enabled during boot (DE=0/~RE=0 = receive). SP3485 fail-safe outputs idle when bus is floating, so enabling the receiver during boot is safe — MCU UART sees clean silence. Same part as R_WD_PU. |
+| R_TERM | RS-485 Termination | C22787 | UNI-ROYAL 0603WAF1200T5E | 120Ω 1%, 0603 | $0.001 | **Basic** | In series with C_TERM (AC termination). Hard-populated: this adapter is always at end-of-line (point-to-point cable from logger). Terminates signal edges for data integrity but blocks DC current. |
+| C_TERM | AC Termination Cap | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V X7R, 0603 | $0.001 | **Basic** | In series with R_TERM. Blocks DC path through termination. RC = 120Ω × 100nF = 12µs. At 115200 baud, |Z| = 123Ω (near-ideal 120Ω match). Same part as bypass caps — eliminates one unique part number. |
+| D_RS485 | RS-485 ESD/TVS | C7420375 | hongjiacheng SM712 | Asymmetric 7V/12V standoff, 16V/26V clamp, dual-channel, SOT-23 | $0.07 | **Preferred** | Purpose-built for RS-485. Asymmetric standoff matches RS-485 common-mode range (-7V to +12V). SP3485 bus pin abs max is ±15V — SM712 clamps at 20V/26V which exceeds this, but this is standard RS-485 TVS practice (microsecond transients, not sustained). IEC 61000-4-2/4-5. Place near J1. Replaces PESD1CAN (clamped at 70V — useless, SP3485 dies at 15V). |
+
+**RS-485 architecture:** No bias resistors. SP3485 has a fail-safe receiver — when the bus is floating (nobody transmitting), the receiver outputs logic HIGH (UART idle/mark). This eliminates the need for bias resistors, which in traditional designs create unpredictable DC current paths through the cable depending on the far-end device's termination and bias network. The receiver stays on during MCU Stop mode (800µA typ / 1500µA max from 3.3V = 130-243µA from 24V battery via buck). STM32 USART wakeup detects a start bit on RX and wakes the MCU from Stop — the logger can reach the adapter instantly by sending any RS-485 data. No polling latency, no wake line, no extra connector pins.
+
+**RS-485 power modes (firmware-configurable, see Firmware Notes):** Default mode is always-on receiver (~130-243µA from battery). For large-scale deployments where per-unit battery cost matters, firmware can switch to polling mode (~15-20µA) by disabling the receiver between configurable listen windows. Hardware supports both modes via split DE/~RE pins — no PCB change needed.
+
+### Heater Driver
+
+MCU fires a 24V heater through an N-channel MOSFET for 1-2 second pulses (~0.6A). An external watchdog (TPL5010) with SCR latch provides MCU-independent kill capability — even if the STM32 die fails with GPIO latched high, the heater is permanently shut off within ~10 seconds and stays locked out until manual power cycle.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| Q1 | N-FET (heater) | C48928121 | XCH XCHS3N12 | 120V/3A, 118mΩ@10V, Vgs(th)=1.8V, SOT-23 | $0.030 | Extended | 120V Vds gives 67V margin above TVS clamp (53.3V). Estimated ~645mΩ@3.3V (conservative) → 381mV drop, 225mW at 0.6A — well within 1.5W SOT-23 limit. Heater still gets 97% of ideal power. |
+| D4 | Flyback Schottky | C16015 | MDD SS36 | 60V/3A, SMA | $0.04 | Extended | Clamps inductive kick from heater cable (design supports 25m+). 60V/3A handles worst-case stored energy. Same part as D1. |
+| R_GATE | Series Gate Resistor | C21190 | UNI-ROYAL 0603WAF1001T5E | 1kΩ 1%, 0603 | $0.001 | **Basic** | Between MCU timer output and Q1 gate. Limits current so watchdog N-FET can overpower a stuck MCU GPIO. Also damps gate ringing. |
+| R4 | Gate Pulldown | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | Keeps heater OFF during MCU reset/boot. |
+| C4 | Bulk Decoupling | C4054386 | Honor Elec VP1H101M0607 | 100µF 50V electrolytic, D6.3xL7.7mm | $0.05 | Extended | Absorbs heater switching transients locally. 50V rating gives proper margin for 29V+ solar rail (was 35V, only 6V margin — now 21V margin). Same footprint as old part. |
+| U_WDT | External Watchdog | C473912 | TI TPL5010DDCR | 35nA, SOT-23-6, 1.8-5.5V | $0.36 | Extended | 9.6s watchdog timeout. Sends periodic WAKE to MCU; if MCU fails to assert DONE, RSTn goes low to kill heater and reset MCU. |
+| R_DELAY | Timeout Resistor | C25950 | UNI-ROYAL 0603WAF1102T5E | 11kΩ 1%, 0603 | $0.001 | **Preferred** | Sets TPL5010 watchdog period to ~9.6 seconds via DELAY pin. |
+| Q2_INV | PNP Inverter | C8542 | CJ SS8550 | PNP, SOT-23, hFE≥200 | $0.013 | **Basic** | Inverts RSTn (active-low) to drive N-FET gate clamp high on fault. |
+| Q_WD | N-FET Gate Clamp | C8545 | CJ 2N7002 | 60V/115mA, SOT-23 | $0.014 | **Basic** | When PNP drives gate high, clamps Q1 gate to GND through R_GATE (1kΩ divider → Q1 gate ≤156mV). |
+| R_BASE | PNP Base Resistor | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | Limits PNP base current to ~0.21mA. Same part as R4. |
+| D_ISO | Latch Isolation Diode | C2128 | CJ 1N4148WS | 100V/150mA, SOD-323 | $0.009 | **Basic** | In series with R_BASE (anode at PNP base, cathode at RSTn). When latched, reverse-biased → RSTn stays 3.3V → MCU boots. Without this, Q_LATCH pulls RSTn to 0.48V via R_BASE/R_WD_PU divider, holding MCU in permanent reset. 29× margin at -40°C (hFE=50). |
+| R_WD_PD | N-FET Gate Pulldown | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | Holds Q_WD gate low when PNP is off (normal operation). Same part as R4. |
+| R_WD_PU | RSTn Pull-up | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | Pulls TPL5010 RSTn to 3.3V when open-drain output is high-Z (normal). |
+| Q_LATCH | NPN Latch | C20526 | CJ MMBT3904 | 40V/200mA, hFE≥100, SOT-23 | $0.010 | **Basic** | SCR latch: cross-coupled with Q2_INV (PNP). Collector to PNP base node, emitter to GND. One RSTn pulse triggers permanent heater lockout until power cycle. D_ISO (1N4148WS) isolates latch from RSTn/NRST — MCU still boots and reports fault. |
+| R_FB | Latch Feedback | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | Q2_INV collector → Q_LATCH base. Provides positive feedback to sustain latch. 24µA base drive gives 8× margin over required 0.31mA collector sink. Same part as R_WD_PU. |
+| R_LATCH_PD | Latch Base Pulldown | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | Q_LATCH base to GND. Prevents noise from triggering latch when PNP is off. 1MΩ ≫ R_FB (100kΩ) so it doesn't interfere with trigger. |
+| R_PNP_BASE | PNP Base-Emitter Pull-up | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | PNP base to 3.3V (emitter). Defines OFF state when D_ISO is reverse-biased and Q_LATCH is off. Without this, PNP base floats → leakage/noise could cause spurious heater lockout. 140× margin over transistor leakage at 85°C. Same part as R_WD_PU. |
+| Q_ARM | Latch Arm FET | C8545 | CJ 2N7002 | 60V/115mA, SOT-23 | $0.014 | **Basic** | N-FET in series with R_FB. Breaks latch feedback loop until PGOOD charges arm_node. Prevents TPL5010 power-on reset (~60ms) from triggering permanent heater lockout at every boot. Same part as Q_WD. |
+| R_ARM | Arm Delay Resistor | C22935 | UNI-ROYAL 0603WAF1004T5E | 1MΩ 1%, 0603 | $0.001 | **Basic** | PGOOD → arm_node charge resistor. τ = 1MΩ × 1µF = 1s. Arming delay ≥361ms (worst-case Vgs(th)=1.0V) vs 100ms max TPL5010 tRST = 3.6× margin. Same part as R_LATCH_PD. |
+| C_ARM | Arm Delay Cap | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.003 | **Basic** | Holds arm_node low during power-on, preventing latch feedback until RC charges past Q_ARM Vgs(th). Same part as C_EXC. |
+| R_DONE_PD | DONE Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | TPL5010 DONE pin to GND. Keeps DONE low when MCU is in reset/unpowered, preventing floating input from confusing the watchdog. Same part as R_WD_PU. |
+| C_WD | Watchdog Bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | TPL5010 VDD to GND decoupling. Same part as other 100nF caps. |
+
+**Heater safety — 4-layer architecture (see Firmware Architecture for details):**
+1. **Hardware timer:** STM32 one-pulse mode enforces max pulse duration in silicon.
+2. **IWDG watchdog:** Independent RC oscillator resets MCU if firmware hangs → R4 pulls gate low.
+3. **External watchdog (TPL5010):** MCU-independent. If MCU fails to pet within ~9.6s, RSTn goes low → PNP inverts → N-FET clamps Q1 gate to GND. Works even if STM32 die is completely dead.
+4. **Thermal interlock:** Firmware reads all 6 thermistors before every firing. Refuses if any needle is elevated.
+
+**Gate-kill circuit with SCR latch:**
+```
+MCU timer ──→ R_GATE (1kΩ) ──→ Q1 gate ──→ R4 (10kΩ) ──→ GND
+                                   ↑
+                              Q_WD drain
+                              Q_WD source → GND
+                              Q_WD gate ←── Q2_INV collector ──→ R_FB (100kΩ) ──→ Q_ARM ──→ Q_LATCH base
+                                              ↑                                     ↑            ↑
+                                        R_WD_PD (10kΩ) → GND                  arm_node    R_LATCH_PD (1MΩ) → GND
+                                        Q2_INV emitter → 3.3V                              Q_LATCH emitter → GND
+                                        Q2_INV base ←── R_BASE (10kΩ) ←── D_ISO ←── RSTn
+                                              ↑  ↑           (anode)    (cathode)      ↑
+                                              |  R_PNP_BASE (100kΩ) → 3.3V
+                                        Q_LATCH collector                        R_WD_PU (100kΩ) → 3.3V
+                                                                                 TPL5010 RSTn (open-drain)
+                                                                                 MCU NRST
+
+Latch arm circuit:
+  PGOOD → R_ARM (1MΩ) → arm_node → C_ARM (1µF) → GND
+                            ↑
+                       Q_ARM gate
+```
+Power-on: PGOOD LOW → arm_node at 0V → Q_ARM OFF → R_FB can't reach Q_LATCH → latch disabled. PNP still activates during TPL5010 POR → Q_WD clamps gate (heater off during reset, good). After ~60ms, TPL5010 releases RSTn → PNP off → heater gate free. Then PGOOD goes HIGH → RC charges → after ≥361ms, Q_ARM turns on → latch armed.
+Normal: RSTn HIGH → D_ISO reverse-biased → R_PNP_BASE holds PNP base at 3.3V → PNP OFF → collector ~0V → NPN OFF → MCU controls Q1 freely. Zero power. Q_ARM is on (armed) but no current flows.
+Fault: RSTn LOW → D_ISO forward-biased → PNP ON → collector HIGH → R_FB → Q_ARM (on) → Q_LATCH ON → pulls PNP base LOW → **latched permanently**. D_ISO reverse-biased when latched → RSTn stays HIGH → MCU NRST not held low — MCU boots and reports fault via RS-485. Heater locked out until power cycle.
+Latch power: 0.64mA from 3.3V (0.1mA from 24V battery). Only during fault — irrelevant.
+RSTn also connects to MCU NRST for belt-and-suspenders reset.
+
+**PGOOD-gated arming is critical:** Without the arm gate, the TPL5010 power-on reset (RSTn LOW for ~60ms at every boot, per datasheet section 7.3.1) would trigger the SCR latch, permanently locking out the heater before the MCU even boots. Q_ARM (N-FET in R_FB path) breaks the feedback loop until PGOOD charges arm_node through a 1MΩ/1µF RC (τ=1s). Worst-case arming delay is 361ms (Vgs(th)=1.0V) vs 100ms max tRST — 3.6× safety margin. All three arm components (2N7002, 1MΩ, 1µF) use existing BOM part numbers.
+
+**D_ISO is critical:** Without the isolation diode, Q_LATCH (when latched) pulls the PNP base to 0.2V. R_BASE (10kΩ) forms a voltage divider with R_WD_PU (100kΩ) → RSTn = 0.48V, which is below the STM32 NRST LOW threshold (~1.1V). The MCU would be stuck in permanent reset and unable to report the fault. D_ISO (1N4148WS) blocks this reverse current path. At -40°C with hFE=50, trigger still has 29× margin.
+
+**TPL5010 RSTn + SCR latch:** The TPL5010 RSTn output is a pulse (~60ms typ, 100ms max), not sustained. The cross-coupled PNP/NPN latch (Q2_INV + Q_LATCH) converts this pulse into a permanent hold: one RSTn LOW pulse triggers the latch (when armed), which keeps the PNP saturated and Q_WD gate clamped indefinitely — even after RSTn returns HIGH. The latch can only be cleared by a power cycle (removing battery/solar). D_ISO (1N4148WS, in series with R_BASE) isolates the latch from the RSTn/NRST net: when latched, D_ISO is reverse-biased, so the MCU still resets and boots normally — it can report the fault via RS-485, but cannot fire the heater until manually power-cycled. This is intentional: TPL5010 only fires when layers 1 (timer) and 2 (IWDG) have both failed, indicating a serious fault. Permanent lockout is the appropriate response.
+
+### ADC Input Protection
+
+The 6 thermistor lines and excitation sense line travel through potentially long cable runs (25m+, via J2) to the ADC inputs. Each line is protected by a PRTR5V0U4D TVS array at the connector side (clamps ESD transients before they reach any downstream components), followed by a 1kΩ series resistor and 100nF shunt cap forming an RC low-pass filter (fc = 1.6kHz) that dumps HF noise from long cables to ground before it reaches ADC silicon. TVS placement at the connector side is critical — placing the 1kΩ resistor before the TVS would allow multi-kV ESD voltages to develop across the 0603 resistor before the TVS can clamp.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| R_AIN1-R_AIN6 | Series Resistors (x6) | C21190 | UNI-ROYAL 0603WAF1001T5E | 1kΩ 1%, 0603 | $0.001 ea | **Basic** | One per thermistor ADC input, between J2 and ADS1115 AINx pins. Limits current into ADS1115's internal ESD clamp diodes during transients. 1kΩ adds negligible error given the thermistor divider's ~5kΩ source impedance. |
+| R_AIN_EXC | Excitation Sense Resistor | C21190 | UNI-ROYAL 0603WAF1001T5E | 1kΩ 1%, 0603 | $0.001 | **Basic** | Series protection on excitation sense line to U_ADC1 AIN3. Same part as R_AIN1-6. Without this, transients on the excitation trace go straight into the ADC pin. |
+| C_AIN1-C_AIN6 | Input Filter Caps (x6) | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 ea | **Basic** | After each R_AIN, to GND. Forms 1kΩ + 100nF low-pass (fc = 1.6kHz). Essential for 25m+ cable runs — hardware anti-aliasing and HF EMI dump. Same part as bypass caps. |
+| C_AIN_EXC | Excitation Sense Filter | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | After R_AIN_EXC, to GND. Matches filter on thermistor channels. Same part as bypass caps. |
+| D_J2A | Sensor TVS Array (x1) | C2835429 | TECH PUBLIC PRTR5V0U4D-TP | 4-ch ESD, 5.5V standoff, 300W, 0.3pF, SOT-23-6 | $0.09 | Extended | Rail-clamp ESD array on excitation + data 1-3 (4 channels). VCC to 3.3V, GND to GND. Clamps transients from 25m+ outdoor cables. 0.3pF adds negligible capacitance vs. the 100nF filter caps. Place near J2. IEC 61000-4-2/4-5/4-4. |
+| D_J2B | Sensor TVS Array (x1) | C2835429 | TECH PUBLIC PRTR5V0U4D-TP | 4-ch ESD, 5.5V standoff, 300W, 0.3pF, SOT-23-6 | $0.09 | Extended | Same part for data 4-6 (3 of 4 channels used). Unused 4th channel: tie I/O pin to GND per datasheet recommendation. Same setup fee as D_J2A. |
+
+### I2C Bus
+
+Shared bus: MCU, EEPROM, 2x ADC. Pull-ups provided by ADS1115 registry packages (2× 10kΩ per line = 5kΩ effective). No separate pull-up resistors needed. 5kΩ is within I2C fast mode spec (valid range: 967Ω–5.6kΩ at 3.3V, 50pF bus capacitance).
+
+### Decoupling & Bypass Capacitors
+
+Every IC needs a local bypass cap (100nF ceramic, placed as close to the power pins as possible). The MCU also needs a bulk cap on VDDA, a ferrite bead isolating VDDA from digital VDD, and a cap on NRST.
+
+| Ref | Component | LCSC | MPN | Specs | Qty | Price ea | Type | Notes |
+|-----|-----------|------|-----|-------|-----|----------|------|-------|
+| C_MCU1-C_MCU4 | MCU VDD bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 4 | $0.001 | **Basic** | One per VDD pin (STM32G0B1 has 3x VDD + 1x VDDA). |
+| FB_VDDA | VDDA Ferrite Bead | C1002 | Sunlord GZ1608D601TF | 600Ω@100MHz, 200mA, 450mΩ, 0603 | 1 | $0.013 | **Basic** | In series between 3.3V rail and VDDA pin. Attenuates digital switching noise (~MHz) from reaching the analog supply. 200mA is ample for VDDA current (ADC + internal ref, <1mA). 450mΩ DCR → <0.5mV drop. Place between 3.3V plane via and C_VDDA/C_MCU4 landing pads. |
+| C_VDDA | MCU VDDA bulk | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | 1 | $0.006 | **Basic** | Additional bulk cap on VDDA for analog reference stability. On VDDA side of FB_VDDA (after ferrite bead). Same part as C6. |
+| C_NRST | MCU Reset filter | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | NRST pin to GND. Filters noise on reset line. |
+| C_EEPROM | EEPROM bypass | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | 1 | $0.001 | **Basic** | U_EEPROM VCC to GND. |
+| C_ADC1 | ADC1 bypass | — | — | 100nF, 0402 | 1 | — | — | *Included in ADS1115 registry package.* U_ADC1 VDD to GND. |
+| C_ADC2 | ADC2 bypass | — | — | 100nF, 0402 | 1 | — | — | *Included in ADS1115 registry package.* U_ADC2 VDD to GND. |
+| C_RS485 | RS-485 bypass | — | — | 100nF, 0402 | 1 | — | — | *Included in SP3485 registry package.* U_RS485 VCC to GND. |
+
+Explicit bypass caps use C14663 (already in BOM, basic, no additional setup fee). Total: 6 instances here (C_MCU1-4 + C_NRST + C_EEPROM) + C5 (shield) + C_WD (watchdog bypass) + C_VIN (buck HF) + C_AIN1-6 (6x ADC filter) + C_AIN_EXC (excitation filter) + C_TERM (AC termination) + C_ESD_A + C_ESD_B (TVS local decoupling) = 19 total instances of C14663. C_ADC1, C_ADC2, and C_RS485 are now provided by atopile registry packages (0402, auto-picked). Note: C3 (bootstrap) removed — LM5165Y uses internal bootstrap (P-FET high side).
+
+### PGOOD Monitoring
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| R_PGOOD | PGOOD Pull-up | C25804 | UNI-ROYAL 0603WAF1002T5E | 10kΩ 1%, 0603 | $0.001 | **Basic** | LM5165 PGOOD is open-drain. Pull-up to 3.3V lets MCU read power-good status. Firmware can delay I2C init until 3.3V is confirmed stable. Same part as R4. |
+
+### Thermistor Excitation Filter
+
+The ADS1115 uses an internal reference (not ratiometric), so any noise on the excitation driving the thermistor dividers directly becomes measurement error. An RC filter cleans up noise before it reaches the thermistors. R_EXC is 560Ω — low enough for acceptable DC drop with ratiometric compensation (2.52V worst-case at 85°C), but high enough to limit GPIO inrush current to 5.8mA when charging C_EXC from 0V (100Ω would draw 33mA, exceeding STM32's 20mA per-pin spec).
+
+**GPIO-driven excitation:** Excitation is sourced from an MCU GPIO (push-pull, ~3.25V at 1mA) rather than the 3.3V rail directly. This allows cutting ~1mA excitation current during sleep by setting the GPIO low before entering STOP2. The ratiometric measurement (AIN3) compensates for any GPIO output voltage variation. On wake: set GPIO high → wait ~3ms for C_EXC to charge (5× RC at 560Ω × 1µF) → read ADCs.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| R_EXC | Excitation Filter R | C23204 | UNI-ROYAL 0603WAF5600T5E | 560Ω 1%, 0603 | $0.001 | **Basic** | 560Ω limits GPIO inrush to 5.8mA (100Ω drew 33mA — exceeds STM32 20mA spec). DC drop at 1mA = 0.56V (excitation ~2.7V at 25°C). Ratiometric measurement on AIN3 compensates. fc = 284Hz with C_EXC — even better buck ripple attenuation than 100Ω (1.6kHz). |
+| C_EXC | Excitation Filter C | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.006 | **Basic** | Shunt cap after R_EXC. RC = 560Ω × 1µF = 560µs, fc = 284Hz. LM5165 PFM switches at ~100kHz+ so this gives ~51dB attenuation (vs ~36dB at old 100Ω). Same part as C6/C_VDDA. |
+
+### Connectors
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| J1 | M8 Receptacle | C19108968 | CAZN M8-P4A-GPL M8-JD | 4-pin, A-coded, male, right-angle, TH | $2.95 | Extended | Upstream to data logger. IP67 when mated. **Hand-solder.** |
+| J2 | Pluggable Header | C441318 | KF2EDGV-3.5-10P | 10-pin, 3.5mm pitch, vertical, TH | $0.12 | Extended | Downstream to sensor probe. **Hand-solder.** |
+| - | Pluggable Plug | C440844 | KF2EDGK-3.5-10P | 10-pin, cable-side plug | $0.44 | - | **Not a PCB part** — buy separately. |
+| C5 | Shield Cap | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | J1 shell to GND. Blocks ground loop DC, passes HF EMI. |
+
+### Status LED
+
+Common-anode RGB. MCU sinks current through each color via a resistor.
+
+| Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
+|-----|-----------|------|-----|-------|-------|------|-------|
+| LED1 | RGB LED | C22461780 | XINGLIGHT XL-B1212RGBA-HF | 1.2x1.2mm, common anode, SMD-4P | $0.007 | Extended | Anode to 3.3V. R/G/B cathodes to MCU GPIOs via resistors. |
+| R_R | LED Red | C23228 | UNI-ROYAL 0603WAF6800T5E | 680Ω 1%, 0603 | $0.001 | **Basic** | (3.3-2.1V)/680Ω = 1.8mA. Note: modern SMD LEDs are very bright at 2mA — may be blinding indoors but appropriate for outdoor/sunlight visibility. Increase to 2-4kΩ if indoor use is primary. |
+| R_G | LED Green | C8218 | UNI-ROYAL 0603WAF2000T5E | 200Ω 1%, 0603 | $0.001 | **Basic** | (3.3-2.9V)/200Ω = 2mA. |
+| R_B | LED Blue | C22962 | UNI-ROYAL 0603WAF2200T5E | 220Ω 1%, 0603 | $0.001 | **Basic** | (3.3-2.8V)/220Ω = 2.3mA. |
+
+### Debug & Test
+
+| Ref | Component | Specs | Notes |
+|-----|-----------|-------|-------|
+| TP_SWDIO | Test Pad | Through-hole pad | SWD data. No header needed — touch debug probe during development. |
+| TP_SWCLK | Test Pad | Through-hole pad | SWD clock. |
+| TP_GND | Test Pad | Through-hole pad | Ground reference for debug probe. |
+| TP_3V3 | Test Pad | Through-hole pad | 3.3V for target detection. |
+| TP_SDA | Test Pad | Through-hole pad | I2C data — useful for bus debugging with scope/logic analyzer. |
+| TP_SCL | Test Pad | Through-hole pad | I2C clock. |
+| TP_HTR | Test Pad | Through-hole pad | Heater gate drive signal. |
+| TP_BOOT0 | Test Pad | Through-hole pad | STM32 BOOT0 pin. Pull high to enter system bootloader if SWD is locked out or firmware is bricked. Lifesaver during development. |
+| TP_24V_PROT | Test Pad | Through-hole pad | Protected 24V rail (after F1/D2/D1). Verify protection circuit output and measure voltage under load. |
+| TP_RS485_A | Test Pad | Through-hole pad | RS-485 A line near U_RS485. Scope probe point for signal integrity, eye diagrams, and termination tuning. |
+| TP_RS485_B | Test Pad | Through-hole pad | RS-485 B line near U_RS485. Differential probe with TP_RS485_A. |
+
+Test pads are just exposed copper pads on the PCB — zero BOM cost, zero assembly cost. Include during layout.
+
+### M8 Pinout (J1)
+
+| Pin | Signal | Wire Color | Notes |
+|-----|--------|------------|-------|
+| 1 | 24V | Brown | Power input |
+| 2 | RS485 A (+) | White | Non-inverted data |
+| 3 | GND | Blue | Supply return |
+| 4 | RS485 B (-) | Black | Inverted data |
+| 5-6 | Shell | - | Through C5 (100nF) to GND |
+
+### 10-Pin Sensor Pinout (J2)
+
+| Pin | Signal | Notes |
+|-----|--------|-------|
+| 1 | Heater A | 24V protected rail (heater element is non-polar) |
+| 2 | Heater B | Low-side switched return via Q1 (heater element is non-polar) |
+| 3 | Ground | Sensor ground reference |
+| 4 | Excitation | Filtered 3.3V for thermistor dividers (through R_EXC/C_EXC) |
+| 5-10 | Data 1-6 | Thermistor analog lines (through R_AIN1-6 to ADC inputs) |
+
+### BOM Summary
+
+- **Basic/preferred parts (no setup fee):** C29823, C14663, C25804, C8963, C23228, C8218, C22962, C23206, C23204, C22787, C21190, C15849, C8542, C8545, C25803, C25950, C7420375, C1002, C20526, C22935, C2128 (21 unique). Note: I2C pull-ups (was C23162), ADC/RS-485 decoupling, and ALERT pull-ups are now provided by atopile registry packages (0402 passives, auto-picked at build time).
+- **Extended parts ($3 setup fee each):** C315903, C16015, C693627, C2071924, C5289353, C76634, C48928121, C4054386, C37593, C81193, C22461780, C19108968, C441318, C473912, C2847904, C2835429 (16 unique × $3 = $48 setup for first run)
+- **Hand-solder:** J1, J2 (through-hole, easy)
+- **Buy separately:** KF2EDGK-3.5-10P cable-side plug
+- **Action items:**
+  - Import: `just add C2071924` (LM5165Y), `just add C4054386` (100µF 50V)
+  - Import: `just add C8963` (SP3485), `just add C22461780` (RGB LED), `just add C7420375` (SM712 RS-485 TVS)
+  - Import: `just add C2835429` (PRTR5V0U4D-TP sensor TVS), `just add C1002` (ferrite bead VDDA)
+  - Import: `just add C20526` (MMBT3904 NPN latch), `just add C22935` (1MΩ latch pulldown), `just add C2128` (1N4148WS latch isolation diode)
+  - Remove old/unused parts from library: LMR14006YDDCR (C477919), SS34 (C8678), 33.2k (C23003), C3339 (old 35V cap), AO3422 (old 55V MOSFET), C22775 (100Ω, replaced by C23204 560Ω), C57112 (10nF, replaced by C14663 100nF)
+  - Place all new components on sap_adapter sheet
+  - Fix pin types on imported symbols (unspecified → passive) in Symbol Editor
+- **Local datasheets** (`datasheets/`, gitignored — download from LCSC `wmsc` URLs):
+  - `LM5165Y.pdf` — Buck converter (TI, 37 pages)
+  - `STM32G0B1CBT6.pdf` — MCU (ST, ~1000 pages)
+  - `ADS1115.pdf` — ADC (TI, 40 pages)
+  - `SP3485.pdf` — RS-485 transceiver (MaxLinear, 9 pages)
+  - `TPL5010.pdf` — Watchdog timer (TI, 10 pages)
+  - `CAT24C32.pdf` — EEPROM (onsemi, 16 pages)
+  - `PRTR5V0U4D.pdf` — ESD TVS array (Tech Public, 4 pages)
+  - `SM712.pdf` — RS-485 TVS (hongjiacheng, 3 pages)
+
+---
+
+## Design Documentation
+
+### Power
+
+#### Connector
+
+4-pin M8 A-coded connector (J1). PCB side has male pins so the cable is female-to-female — exposed cable ends can't accidentally short.
+
+**Pinout** standardized by IEC 61076-2-104 / IEC 60947-5-2:
+
+| Pin | Color  | Our Assignment | Convention |
+|-----|--------|----------------|------------|
+| 1   | Brown  | 24V (V+)       | Supply positive |
+| 2   | White  | RS-485 A+      | Signal |
+| 3   | Blue   | GND (0V)       | Supply return |
+| 4   | Black  | RS-485 B-      | Signal |
+
+Watch out: black is **not** ground. In the M8 world, blue is ground.
+
+**Shield capacitor (C5, 100nF 50V):** AC-couples the M8 housing to GND. Shunts high-frequency EMI while blocking DC ground loop current on long cable runs.
+
+#### Protection Circuit (F1, D2, D1)
+
+```
+J1 Pin 1 (24V) --> [F1 fuse] --> node A --> [D1: anode->cathode] --> +24V Protected
+                                    |
+                                  [D2 TVS]  (cathode at node A, anode to GND)
+                                    |
+                                   GND
+```
+
+**F1 (PTC fuse, 1.1A hold, 60V):** Series fuse. Cuts power on overcurrent. Also current-limits TVS during transients.
+
+**D2 (TVS, SMAJ33A, 33V standoff, ~53V clamp):** Parallel voltage clamp. Absorbs transient spikes. 33V standoff gives 4V margin above solar max (29V+).
+
+**D1 (Schottky, SS36, 60V/3A):** Series reverse-polarity protection. ~0.5V forward drop.
+
+### Firmware Architecture
+
+#### Vision
+Async `no_std` Rust library (Embassy on STM32G0):
+
+```rust
+sensor.read_temperature(Channel::UpperTip).await   // -> Result<Temperature, SapFluxError>
+sensor.fire_heater(Duration::from_secs(2)).await    // -> Result<(), SapFluxError::TooHot>
+sensor.conduct_measurement(config).await            // -> Result<SapFluxData, SapFluxError>
+```
+
+The MCU earns its keep as a safety interlock and protocol handler. Main loop must service TPL5010 WAKE interrupts by asserting DONE (rising edge) within the ~9.6s watchdog period — this is the heartbeat that keeps the external watchdog from killing the heater path and resetting the MCU.
+
+#### State Management
+
+**RAM (volatile):** Measurement state, sample buffers, session counters. Should reset on power loss.
+
+**EEPROM (persistent, rare writes):** Calibration coefficients, device ID, channel mapping, config presets, RS-485 node ID, RX power mode (always-on vs polling).
+
+**Thermistors as physical state (heater safety):** On every heater request, MCU reads all 6 thermistors. If any needle is elevated above ambient (>0.5°C above reference channels), request is refused with `TooHot`. Also flags if any single needle diverges significantly from the others (e.g., one at 50°C while the rest are at 25°C) — indicates a stuck heater, sensor pulled from wood, or hardware fault. Measures physical reality rather than trusting a bookkeeping entry.
+
+#### Firmware Notes
+
+**TPL5010 sync:** Use EXTI interrupt on the WAKE pin. When the TPL5010 pulses WAKE, assert DONE immediately in the ISR. Don't use a free-running timer — the TPL5010's RC oscillator drifts relative to the STM32's clock, so syncing to WAKE keeps the heartbeat aligned.
+
+**I2C bus arbitration:** ADCs and EEPROM share the bus. EEPROM page writes block for ~5ms. Do not start an EEPROM write during a time-critical ADC measurement sequence. Sequence: (1) perform all ADC reads, (2) then write EEPROM if needed. Embassy's async I2C driver handles bus-busy naturally, but the application must order operations correctly.
+
+**Ratiometric ADC reads:** For each measurement cycle, read U_ADC1 AIN3 (excitation voltage) alongside the 6 thermistor channels. Compute resistance as R_therm = R_ref × (V_ain / V_exc) / (1 - V_ain / V_exc). This cancels excitation drift (including GPIO output voltage variation) and improves absolute accuracy. All channels use PGA = +/-4.096V (see ADC section for rationale).
+
+**Sleep entry sequence:** (1) Turn off excitation (excitation GPIO low). (2) Enter Stop mode. SP3485 receiver stays on (~RE=0). USART remains configured for wakeup on RX start bit. GPIOs maintain state during Stop. In polling mode: firmware sets ~RE=1 before Stop, wakes on timer, briefly enables receiver (~RE=0) to listen.
+
+**Wake/measurement sequence:** (1) Turn on excitation GPIO. (2) Wait ~3ms for C_EXC to charge (5× RC at 560Ω). (3) Read all thermistor channels + excitation on AIN3. (4) If comms needed: set DE=1 to transmit, DE=0 to listen. RS-485 receiver is already on — no enable step needed.
+
+**ADC data rate:** Configure ADS1115 for low SPS (8 or 16 SPS) rather than the default 128 SPS. The 1kΩ series protection resistors + 100nF filter caps + long cable capacitance (design supports 25m+) create a high-impedance source. Lower data rates give the ADS1115's internal sampling capacitor more time to settle, improving accuracy.
+
+**ADS1115 mux settling:** The 1kΩ series resistors + cable capacitance create channel-to-channel memory effects on the ADS1115's muxed front end. After switching channels, perform a dummy conversion and discard the result before taking the real measurement. This adds ~125ms per channel at 8 SPS but eliminates inexplicable inter-channel offsets.
+
+**ADS1115 ALERT/DRDY:** Use the ALERT/DRDY pin (configured as conversion-ready) on each ADC to signal completion via MCU EXTI interrupt. This lets the MCU sleep (WFI) during the 125ms conversion instead of polling the I2C bus, saving power and freeing the bus for other devices.
+
+**USART wakeup from Stop:** The STM32G0 USART peripheral can detect a start bit on the RX pin and wake the MCU from Stop mode. In Embassy, this is the natural async pattern: the executor enters Stop when all tasks are awaiting, and a UART interrupt wakes it. The main loop uses `select()` between `uart_rx.read()` (wakes on RS-485 activity) and a measurement timer (wakes on schedule). No polling, no latency for incoming commands.
+
+**No ADC reads during heater pulse:** With 25m cables, 0.6A heater current through the shared ground wire creates ~800mV ground bounce (22AWG = 53mΩ/m × 25m one-way = 1.32Ω, × 0.6A = 794mV). This shifts all thermistor readings by ~6,400 LSBs (at PGA ±4.096V). The sap flux measurement protocol naturally separates ADC reads (before/after pulse) from the heater pulse itself, but firmware must enforce this constraint: never call ADC read functions while the heater GPIO is active. After the heater pulse ends, wait 10ms before reading ADCs — cable inductance (~25µH for 25m) and parasitic capacitance (~2.5nF) ring at ~637kHz with L/R decay τ=38µs; 10ms gives >250τ for complete settling.
+
+**Runtime configurable RX power mode:** Hardware supports two RS-485 listen modes via EEPROM config, with no PCB changes required (split DE/~RE pins enable both):
+- **Always-on (default):** Receiver enabled (~RE=0). USART wakeup from Stop on RX start bit. ~130-243µA from 24V battery (800-1500µA from 3.3V via buck). Zero-latency response to logger commands. Works with any data logger out of the box.
+- **Polling mode (advanced):** Receiver disabled (~RE=1) between listen windows. MCU sleeps for a configurable interval (1-60s), wakes briefly (~50ms) to listen, then sleeps again. ~15-20µA from 24V battery. Logger must retry or send a preamble longer than the poll interval. Useful for large-scale deployments (1000+ sensors) where per-unit battery cost dominates.
+
+**Safety boot (anti-bricking):** Regardless of EEPROM RX power mode setting, the receiver is forced ON for 10 seconds after every power cycle. This prevents soft-bricking — if a user sets an aggressive poll interval that their logger can't accommodate, power-cycling the sensor opens a 10-second window to send a "reset config" command.
+
+**Unused MCU pins:** STM32G0B1 has 44 GPIOs; this design uses ~19. Configure all unused pins as analog mode (GPIO_MODE_ANALOG) during initialization — this is the reset default and the lowest-leakage state. Avoid push-pull low which can sink current if a pin accidentally couples to a signal. Floating digital inputs waste power through CMOS input buffer shoot-through and can pick up noise that couples into the analog section.
+
+**Sleep current budget (always-on receiver mode):**
+| Source | 3.3V draw | Notes |
+|--------|-----------|-------|
+| LM5165 Iq | — | 10.5µA from 24V (not from 3.3V rail) |
+| STM32G0B1 Stop2 | ~2µA | 3.3V, all clocks off, RAM retained |
+| SP3485 RX (DE=0, ~RE=0) | 800µA typ / 1500µA max | Dominates 3.3V budget |
+| 2× ADS1115 (power-down) | 1µA total | Single-shot mode, both idle |
+| CAT24C32 standby | 2µA | |
+| TPL5010 | — | 35nA from 3.3V (negligible) |
+| I2C pull-ups (idle) | 0µA | Bus idle = high, no current through pull-ups |
+| R_WD_PU, R_DE_PD, R_RE_PD | <1µA total | 100kΩ to rail, negligible |
+| **Total from 3.3V** | **~805µA typ** | |
+| **Total from 24V** | **~27µA typ** | Via buck (η≈85% at light load, Iq=10.5µA) |
+
+**Q1 MOSFET second-source note:** XCHS3N12 (C48928121) is single-source from XCH. For production runs, evaluate alternatives like ZXMN10A07F (Diodes Inc, 100V/1.4A, SOT-23) or AO3416 (Alpha & Omega, 100V/2.3A, SOT-23) as drop-in replacements. Key specs: Vds≥100V, Vgs(th)≤2.5V, SOT-23, Rds(on)≤1Ω@3.3V.
+
+#### Heater Safety Layers
+
+Designed for unattended deployment in dry/dead trees. At 14.4W (24V into ~40Ω needle), napkin math shows:
+- 10s → ~171°C needle temp (safe)
+- 30s → ~232°C (smoldering risk)
+- 60s → ~264°C (pilot ignition risk)
+
+Four independent layers, any one of which can prevent a fire:
+
+1. **Hardware timer (primary):** STM32 timer in one-pulse mode. CPU triggers the pulse; timer peripheral autonomously enforces max duration. Even if CPU hangs mid-pulse, the timer hardware stops the output on schedule.
+2. **Independent watchdog (secondary):** IWDG clocked from independent RC oscillator. If firmware stops petting it, MCU resets. On reset, GPIOs go high-Z, R4 pulls Q1 gate low.
+3. **External watchdog + SCR latch (tertiary — MCU-independent):** TPL5010 with ~9.6s hardware timeout (R_DELAY=11kΩ). MCU must assert DONE after each WAKE pulse. If MCU fails (firmware hang, die failure, GPIO latched high), TPL5010 asserts RSTn LOW → triggers cross-coupled PNP/NPN latch → Q1 gate permanently clamped to GND until power cycle. D_ISO (1N4148WS) isolates latch from NRST — MCU boots, reports fault via RS-485, but cannot fire heater. 35nA quiescent — essentially free. Latch adds ~$0.04 BOM (1× MMBT3904 + 1× 1N4148WS + 2× resistors).
+4. **Thermal interlock (application layer):** Thermistor check before every firing. No persisted state dependency. Measures physical reality — can't be fooled by stale software state.
+
+### Project Context
+
+#### What this board does
+Adapter PCB between an East30 sap flux sensor probe (6 thermistor channels + heater) and a field data logger:
+- 24V power + RS-485 from data logger via M8 cable
+- 3.3V buck for MCU and analog front-end
+- 6 thermistor channels via 2x ADS1115 (16-bit I2C ADCs)
+- 24V heater driver (~0.6A, 1-2 second pulses) with hardware safety timeout
+- I2C EEPROM for calibration/config
+- Must survive outdoor deployment: solar charging (29V+), lightning, ESD, arbitrary cable lengths (25m+)
+- **Operating temperature:** -40°C to +85°C (all critical ICs are industrial grade: STM32G0B1 -40/+85°C, ADS1115 -40/+125°C, LM5165 -40/+125°C, SP3485 -40/+85°C)
+
+### PCB Layout Guidelines
+- **4-layer stackup:** Signal / GND / 3.3V / Signal. Dedicated inner ground plane (layer 2) directly below top signal layer gives the best return path for ADC traces and contains buck converter EMI. Inner 3.3V plane simplifies power distribution to MCU, ADCs, and peripherals.
+- **Board dimensions:** Target ≤100×100mm (JLCPCB cost sweet spot). ~60×50mm is comfortable for 72 components on 4 layers.
+- **Fiducials:** 3x global fiducial marks for JLCPCB pick-and-place alignment. 1mm copper circle with 2mm soldermask opening, placed asymmetrically near board corners.
+- **Mounting holes:** Include M3 mounting holes; exact count and placement deferred to layout phase based on final board dimensions and enclosure selection.
+- M8 and 10-pin header on opposite edges
+- Buck components tight (short SW trace, CIN close to VIN)
+- Heater MOSFET near J2
+- MCU central, EEPROM nearby
+- **Analog isolation:** ADC input traces short, away from buck/heater switching noise. R_AIN resistors and C_AIN filter caps close to J2. Excitation filter (R_EXC/C_EXC) near J2.
+- **Trace widths:** 24V/heater ≥0.5mm. 3.3V/signal 0.25mm. GND plane for returns.
+- **Thermal relief:** Use spoked thermal relief on M8 connector (J1) GND pins. The connector body is a large thermal slug — without relief, hand-soldering requires excessive heat that can damage the connector or PCB.
+- **GND return isolation:** Heater GND return (0.6A pulsed) must not route through the analog ground area under the ADCs. Keep heater power loop (Q1 source → GND plane → J2 GND → heater → Q1 drain) physically separated from the sensitive ADC input area. Star-ground or split-plane approach near ADCs. **J2 ground pin trace split:** J2 pin 3 (GND) carries both 0.6A heater return and ADC ground reference. Split the trace at the connector pad into two paths — a fat trace (≥0.5mm) to the heater power loop area, and a separate quiet trace to the analog ground region — before they merge at the ground plane.
+- **D4 flyback diode:** Place near J2 (sensor connector), not near Q1. For 25m+ cables, the inductive energy is in the cable — clamping is most effective at the connector where the cable attaches.
+- **C_VIN:** Place 100nF ceramic as close to LM5165 VIN/GND pins as possible, shorter loop than C1. Handles HF switching transients.
+- Test pads accessible from board edge
+- **D_J2A/D_J2B local decoupling:** Place a 100nF cap (C14663) near the VCC pin of each PRTR5V0U4D TVS array, with short traces to the 3.3V and GND planes. During ESD events, the rail-clamp arrays dump surge current into the 3.3V rail — the local cap absorbs this charge and prevents the rail from jumping.
+- **Ground pour on L4 under buck:** Add a copper fill (stitched to L2 GND plane) on the bottom signal layer under the LM5165 and inductor area. Provides additional thermal dissipation and EMI shielding for the switching node.
+- JLCPCB 4-layer specs: min 0.127mm trace/clearance, 0.3mm via drill, 0.2mm annular ring
+
