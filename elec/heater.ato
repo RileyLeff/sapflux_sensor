@@ -50,6 +50,7 @@ from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_El
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
 from "parts/UNI_ROYAL_0603WAF4704T5E/UNI_ROYAL_0603WAF4704T5E.ato" import UNI_ROYAL_0603WAF4704T5E_package
+from "parts/Murata_Electronics_GRM21BR61H106KE43L/Murata_Electronics_GRM21BR61H106KE43L.ato" import Murata_Electronics_GRM21BR61H106KE43L_package
 
 module HeaterDriver:
     """
@@ -100,6 +101,10 @@ module HeaterDriver:
     # --- Bulk decoupling on 24V ---
     c_bulk_24v = new Honor_Elec_VP1H101M0607_package
     """100uF 50V electrolytic. Absorbs heater switching transients."""
+
+    c_bulk_cer_1 = new Murata_Electronics_GRM21BR61H106KE43L_package
+    c_bulk_cer_2 = new Murata_Electronics_GRM21BR61H106KE43L_package
+    """2x 10uF 50V ceramic (0805). Low-ESR bypass for 5A switching transients."""
 
     # --- Gate driver components ---
     q_driver = new Changjiang_Electronics_Tech_2N7002_package
@@ -218,6 +223,12 @@ module HeaterDriver:
     # Bulk cap on 24V rail (before fuse, on main rail)
     power_24v.hv ~ c_bulk_24v.p1
     c_bulk_24v.p2 ~ power_24v.lv
+
+    # Low-ESR ceramic bypass caps (handle 5A step transient, ~5mΩ ESR)
+    power_24v.hv ~ c_bulk_cer_1.1
+    c_bulk_cer_1.2 ~ power_24v.lv
+    power_24v.hv ~ c_bulk_cer_2.1
+    c_bulk_cer_2.2 ~ power_24v.lv
 
     # =====================================================================
     # Gate driver circuit
