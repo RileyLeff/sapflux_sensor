@@ -399,4 +399,11 @@
 		(options "")
 		(descr "atopile: part lib: XFCN_PZ254V_11_04P")
 	)
+	(lib
+		(name "Murata_Electronics_GRM21BR61H106KE43L")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/Murata_Electronics_GRM21BR61H106KE43L")
+		(options "")
+		(descr "atopile: part lib: Murata_Electronics_GRM21BR61H106KE43L")
+	)
 )

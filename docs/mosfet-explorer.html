@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N-Channel MOSFET Interactive Explorer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0f; color: #c8c8d0; min-height: 100vh; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 20px; color: #e0e0e8; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: #12121a; border: 1px solid #2a2a3a; border-radius: 8px; padding: 20px; }
+  .panel h2 { font-size: 14px; color: #8888aa; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+
+  #circuit-canvas { width: 100%; height: 420px; background: #0e0e16; border-radius: 6px; border: 1px solid #1e1e2e; }
+
+  .control-group { margin-bottom: 20px; }
+  .control-group label { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-row input[type="range"] { flex: 1; accent-color: #5588ff; height: 6px; }
+  .slider-value { font-size: 14px; color: #aaddff; min-width: 60px; text-align: right; font-weight: bold; }
+
+  .scenarios { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .scenario-btn {
+    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px;
+    padding: 8px 14px; color: #8888cc; font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .scenario-btn:hover { background: #222244; border-color: #4444aa; color: #aaaaee; }
+  .scenario-btn.active { background: #2a2a5a; border-color: #5566cc; color: #ccccff; }
+
+  .readouts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .readout { background: #0a0a14; border: 1px solid #1e1e2e; border-radius: 6px; padding: 10px 12px; }
+  .readout .label { font-size: 10px; color: #556; text-transform: uppercase; letter-spacing: 0.5px; }
+  .readout .value { font-size: 18px; font-weight: bold; margin-top: 2px; }
+  .readout .unit { font-size: 12px; color: #556; }
+
+  .color-on { color: #44dd88; }
+  .color-off { color: #dd4466; }
+  .color-partial { color: #ddaa44; }
+  .color-blue { color: #4488ff; }
+  .color-dim { color: #445; }
+
+  .explanation {
+    background: #0e0e18; border: 1px solid #1e1e2e; border-radius: 6px;
+    padding: 14px; margin-top: 16px; font-size: 13px; line-height: 1.6; color: #999;
+  }
+  .explanation strong { color: #bbb; }
+
+  .gate-charge-bar {
+    height: 8px; background: #1a1a2a; border-radius: 4px; margin-top: 8px; overflow: hidden;
+  }
+  .gate-charge-fill { height: 100%; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>N-Channel MOSFET Explorer</h1>
+  <p class="subtitle">Interactive visualization for understanding MOSFET behavior in gate driver circuits</p>
+
+  <div class="scenarios">
+    <button class="scenario-btn active" onclick="setScenario('basic', this)">Basic MOSFET</button>
+    <button class="scenario-btn" onclick="setScenario('pulldown', this)">+ Pull-down R</button>
+    <button class="scenario-btn" onclick="setScenario('divider', this)">Voltage Divider</button>
+    <button class="scenario-btn" onclick="setScenario('override', this)">Divider + Override</button>
+    <button class="scenario-btn" onclick="setScenario('gatedriver', this)">Your Gate Driver</button>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Circuit</h2>
+      <canvas id="circuit-canvas" width="540" height="420"></canvas>
+    </div>
+
+    <div class="panel">
+      <h2>Controls</h2>
+
+      <div id="ctrl-vgs" class="control-group">
+        <label>Gate-Source Voltage (Vgs)</label>
+        <div class="slider-row">
+          <input type="range" id="vgs-slider" min="0" max="120" value="0" oninput="update()">
+          <span class="slider-value" id="vgs-display">0.0V</span>
+        </div>
+        <div class="gate-charge-bar">
+          <div class="gate-charge-fill" id="gate-charge"></div>
+        </div>
+      </div>
+
+      <div id="ctrl-vdd" class="control-group">
+        <label>Supply Voltage (Vdd)</label>
+        <div class="slider-row">
+          <input type="range" id="vdd-slider" min="0" max="480" value="240" oninput="update()">
+          <span class="slider-value" id="vdd-display">24.0V</span>
+        </div>
+      </div>
+
+      <div id="ctrl-rload" class="control-group">
+        <label>Load Resistance</label>
+        <div class="slider-row">
+          <input type="range" id="rload-slider" min="1" max="200" value="40" oninput="update()">
+          <span class="slider-value" id="rload-display">40R</span>
+        </div>
+      </div>
+
+      <div id="ctrl-override" class="control-group" style="display:none;">
+        <label>Override Transistor (Q_CTRL)</label>
+        <div class="slider-row">
+          <button id="override-btn" onclick="toggleOverride()" style="
+            background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px;
+            padding: 8px 20px; color: #dd4466; font-family: inherit; font-size: 13px;
+            cursor: pointer; width: 100%;
+          ">PA8 = LOW (Q_CTRL OFF)</button>
+        </div>
+      </div>
+
+      <h2 style="margin-top: 20px;">Readings</h2>
+      <div class="readouts">
+        <div class="readout">
+          <div class="label">MOSFET State</div>
+          <div class="value" id="state-display">OFF</div>
+        </div>
+        <div class="readout">
+          <div class="label">Rds(on)</div>
+          <div class="value" id="rds-display"><span class="color-dim">--</span></div>
+        </div>
+        <div class="readout">
+          <div class="label">Drain Current (Id)</div>
+          <div class="value" id="id-display">0<span class="unit">A</span></div>
+        </div>
+        <div class="readout">
+          <div class="label">Power in MOSFET</div>
+          <div class="value" id="pd-display">0<span class="unit">W</span></div>
+        </div>
+        <div class="readout">
+          <div class="label">Power in Load</div>
+          <div class="value" id="pl-display">0<span class="unit">W</span></div>
+        </div>
+        <div class="readout">
+          <div class="label">Vgs (effective)</div>
+          <div class="value" id="vgs-reading">0<span class="unit">V</span></div>
+        </div>
+      </div>
+
+      <div class="explanation" id="explanation">
+        Drag the <strong>Vgs slider</strong> to apply voltage to the gate. Watch the MOSFET transition from OFF to ON as you cross the threshold voltage (~2V).
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('circuit-canvas');
+const ctx = canvas.getContext('2d');
+
+let scenario = 'basic';
+let overrideOn = false;
+let animFrameId = null; // Track animation frame to cancel stale ones
+const VTH = 2.0;
+const VGS_FULL = 4.5;
+
+function getVgs() { return document.getElementById('vgs-slider').value / 10; }
+function getVdd() { return document.getElementById('vdd-slider').value / 10; }
+function getRload() { return Math.max(1, parseInt(document.getElementById('rload-slider').value)); }
+
+function getRdsOn(vgs) {
+  if (vgs < VTH) return 1e9;
+  if (vgs >= VGS_FULL) return 0.075;
+  let frac = (vgs - VTH) / (VGS_FULL - VTH);
+  frac = Math.max(0, Math.min(1, frac));
+  return Math.exp(Math.log(1000) * (1 - frac) + Math.log(0.075) * frac);
+}
+
+function getEffectiveVgs() {
+  const vdd = getVdd();
+
+  if (scenario === 'divider' || scenario === 'override' || scenario === 'gatedriver') {
+    const r_top = 4.7e6, r_bot = 1e6;
+    let v_divider = vdd * r_bot / (r_top + r_bot);
+
+    if ((scenario === 'override' || scenario === 'gatedriver') && overrideOn) {
+      v_divider = 0;
+    }
+    return v_divider;
+  }
+
+  return getVgs();
+}
+
+function setScenario(s, btnEl) {
+  scenario = s;
+  overrideOn = false;
+
+  // Reset override button appearance
+  const btn = document.getElementById('override-btn');
+  btn.textContent = 'PA8 = LOW (Q_CTRL OFF)';
+  btn.style.color = '#dd4466';
+  btn.style.borderColor = '#2a2a4a';
+
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+
+  // Show/hide controls
+  document.getElementById('ctrl-vgs').style.display =
+    (s === 'divider' || s === 'override' || s === 'gatedriver') ? 'none' : 'block';
+  document.getElementById('ctrl-override').style.display =
+    (s === 'override' || s === 'gatedriver') ? 'block' : 'none';
+
+  update();
+}
+
+function toggleOverride() {
+  overrideOn = !overrideOn;
+  const btn = document.getElementById('override-btn');
+  if (overrideOn) {
+    btn.textContent = 'PA8 = HIGH (Q_CTRL ON)';
+    btn.style.color = '#44dd88';
+    btn.style.borderColor = '#44dd88';
+  } else {
+    btn.textContent = 'PA8 = LOW (Q_CTRL OFF)';
+    btn.style.color = '#dd4466';
+    btn.style.borderColor = '#2a2a4a';
+  }
+  update();
+}
+
+function update() {
+  // Cancel any pending animation frame to prevent stale renders
+  if (animFrameId !== null) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+
+  const vgs_eff = getEffectiveVgs();
+  const vdd = getVdd();
+  const rload = getRload();
+  const rds = getRdsOn(vgs_eff);
+  const isOn = vgs_eff >= VTH;
+
+  const id = isOn ? vdd / (rload + rds) : 0;
+  const vds = id * rds;
+  const p_mosfet = id * vds;
+  const p_load = id * id * rload;
+
+  // Update slider value displays
+  document.getElementById('vgs-display').textContent = getVgs().toFixed(1) + 'V';
+  document.getElementById('vdd-display').textContent = vdd.toFixed(1) + 'V';
+  document.getElementById('rload-display').textContent = rload + 'R';
+
+  // State
+  const stateEl = document.getElementById('state-display');
+  if (!isOn) {
+    stateEl.innerHTML = '<span class="color-off">OFF</span>';
+  } else if (vgs_eff >= VGS_FULL) {
+    stateEl.innerHTML = '<span class="color-on">FULLY ON</span>';
+  } else {
+    stateEl.innerHTML = '<span class="color-partial">PARTIAL</span>';
+  }
+
+  // Rds
+  const rdsEl = document.getElementById('rds-display');
+  if (!isOn) {
+    rdsEl.innerHTML = '<span class="color-off">open</span>';
+  } else if (rds > 1000) {
+    rdsEl.innerHTML = `<span class="color-partial">${(rds/1000).toFixed(1)}k</span><span class="unit">R</span>`;
+  } else if (rds > 1) {
+    rdsEl.innerHTML = `<span class="color-partial">${rds.toFixed(0)}</span><span class="unit">R</span>`;
+  } else {
+    rdsEl.innerHTML = `<span class="color-on">${(rds*1000).toFixed(0)}m</span><span class="unit">R</span>`;
+  }
+
+  // Current
+  const idEl = document.getElementById('id-display');
+  if (!isOn || id < 0.001) {
+    idEl.innerHTML = `<span class="color-dim">0</span><span class="unit">A</span>`;
+  } else if (id < 1) {
+    idEl.innerHTML = `${(id*1000).toFixed(0)}<span class="unit">mA</span>`;
+  } else {
+    idEl.innerHTML = `${id.toFixed(2)}<span class="unit">A</span>`;
+  }
+
+  // Power in MOSFET
+  const pdEl = document.getElementById('pd-display');
+  if (!isOn || p_mosfet < 0.001) {
+    pdEl.innerHTML = `<span class="color-dim">0</span><span class="unit">W</span>`;
+  } else if (p_mosfet < 1) {
+    pdEl.innerHTML = `${(p_mosfet*1000).toFixed(0)}<span class="unit">mW</span>`;
+  } else {
+    pdEl.innerHTML = `<span class="color-off">${p_mosfet.toFixed(1)}</span><span class="unit">W</span>`;
+  }
+
+  // Power in load
+  const plEl = document.getElementById('pl-display');
+  if (!isOn || p_load < 0.01) {
+    plEl.innerHTML = `<span class="color-dim">0</span><span class="unit">W</span>`;
+  } else {
+    plEl.innerHTML = `<span class="color-on">${p_load.toFixed(1)}</span><span class="unit">W</span>`;
+  }
+
+  // Vgs reading
+  document.getElementById('vgs-reading').innerHTML = `${vgs_eff.toFixed(1)}<span class="unit">V</span>`;
+
+  // Gate charge bar
+  const chargeFill = document.getElementById('gate-charge');
+  const chargePct = Math.min(100, (vgs_eff / 12) * 100);
+  chargeFill.style.width = chargePct + '%';
+  chargeFill.style.background = !isOn ? '#dd4466' : vgs_eff < VGS_FULL ? '#ddaa44' : '#44dd88';
+
+  // Explanation
+  updateExplanation(vgs_eff, rds, id, p_mosfet, p_load, vdd, rload);
+
+  // Draw circuit (starts animation loop if needed)
+  drawCircuit();
+}
+
+function updateExplanation(vgs, rds, id, p_mos, p_load, vdd, rload) {
+  const el = document.getElementById('explanation');
+  const isOn = vgs >= VTH;
+
+  if (scenario === 'basic') {
+    if (!isOn) {
+      el.innerHTML = `<strong>Gate below threshold (${VTH}V).</strong> The channel between drain and source doesn't exist. No current flows. The MOSFET is an open circuit. All ${vdd.toFixed(0)}V appears across drain-source.`;
+    } else if (vgs < VGS_FULL) {
+      el.innerHTML = `<strong>Partially on.</strong> The channel exists but is narrow. Rds is ${rds > 1 ? rds.toFixed(0) + 'R' : (rds*1000).toFixed(0) + 'mR'} &mdash; comparable to your ${rload}R load. The MOSFET is wasting <strong>${p_mos < 1 ? (p_mos*1000).toFixed(0) + 'mW' : p_mos.toFixed(1) + 'W'}</strong> as heat. This is the danger zone &mdash; enough current to flow, but high enough resistance to cook the MOSFET.`;
+    } else {
+      el.innerHTML = `<strong>Fully enhanced.</strong> Rds = 75mR (TM15N10D spec). The MOSFET is essentially a wire. ${p_mos < 0.1 ? 'Almost zero' : (p_mos*1000).toFixed(0) + 'mW'} dissipated in the MOSFET, <strong>${p_load.toFixed(1)}W</strong> delivered to the load. This is the correct operating state.`;
+    }
+  } else if (scenario === 'pulldown') {
+    if (!isOn) {
+      el.innerHTML = `<strong>Pull-down resistor (R_pd = 100kR) holds gate at GND.</strong> If PA8 floats (boot, reset, sleep), R_pd slowly drains the gate capacitor to 0V. Without it, the gate could float at any voltage &mdash; the MOSFET state would be undefined. With it: undefined = OFF = safe.`;
+    } else {
+      el.innerHTML = `<strong>Gate driven above threshold.</strong> The MCU can easily overpower a 100kR pull-down &mdash; at 3.3V, R_pd only sinks 33uA to GND, while PA8 can source milliamps. The pull-down is invisible when the MCU is actively driving. It only matters when PA8 lets go.`;
+    }
+  } else if (scenario === 'divider') {
+    el.innerHTML = `<strong>Voltage divider sets gate to ${vgs.toFixed(1)}V.</strong> R_top (4.7MR) and R_bot (1MR) divide ${vdd.toFixed(0)}V down to ${vdd.toFixed(0)} &times; 1M / 5.7M = ${vgs.toFixed(1)}V. Total current through divider: ${(vdd / 5.7).toFixed(1)}uA &mdash; almost nothing. The divider defines a "default ON" state for this MOSFET. To turn it OFF, something must override the divider. Try changing Vdd to see how the gate voltage tracks.`;
+  } else if (scenario === 'override') {
+    if (overrideOn) {
+      el.innerHTML = `<strong>Override transistor ON &mdash; pulls midpoint to GND.</strong> Q_CTRL's drain is a near-short to GND (milliohms vs megaohms). The 4.7MR resistor can't compete. Gate goes to ~0V, MOSFET turns OFF. The divider is overpowered. Click the button to release.`;
+    } else {
+      el.innerHTML = `<strong>Override transistor OFF &mdash; divider sets ${vgs.toFixed(1)}V.</strong> Q_CTRL's drain is floating (infinite R), so the divider operates normally. Gate sits at ${vgs.toFixed(1)}V, MOSFET is ON. Click the button to see Q_CTRL override the divider.`;
+    }
+  } else if (scenario === 'gatedriver') {
+    if (overrideOn) {
+      el.innerHTML = `<strong>PA8 HIGH &rarr; Q6 ON &rarr; Q7 OFF &rarr; Heater ON.</strong> Q6 pulls Q7's gate to GND. Q7 turns off. R84 (1MR) charges Q1's gate from ${vdd.toFixed(0)}V up to 10V (D19 zener clamp). Q1 fully enhances at 75mR. Load gets <strong>${p_load.toFixed(1)}W</strong>. Double inversion: HIGH in = ON out.`;
+    } else {
+      el.innerHTML = `<strong>PA8 LOW &rarr; Q6 OFF &rarr; Q7 ON &rarr; Heater OFF.</strong> R80/R83 divider biases Q7's gate to ${vgs.toFixed(1)}V. Q7 turns on and clamps Q1's gate to GND. Q1 is off. No current flows. This is the boot-safe default state. Double inversion: LOW in = OFF out.`;
+    }
+  }
+}
+
+function drawCircuit() {
+  const vgs_eff = getEffectiveVgs();
+  const vdd = getVdd();
+  const rload = getRload();
+  const rds = getRdsOn(vgs_eff);
+  const isOn = vgs_eff >= VTH;
+  const fullyOn = vgs_eff >= VGS_FULL;
+  const id = isOn ? vdd / (rload + rds) : 0;
+  const maxCurrent = vdd > 0 ? vdd / rload : 1;
+  const currentFlow = maxCurrent > 0 ? Math.min(1, id / maxCurrent) : 0;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const wireColor = '#334';
+  const activeWire = (isOn && id > 0.001) ? `rgba(68, 221, 136, ${0.3 + currentFlow * 0.7})` : wireColor;
+  const gateColor = !isOn ? '#dd4466' : vgs_eff < VGS_FULL ? '#ddaa44' : '#44dd88';
+
+  ctx.lineWidth = 2;
+  ctx.font = '11px SF Mono, Fira Code, monospace';
+
+  // Component positions
+  const vddX = 270, vddY = 30;
+  const loadX = 270, loadY = 80;
+  const loadBotY = 160;
+  const mosX = 270, mosY = 240;
+  const gndX = 270, gndY = 380;
+  const gateX = 140, gateY = mosY;
+
+  // VDD label
+  ctx.fillStyle = '#4488ff';
+  ctx.fillText(`Vdd = ${vdd.toFixed(1)}V`, vddX - 30, vddY - 8);
+  ctx.strokeStyle = '#4488ff';
+  ctx.beginPath();
+  ctx.moveTo(vddX - 20, vddY); ctx.lineTo(vddX + 20, vddY);
+  ctx.stroke();
+
+  // VDD to load wire
+  ctx.strokeStyle = activeWire;
+  ctx.beginPath();
+  ctx.moveTo(vddX, vddY); ctx.lineTo(vddX, loadY);
+  ctx.stroke();
+
+  // Load resistor
+  drawResistor(ctx, loadX, loadY, loadX, loadBotY, activeWire);
+  ctx.fillStyle = '#aaa';
+  ctx.fillText(`R_load`, loadX + 20, (loadY + loadBotY) / 2 + 4);
+  ctx.fillStyle = '#eebb44';
+  ctx.font = 'bold 13px SF Mono, Fira Code, monospace';
+  ctx.fillText(`${rload}R`, loadX + 20, (loadY + loadBotY) / 2 + 20);
+  ctx.font = '11px SF Mono, Fira Code, monospace';
+
+  // Load to drain wire
+  ctx.strokeStyle = activeWire;
+  ctx.beginPath();
+  ctx.moveTo(loadX, loadBotY); ctx.lineTo(mosX, mosY - 40);
+  ctx.stroke();
+
+  // Drain label
+  ctx.fillStyle = '#888';
+  ctx.fillText('Drain', mosX + 30, mosY - 35);
+
+  // MOSFET symbol
+  drawMOSFET(ctx, mosX, mosY, gateColor, isOn, fullyOn);
+
+  // Source to GND wire
+  ctx.strokeStyle = activeWire;
+  ctx.beginPath();
+  ctx.moveTo(mosX, mosY + 40); ctx.lineTo(gndX, gndY - 20);
+  ctx.stroke();
+
+  // Source label
+  ctx.fillStyle = '#888';
+  ctx.fillText('Source', mosX + 30, mosY + 45);
+
+  // GND symbol
+  drawGnd(ctx, gndX, gndY - 20);
+
+  // Gate connection varies by scenario
+  if (scenario === 'basic') {
+    ctx.strokeStyle = gateColor;
+    ctx.beginPath();
+    ctx.moveTo(gateX - 40, gateY); ctx.lineTo(mosX - 35, gateY);
+    ctx.stroke();
+    ctx.fillStyle = gateColor;
+    ctx.fillText(`Vgs = ${vgs_eff.toFixed(1)}V`, gateX - 60, gateY - 12);
+    ctx.fillText('Gate', gateX - 10, gateY + 20);
+
+  } else if (scenario === 'pulldown') {
+    ctx.strokeStyle = gateColor;
+    ctx.beginPath();
+    ctx.moveTo(gateX - 40, gateY); ctx.lineTo(mosX - 35, gateY);
+    ctx.stroke();
+    ctx.fillStyle = gateColor;
+    ctx.fillText(`Vgs = ${vgs_eff.toFixed(1)}V`, gateX - 60, gateY - 12);
+
+    // Pull-down resistor
+    const pdX = gateX + 30;
+    ctx.strokeStyle = '#446';
+    ctx.beginPath();
+    ctx.moveTo(pdX, gateY); ctx.lineTo(pdX, gateY + 20);
+    ctx.stroke();
+    drawResistor(ctx, pdX, gateY + 20, pdX, gateY + 70, '#446');
+    ctx.strokeStyle = '#446';
+    ctx.beginPath();
+    ctx.moveTo(pdX, gateY + 70); ctx.lineTo(pdX, gndY - 20);
+    ctx.stroke();
+    drawGnd(ctx, pdX, gndY - 20, 0.7);
+    ctx.fillStyle = '#668';
+    ctx.fillText('R_pd 100k', pdX + 12, gateY + 50);
+
+  } else {
+    // Divider / Override / Gate Driver scenarios
+    drawDividerGate(ctx, vgs_eff, vdd, gateColor, gateX, gateY, vddX, vddY, mosX, gndY);
+  }
+
+  // Current flow animation dots
+  if (isOn && id > 0.001) {
+    const time = Date.now() / 1000;
+    drawCurrentDots(ctx, vddX, vddY, vddX, loadY, time, currentFlow, 0);
+    drawCurrentDots(ctx, loadX, loadBotY, mosX, mosY - 40, time, currentFlow, 0.3);
+    drawCurrentDots(ctx, mosX, mosY + 40, gndX, gndY - 20, time, currentFlow, 0.6);
+
+    // Continue animation
+    animFrameId = requestAnimationFrame(drawCircuit);
+  } else {
+    // No animation needed — static render is done
+    animFrameId = null;
+  }
+}
+
+function drawDividerGate(ctx, vgs, vdd, gateColor, gateX, gateY, vddX, vddY, mosX, gndY) {
+  const divX = gateX;
+  const divTopY = 60;
+  const divMidY = gateY;
+  const divBotY = gndY - 20;
+
+  // Wire from VDD to top resistor
+  ctx.strokeStyle = '#4488ff44';
+  ctx.beginPath();
+  ctx.moveTo(divX, divTopY - 30); ctx.lineTo(vddX, divTopY - 30); ctx.lineTo(vddX, vddY);
+  ctx.stroke();
+  ctx.strokeStyle = '#446';
+  ctx.beginPath();
+  ctx.moveTo(divX, divTopY - 30); ctx.lineTo(divX, divTopY);
+  ctx.stroke();
+
+  // Top resistor
+  drawResistor(ctx, divX, divTopY, divX, divMidY - 30, '#446');
+  ctx.fillStyle = '#668';
+  if (scenario === 'gatedriver') {
+    ctx.fillText('R80', divX - 40, (divTopY + divMidY - 30) / 2);
+    ctx.fillText('4.7M', divX - 40, (divTopY + divMidY - 30) / 2 + 14);
+  } else {
+    ctx.fillText('R_top 4.7M', divX - 55, (divTopY + divMidY - 30) / 2 + 4);
+  }
+
+  // Midpoint to gate
+  ctx.strokeStyle = gateColor;
+  ctx.beginPath();
+  ctx.moveTo(divX, divMidY - 30); ctx.lineTo(divX, divMidY);
+  ctx.lineTo(mosX - 35, divMidY);
+  ctx.stroke();
+
+  // Midpoint dot
+  ctx.fillStyle = gateColor;
+  ctx.beginPath();
+  ctx.arc(divX, divMidY, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillText(`${vgs.toFixed(1)}V`, divX - 35, divMidY - 8);
+
+  // Bottom resistor
+  ctx.strokeStyle = '#446';
+  ctx.beginPath();
+  ctx.moveTo(divX, divMidY); ctx.lineTo(divX, divMidY + 20);
+  ctx.stroke();
+  drawResistor(ctx, divX, divMidY + 20, divX, divMidY + 70, '#446');
+  ctx.strokeStyle = '#446';
+  ctx.beginPath();
+  ctx.moveTo(divX, divMidY + 70); ctx.lineTo(divX, divBotY);
+  ctx.stroke();
+  ctx.fillStyle = '#668';
+  if (scenario === 'gatedriver') {
+    ctx.fillText('R83', divX - 35, divMidY + 50);
+    ctx.fillText('1M', divX - 30, divMidY + 64);
+  } else {
+    ctx.fillText('R_bot 1M', divX - 50, divMidY + 50);
+  }
+  drawGnd(ctx, divX, divBotY, 0.7);
+
+  // Override transistor (for override and gatedriver scenarios)
+  if (scenario === 'override' || scenario === 'gatedriver') {
+    const ovX = divX + 60;
+    const ovY = divMidY + 40;
+    const ovColor = overrideOn ? '#44dd88' : '#334';
+
+    // Drain wire from midpoint
+    ctx.strokeStyle = ovColor;
+    ctx.beginPath();
+    ctx.moveTo(ovX, divMidY); ctx.lineTo(ovX, ovY - 12);
+    ctx.stroke();
+
+    // Connection from divider midpoint to override drain
+    ctx.beginPath();
+    ctx.moveTo(divX, divMidY); ctx.lineTo(ovX, divMidY);
+    ctx.stroke();
+
+    // Junction dot
+    ctx.fillStyle = ovColor;
+    ctx.beginPath();
+    ctx.arc(ovX, divMidY, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Small FET box
+    ctx.strokeStyle = overrideOn ? '#44dd8888' : '#33448888';
+    ctx.strokeRect(ovX - 8, ovY - 12, 16, 24);
+    ctx.fillStyle = overrideOn ? '#44dd8822' : 'transparent';
+    ctx.fillRect(ovX - 8, ovY - 12, 16, 24);
+
+    // Source wire to GND
+    ctx.strokeStyle = ovColor;
+    ctx.beginPath();
+    ctx.moveTo(ovX, ovY + 12); ctx.lineTo(ovX, divBotY);
+    ctx.stroke();
+    drawGnd(ctx, ovX, divBotY, 0.5);
+
+    // Gate input line
+    const gateLineX = ovX - 30;
+    const gateInputColor = overrideOn ? '#44dd88' : '#dd4466';
+    ctx.strokeStyle = gateInputColor;
+    ctx.beginPath();
+    ctx.moveTo(gateLineX, ovY); ctx.lineTo(ovX - 8, ovY);
+    ctx.stroke();
+
+    ctx.fillStyle = gateInputColor;
+    ctx.fillText(overrideOn ? 'PA8=H' : 'PA8=L', gateLineX - 38, ovY + 4);
+    ctx.fillStyle = '#888';
+    ctx.fillText(scenario === 'gatedriver' ? 'Q6' : 'Q_CTRL', ovX - 4, ovY + 32);
+  }
+
+  // Main MOSFET label for gatedriver
+  if (scenario === 'gatedriver') {
+    ctx.fillStyle = '#888';
+    ctx.fillText('Q7 (Q_DRIVER)', 270 + 30, gateY + 4);
+
+    ctx.fillStyle = '#556';
+    ctx.fillText('In full circuit:', 380, 100);
+    ctx.fillText('Q7 drain = Q1 gate', 380, 118);
+    ctx.fillText('D19 clamps to 10V', 380, 136);
+    ctx.fillText('R84 pulls to V24', 380, 154);
+  }
+}
+
+function drawResistor(ctx, x1, y1, x2, y2, color) {
+  const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  if (len < 1) return;
+  const dx = (x2 - x1) / len, dy = (y2 - y1) / len;
+  const nx = -dy, ny = dx;
+  const zigzags = 5;
+  const zigH = 6;
+  const segLen = len / (zigzags * 2 + 2);
+
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  let cx = x1 + dx * segLen, cy = y1 + dy * segLen;
+  ctx.lineTo(cx, cy);
+
+  for (let i = 0; i < zigzags; i++) {
+    cx += dx * segLen; cy += dy * segLen;
+    ctx.lineTo(cx + nx * zigH * (i % 2 === 0 ? 1 : -1), cy + ny * zigH * (i % 2 === 0 ? 1 : -1));
+    cx += dx * segLen; cy += dy * segLen;
+    ctx.lineTo(cx + nx * zigH * (i % 2 === 0 ? -1 : 1), cy + ny * zigH * (i % 2 === 0 ? -1 : 1));
+  }
+
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function drawMOSFET(ctx, x, y, gateColor, isOn, fullyOn) {
+  // Channel (dashed when off, solid when on)
+  ctx.strokeStyle = !isOn ? '#dd4466' : fullyOn ? '#44dd88' : '#ddaa44';
+  ctx.lineWidth = isOn ? 3 : 1;
+  ctx.setLineDash(isOn ? [] : [4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x, y - 25); ctx.lineTo(x, y + 25);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 2;
+
+  // Drain lead
+  ctx.strokeStyle = '#556';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 40); ctx.lineTo(x, y - 25);
+  ctx.stroke();
+
+  // Source lead
+  ctx.beginPath();
+  ctx.moveTo(x, y + 25); ctx.lineTo(x, y + 40);
+  ctx.stroke();
+
+  // Gate plate
+  ctx.strokeStyle = gateColor;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x - 15, y - 20); ctx.lineTo(x - 15, y + 20);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+
+  // Gate lead
+  ctx.beginPath();
+  ctx.moveTo(x - 35, y); ctx.lineTo(x - 15, y);
+  ctx.stroke();
+
+  // Insulator gap
+  ctx.strokeStyle = '#1a1a24';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y - 22); ctx.lineTo(x - 10, y + 22);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+
+  // Insulator label
+  ctx.fillStyle = '#445';
+  ctx.font = '10px SF Mono, Fira Code, monospace';
+  ctx.fillText('insulator', x - 30, y + 36);
+  ctx.font = '11px SF Mono, Fira Code, monospace';
+}
+
+function drawGnd(ctx, x, y, scale) {
+  const s = scale || 1;
+  ctx.strokeStyle = '#556';
+  ctx.beginPath();
+  ctx.moveTo(x - 15 * s, y); ctx.lineTo(x + 15 * s, y);
+  ctx.moveTo(x - 10 * s, y + 6); ctx.lineTo(x + 10 * s, y + 6);
+  ctx.moveTo(x - 5 * s, y + 12); ctx.lineTo(x + 5 * s, y + 12);
+  ctx.stroke();
+}
+
+function drawCurrentDots(ctx, x1, y1, x2, y2, time, intensity, phase) {
+  const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  if (len < 1) return;
+  const dx = (x2 - x1) / len, dy = (y2 - y1) / len;
+  const numDots = Math.max(1, Math.floor(len / 30));
+
+  for (let i = 0; i < numDots; i++) {
+    const t = ((i / numDots + time * 1.2 + phase) % 1);
+    const px = x1 + dx * len * t;
+    const py = y1 + dy * len * t;
+
+    ctx.fillStyle = `rgba(68, 221, 136, ${intensity * 0.8})`;
+    ctx.beginPath();
+    ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Initial render
+update();
+</script>
+</body>
+</html>
