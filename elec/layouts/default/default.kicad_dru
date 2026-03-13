@@ -82,6 +82,25 @@
 (rule "Copper to Board Edge"
     (constraint edge_clearance (min 0.3mm)))
 
+# --- Track width overrides for tight-pitch pads ---
+# Power/GND net classes default to wide traces (0.5-3mm) for current capacity,
+# but small IC pads (VSON-10, SOT-23, etc.) can't accept those widths.
+# These rules lower the DRC minimum to 0.2mm so you can manually route narrow
+# traces in tight spots without DRC violations. The router still defaults to
+# the net class width — you just select 0.2mm from the width dropdown when needed.
+
+(rule "Allow narrow GND traces"
+    (condition "A.NetClass == 'GND'")
+    (constraint track_width (min 0.2mm)))
+
+(rule "Allow narrow Power_24V traces"
+    (condition "A.NetClass == 'Power_24V'")
+    (constraint track_width (min 0.2mm)))
+
+(rule "Allow narrow Power_3V3 traces"
+    (condition "A.NetClass == 'Power_3V3'")
+    (constraint track_width (min 0.2mm)))
+
 # --- Silkscreen rules ---
 
 (rule "Silkscreen Minimum Text Height"
