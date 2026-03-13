@@ -16,3 +16,4 @@ saptest1-erc.rpt
 
 # Datasheets (downloaded from LCSC, ~18MB PDFs + extracted text)
 datasheets/
+spice/*.dat
