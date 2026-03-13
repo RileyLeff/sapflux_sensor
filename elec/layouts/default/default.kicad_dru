@@ -120,4 +120,4 @@
     (constraint text_thickness (min 0.15mm)))
 
 (rule "Silkscreen to Pad Clearance"
-    (constraint silk_clearance (min 0.14mm)))
+    (constraint silk_clearance (min 0.075mm)))
