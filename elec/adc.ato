@@ -128,6 +128,7 @@ module ADCFrontEnd:
     sda ~ adc1.i2c.sda.line
     scl ~ adc1.i2c.scl.line
     alert1 ~ adc1.alert_ready.line
+    adc1.alert_ready.reference.hv ~ power.hv
 
     # Unused ADC inputs tied to AGND through 1k (prevent noise coupling)
     r_ain2_gnd = new Resistor
