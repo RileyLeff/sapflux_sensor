@@ -52,7 +52,32 @@
         }
       },
       "diff_pair_dimensions": [],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        [
+          "unconnected_items|155250000|119237500|F.Cu|4|51f8e639-0c60-4587-af89-7396e83efbf8|9c6e33a3-7353-45e0-ad3d-94fdd5cd9d7b",
+          ""
+        ],
+        [
+          "unconnected_items|155250000|120507500|F.Cu|4|9c6e33a3-7353-45e0-ad3d-94fdd5cd9d7b|3ae1e40f-47bd-4575-92bb-fb3381dca846",
+          ""
+        ],
+        [
+          "unconnected_items|155250000|121767500|F.Cu|4|3ae1e40f-47bd-4575-92bb-fb3381dca846|088b9603-93a3-4c13-8b55-3a793172a389",
+          ""
+        ],
+        [
+          "unconnected_items|164750000|120507500|F.Cu|4|89ec04da-3127-4d5d-8155-432178819a01|9c6e33a3-7353-45e0-ad3d-94fdd5cd9d7b",
+          ""
+        ],
+        [
+          "unconnected_items|164750000|120507500|F.Cu|4|89ec04da-3127-4d5d-8155-432178819a01|d19406f7-bc44-4535-bd73-479b34025c2a",
+          ""
+        ],
+        [
+          "unconnected_items|164750000|121767500|F.Cu|4|f0fc4c78-1f7b-4953-ab4f-2913d742134a|89ec04da-3127-4d5d-8155-432178819a01",
+          ""
+        ]
+      ],
       "meta": {
         "version": 2
       },
