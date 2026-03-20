@@ -151,6 +151,87 @@ One-time setup fees: $86 (26 extended parts × $3 + $8 assembly). Per-board cost
 - 53 unique BOM line items, 231 total components
 - All parts in stock at JLCPCB
 
+## Comparison vs. Commercial Systems
+
+Baseline: Campbell Scientific CR300 datalogger + Implexx sap flux sensors (representative commercial setup). Heater needle resistance: 40Ω (both systems). Commercial sensors draw 4 mA @ 12V at idle and cannot be powered down.
+
+### System cost
+
+| Sensors | Commercial | SFI v1.1 (1 unit) | SFI v1.1 (10k volume) |
+|---|---|---|---|
+| 1 | $2,500 | $131 | $30 |
+| 4 | $5,500 | $146 | $45 |
+| 8 | $9,500 | $166 | $65 |
+
+Commercial: $1,500 logger + $1,000/sensor. SFI: board + $5/sensor (passive thermistors + resistors + cable + housing).
+
+### Battery life (96 Wh battery)
+
+**Commercial system** (12V, 3s heater pulse, sensors always drawing power):
+
+| Sensors | 30 min | 60 min | 120 min |
+|---|---|---|---|
+| 1 | 20 days | 21 days | 21 days |
+| 4 | 11 days | 11 days | 12 days |
+| 8 | 7 days | 7 days | 7 days |
+
+Battery life barely changes with measurement interval because sensor idle power (48 mW each) dominates.
+
+**SFI v1.1** (24V, 1s heater pulse, zero sensor idle draw):
+
+| Sensors | 30 min | 60 min | 120 min |
+|---|---|---|---|
+| 1 | 1.2 yr | 2.2 yr | 3.6 yr |
+| 4 | 118 days | 230 days | 1.2 yr |
+| 8 | 60 days | 118 days | 230 days |
+
+Battery life scales linearly with measurement interval because heater pulses are the dominant power draw — idle consumption is negligible.
+
+### Side-by-side (30-min interval, 96 Wh)
+
+| Sensors | Commercial | SFI v1.1 | Ratio |
+|---|---|---|---|
+| 1 | 20 days | 1.2 years | 22× |
+| 4 | 11 days | 118 days | 11× |
+| 8 | 7 days | 60 days | 9× |
+
+### Power breakdown (8 sensors, 30-min interval)
+
+| Component | Commercial | SFI v1.1 |
+|---|---|---|
+| Board idle | 144 mW | 0.98 mW |
+| Sensor idle (8×) | 384 mW | 0 mW |
+| Heater (avg) | 48 mW | 64 mW |
+| Measurement (avg) | (incl. in idle) | 1.7 mW |
+| **Total** | **576 mW** | **67 mW** |
+
+SFI uses more heater energy per pulse (14.4W × 1s vs. 3.6W × 3s) but eliminates all idle sensor power draw.
+
+### Open hardware & firmware advantages
+
+**Adaptive power management.** Firmware can monitor battery voltage via the onboard 24V divider and dynamically respond:
+- Reduce measurement frequency as battery drops
+- Pause measurements entirely and coast on <1 mW idle draw indefinitely
+- Resume automatically when solar charging restores voltage
+
+**Custom measurement strategies.** Embassy async firmware means the measurement loop, heater timing, and data processing are all user-defined Rust code:
+- Conditional measurements (e.g., only measure during daylight, or ramp up frequency during rain events)
+- Custom heater pulse profiles (variable duration, multiple pulses, thermal equilibrium detection)
+- On-board data reduction before transmission
+
+**Standard interfaces.** RS-485 is the dominant fieldbus in environmental monitoring — compatible with Campbell, Meter, Decagon, and most industrial loggers. The I2C/GPIO breakout header enables:
+- External sensors (soil moisture, PAR, humidity)
+- LoRa/satellite radio modules for remote telemetry
+- Custom expansion boards
+
+**Flexible sensor topology.** 48 thermistor channels, any configuration:
+- 8× 6-channel sensors (standard sap flux)
+- 3× 16-channel sensors (high-density radial profiles)
+- 2× 24-channel sensors
+- Mix and match as needed
+
+**Fully open source.** Hardware (KiCad/atopile), firmware (Rust/Embassy), and documentation are all open. No vendor lock-in, no license fees, no EOL risk.
+
 ## License
 
 Open source (license TBD).
