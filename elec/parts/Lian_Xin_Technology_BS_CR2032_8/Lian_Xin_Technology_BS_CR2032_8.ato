@@ -15,6 +15,8 @@ component Lian_Xin_Technology_BS_CR2032_8_package:
     trait has_designator_prefix<prefix="BAT">
     trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2309251154_Lian-Xin-Technology-BS-CR2032-8_C7498149.pdf">
 
-    # pins (CR2032 battery holder: pin 1 = +, pin 2 = -)
-    signal POS ~ pin 1
-    signal NEG ~ pin 2
+    # pins (CR2032 battery holder: pin 1 = -, pin 2 = +)
+    # Pin 1 (rounded pad) contacts battery bottom (case/negative)
+    # Pin 2 (clip pad) contacts battery top (positive)
+    signal NEG ~ pin 1
+    signal POS ~ pin 2

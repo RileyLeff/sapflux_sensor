@@ -51735,7 +51735,7 @@
 			)
 		)
 		(property "Value" ""
-			(at 0 4 270)
+			(at 0 4 90)
 			(layer "F.Fab")
 			(uuid "abd6808f-240d-4c40-8d49-849cac45a7b3")
 			(effects
@@ -52045,7 +52045,7 @@
 			(uuid "26fadd87-c093-4ad3-a3de-db98c79cfb14")
 		)
 		(fp_text user "-"
-			(at -11.44 -1.89 270)
+			(at -11.44 -1.89 90)
 			(layer "F.SilkS")
 			(uuid "4f65af70-a5c7-4b32-8811-426fc4f3af11")
 			(effects
@@ -52053,11 +52053,11 @@
 					(size 2.03 2.03)
 					(thickness 0.2)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(fp_text user "+"
-			(at 6.25 -2.32 270)
+			(at -4.225 0.225 90)
 			(layer "F.SilkS")
 			(uuid "e55a05cd-e752-4661-901d-c8630f16b634")
 			(effects
@@ -52065,11 +52065,11 @@
 					(size 2.03 2.03)
 					(thickness 0.2)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(fp_text user "${REFERENCE}"
-			(at 0 0 270)
+			(at 0 0 90)
 			(layer "F.Fab")
 			(uuid "17c90586-421c-4d2a-b220-819a662af707")
 			(effects
@@ -53738,9 +53738,9 @@
 	(footprint "UNI_ROYAL_0603WAF1200T5E:R0603"
 		(layer "F.Cu")
 		(uuid "c84ed7f6-2e88-4f61-b1a5-004e4642524b")
-		(at 105.215 120.305 90)
+		(at 106.075 120.9 180)
 		(property "Reference" "R19"
-			(at 0 -4 90)
+			(at 0 -4 0)
 			(layer "F.Fab")
 			(uuid "25e655ea-68a0-42ab-9c8c-39d01e11c21c")
 			(effects
@@ -53751,7 +53751,7 @@
 			)
 		)
 		(property "Value" "120Ω"
-			(at 0 4 90)
+			(at 0 4 0)
 			(layer "F.Fab")
 			(uuid "a44a5cdf-15e0-4f88-bd24-6106ed2e7b50")
 			(effects
@@ -53762,7 +53762,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1200T5E_C22787.pdf"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "453776a1-04df-483c-a5ed-0ad4cd921413")
@@ -53774,7 +53774,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
 			(uuid "9109809d-aee8-41a4-ba60-a116be95cb42")
@@ -53786,7 +53786,7 @@
 			)
 		)
 		(property "LCSC" "C22787"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "8b77c7ca-fd29-443d-b7b8-67954642524b")
@@ -53798,7 +53798,7 @@
 			)
 		)
 		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "e3f73a97-9656-4c23-85b3-303e4642524b")
@@ -53810,7 +53810,7 @@
 			)
 		)
 		(property "PARAM_max_power" "{\"type\": \"Quantity_Set_Discrete\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 0.1, \"max\": 0.1}}]}}, \"unit\": \"watt\"}}"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "392be8f9-0821-4bd0-aea9-af394642524b")
@@ -53822,7 +53822,7 @@
 			)
 		)
 		(property "PARAM_max_voltage" "{\"type\": \"Quantity_Set_Discrete\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 75.0, \"max\": 75.0}}]}}, \"unit\": \"volt\"}}"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "cf6a5276-ed46-4e91-aa5e-bf124642524b")
@@ -53834,7 +53834,7 @@
 			)
 		)
 		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 118.80000002682209, \"max\": 121.19999997317791}}]}}, \"unit\": \"ohm\"}}"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "4a78b049-1947-40f3-8ce9-eb214642524b")
@@ -53846,7 +53846,7 @@
 			)
 		)
 		(property "Partnumber" "0603WAF1200T5E"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "050285e6-d88e-4def-ab4d-6bbe4642524b")
@@ -53858,7 +53858,7 @@
 			)
 		)
 		(property "resistance" "120±1.0%Ω"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "407756e7-d2e2-4916-a44b-5f894642524b")
@@ -53870,7 +53870,7 @@
 			)
 		)
 		(property "max_power" "0.1W"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "e0d35cac-2091-4137-88b6-89024642524b")
@@ -53882,7 +53882,7 @@
 			)
 		)
 		(property "max_voltage" "75V"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "cd790c73-2f15-4df2-b107-695c4642524b")
@@ -53894,7 +53894,7 @@
 			)
 		)
 		(property "atopile_address" "rs485.r_term"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "61dc7f5d-e6c7-4da1-b933-42cf4642524b")
@@ -53906,7 +53906,7 @@
 			)
 		)
 		(property "lcsc_id" "C22787"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "4369e7da-942b-49cf-959e-043e4642524b")
@@ -53918,7 +53918,7 @@
 			)
 		)
 		(property "package" "0603"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
 			(uuid "e175d398-fc7e-4ed2-8e43-a3004642524b")
@@ -53931,26 +53931,6 @@
 		)
 		(attr smd)
 		(fp_line
-			(start 1.39 -0.66)
-			(end 0.43 -0.66)
-			(stroke
-				(width 0.15)
-				(type solid)
-			)
-			(layer "F.Fab")
-			(uuid "66ba9e61-aa79-4169-a500-5c760b4fa2c7")
-		)
-		(fp_line
-			(start -1.39 -0.66)
-			(end -0.43 -0.66)
-			(stroke
-				(width 0.15)
-				(type solid)
-			)
-			(layer "F.Fab")
-			(uuid "7bd3ffaf-d423-4574-99e9-2e656b58942d")
-		)
-		(fp_line
 			(start 1.39 0.66)
 			(end 1.39 -0.66)
 			(stroke
@@ -53959,6 +53939,16 @@
 			)
 			(layer "F.Fab")
 			(uuid "92ba2c91-ba8b-43d0-bd25-65dcbc78d00c")
+		)
+		(fp_line
+			(start 1.39 -0.66)
+			(end 0.43 -0.66)
+			(stroke
+				(width 0.15)
+				(type solid)
+			)
+			(layer "F.Fab")
+			(uuid "66ba9e61-aa79-4169-a500-5c760b4fa2c7")
 		)
 		(fp_line
 			(start 0.43 0.66)
@@ -53990,6 +53980,16 @@
 			(layer "F.Fab")
 			(uuid "7fd5c98a-2e8a-4b09-ad10-9bc24669bec3")
 		)
+		(fp_line
+			(start -1.39 -0.66)
+			(end -0.43 -0.66)
+			(stroke
+				(width 0.15)
+				(type solid)
+			)
+			(layer "F.Fab")
+			(uuid "7bd3ffaf-d423-4574-99e9-2e656b58942d")
+		)
 		(fp_circle
 			(center -0.8 0.4)
 			(end -0.77 0.4)
@@ -54002,7 +54002,7 @@
 			(uuid "b057fed1-8095-42b6-a0a5-1301e7bcde07")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 0 0 90)
+			(at 0 0 0)
 			(layer "F.Fab")
 			(uuid "3fd9a530-c887-40fa-adf6-e23c320c3f15")
 			(effects
@@ -54013,14 +54013,14 @@
 			)
 		)
 		(pad "1" smd rect
-			(at -0.75 0 90)
+			(at -0.75 0 180)
 			(size 0.81 0.86)
 			(layers "F.Cu" "F.Mask" "F.Paste")
 			(net 103 "rs485_a_P")
 			(uuid "ea411d47-1240-481b-bfef-371bf6b29f02")
 		)
 		(pad "2" smd rect
-			(at 0.75 0 90)
+			(at 0.75 0 180)
 			(size 0.81 0.86)
 			(layers "F.Cu" "F.Mask" "F.Paste")
 			(net 13 "RS485_TERM")
@@ -64188,7 +64188,7 @@
 			(uuid "1c25f737-892b-41cc-b36a-5e084663f4b2")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 0 0 270)
+			(at -1.795 -2.53 270)
 			(layer "F.Fab")
 			(uuid "c5683c0f-694a-4434-961c-a7a135cfc668")
 			(effects
@@ -88691,12 +88691,12 @@
 		(uuid "ef957427-d632-4bc5-a864-1a33894c5583")
 	)
 	(segment
-		(start 105.215 119.555)
-		(end 104.115 119.555)
+		(start 105.325 120.9)
+		(end 105.26 120.9)
 		(width 0.2)
 		(layer "F.Cu")
 		(net 13)
-		(uuid "4664d2d0-9a53-4aab-841d-5d612ba09172")
+		(uuid "0b6eaa23-f864-447a-b056-acc72e13c48b")
 	)
 	(segment
 		(start 104.115 119.555)
@@ -88705,6 +88705,14 @@
 		(layer "F.Cu")
 		(net 13)
 		(uuid "466ebddb-cf4a-4136-a741-049aa06b698e")
+	)
+	(segment
+		(start 105.26 120.9)
+		(end 104.015 119.655)
+		(width 0.2)
+		(layer "F.Cu")
+		(net 13)
+		(uuid "a73811f1-78ae-4912-baf8-9cf15250f0c5")
 	)
 	(segment
 		(start 125.1775 107.9375)
@@ -101755,20 +101763,28 @@
 		(uuid "f4d14653-f5f0-407e-a32e-2d9bddda9245")
 	)
 	(segment
-		(start 106.615 119.655)
-		(end 105.215 121.055)
-		(width 0.3)
-		(layer "F.Cu")
-		(net 103)
-		(uuid "1907a47c-9ea1-476b-ae4b-689b8096b614")
-	)
-	(segment
 		(start 106.615 119.38)
 		(end 106.615 119.355)
 		(width 0.3)
 		(layer "F.Cu")
 		(net 103)
 		(uuid "1f4cf130-01de-4c35-848a-ac2ab92b83ce")
+	)
+	(segment
+		(start 106.825 119.59)
+		(end 106.615 119.38)
+		(width 0.2)
+		(layer "F.Cu")
+		(net 103)
+		(uuid "271c22cd-9101-46bc-9880-ec23739c8aad")
+	)
+	(segment
+		(start 106.725 120.9)
+		(end 106.825 120.9)
+		(width 0.2)
+		(layer "F.Cu")
+		(net 103)
+		(uuid "59b3fe1b-ea78-4d47-ada9-04cdb1853883")
 	)
 	(segment
 		(start 106.615 119.355)
@@ -101779,12 +101795,20 @@
 		(uuid "59eb1404-ec05-4e7e-a7a5-2002a9a63dcc")
 	)
 	(segment
-		(start 105.215 121.055)
-		(end 105.215 122.565)
+		(start 106.825 120.9)
+		(end 106.825 119.59)
 		(width 0.2)
 		(layer "F.Cu")
 		(net 103)
-		(uuid "728287b5-fd94-4512-8245-e77cf9e7e50b")
+		(uuid "8462ddf1-1bfe-45a8-8025-e5410a7aab1a")
+	)
+	(segment
+		(start 105.12 122.505)
+		(end 106.725 120.9)
+		(width 0.2)
+		(layer "F.Cu")
+		(net 103)
+		(uuid "c288fef4-ef31-4d09-acdb-cfc4a627b2cd")
 	)
 	(segment
 		(start 105.215 122.565)
@@ -101795,28 +101819,12 @@
 		(uuid "c5f74159-d3f0-4737-b7e9-3db51a2015f8")
 	)
 	(segment
-		(start 106.615 119.38)
-		(end 106.615 119.655)
-		(width 0.3)
-		(layer "F.Cu")
-		(net 103)
-		(uuid "d4029d4e-20e3-400f-8afb-178419e98c45")
-	)
-	(segment
-		(start 105.215 121.055)
-		(end 105.215 120.78)
+		(start 105.12 122.66)
+		(end 105.12 122.505)
 		(width 0.2)
 		(layer "F.Cu")
 		(net 103)
-		(uuid "d71789f1-3596-439f-bc95-e79151c8dbd7")
-	)
-	(via
-		(at 106.6 119.34)
-		(size 0.5)
-		(drill 0.3)
-		(layers "F.Cu" "B.Cu")
-		(net 103)
-		(uuid "dabfcae6-75b4-44f1-a95c-3c5f832eeb73")
+		(uuid "dcb7a3d8-8744-42cb-8f0d-49e92dabcbed")
 	)
 	(segment
 		(start 104.945 120.995)
@@ -123629,10 +123637,6 @@
 			"fc5d5d77-ef87-46ba-8b77-7bd24642524b"
 		)
 	)
-	(group "rs485.transceiver"
-		(uuid "a9736185-af87-4ac4-94fd-ef4af1b43c35")
-		(members "9f8e716b-daf1-49f5-800c-7ebe4642524b" "e669ca88-8bb9-4825-bb45-93ea4642524b")
-	)
 	(group ""
 		(uuid "1001c2e3-a85f-466b-952f-eef3803b0a4a")
 		(members "3ab93f79-587a-42bd-a8dd-40d607ea3d6d" "60ac5dc7-e686-4743-ab41-01d887a79dbb"
@@ -123802,33 +123806,6 @@
 			"89bd91e4-f626-4d22-8759-2abc685a1b93" "a1f59bb0-ead8-4bf1-b714-c17683fff795"
 			"b117f59b-20c5-4453-85e8-c34916fe6004" "cf0132f4-b7df-4071-9e83-fa0727ac1b4c"
 			"d2d5a70f-55b3-4fdc-b00a-b86cea290fd6"
-		)
-	)
-	(group ""
-		(uuid "dc654b8e-a429-4d41-b527-fe5f75d17fe8")
-		(members "0d614e85-1e67-47d8-897f-9c1f41423de1" "1291c89a-e39b-4f91-b70f-e38992ece450"
-			"1907a47c-9ea1-476b-ae4b-689b8096b614" "1f4cf130-01de-4c35-848a-ac2ab92b83ce"
-			"2b1cd8bc-f544-410a-b644-cf3bc6ddaa77" "2fc088a1-ef08-4ad9-8bdc-052d1c9fb5de"
-			"31274451-0948-4151-a8df-6faae1204edf" "33426ed6-71fb-4d54-b63e-ee23644c649f"
-			"3a183cf3-2ab2-41e6-bccf-80a29ae6a666" "3c52048b-43f3-47d1-8f65-6fc45b95872b"
-			"44319dd3-d39d-4409-a756-af042fd1b008" "4664d2d0-9a53-4aab-841d-5d612ba09172"
-			"466ebddb-cf4a-4136-a741-049aa06b698e" "54366023-bdb8-4a07-9e6e-1e58ac8194b1"
-			"59eb1404-ec05-4e7e-a7a5-2002a9a63dcc" "5cc37af4-63ca-4f48-8a74-f454015185c8"
-			"610e79c7-19e8-4bb8-aea4-a53e5bb7fa4d" "68ec18be-abc7-4b3f-9694-ccfe735d9157"
-			"68f1eb9e-1308-4767-9e6c-845c3d5b85f8" "6ff9ff8a-2370-4c20-a83d-be6f3a77b79d"
-			"728287b5-fd94-4512-8245-e77cf9e7e50b" "7634eb5a-f380-46df-957e-66151bf248b0"
-			"78941b9d-068f-4883-88c0-191784373311" "7c2bc093-14a2-4224-8b13-b7a206d4321c"
-			"842001db-e7de-4f77-aead-63bc720405a6" "8c8d9cb2-6935-45ce-a704-d6999e6431ee"
-			"9451b960-98ea-4c9c-a616-10d8ff94d6af" "a4e10e4a-7506-4d94-90ae-d92c5c7b0509"
-			"a8cd247f-ff65-4293-9b07-fc12ec2de78c" "b23f05bc-1e00-4437-83ae-ae26558338a8"
-			"bf0b351e-3eff-4104-8cb1-1483fbaf095f" "bfa0a770-2229-47f9-9ea8-efc43da92e31"
-			"c12a69db-1661-4d20-91f7-f6649374851b" "c14972cb-9078-4f7e-9e1c-5cd2191d89f5"
-			"c392a0c4-90d9-4167-a4ec-e7fdd2ada9b6" "c5f74159-d3f0-4737-b7e9-3db51a2015f8"
-			"cc7bf269-b436-4cf4-8181-c8008e9f9698" "d143ec8b-0dcb-4e53-83a8-5aa3f560513b"
-			"d4029d4e-20e3-400f-8afb-178419e98c45" "d71789f1-3596-439f-bc95-e79151c8dbd7"
-			"d7940392-c84e-4872-90a3-ff7bf1177341" "da1b40f0-b60c-494c-8023-8082f7a0b4c6"
-			"dabfcae6-75b4-44f1-a95c-3c5f832eeb73" "dff624d1-3e77-49d7-a25a-2cdcd30e845b"
-			"fed147ef-fcbb-463c-b2b8-275ab3364748"
 		)
 	)
 	(group ""
