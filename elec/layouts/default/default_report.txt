@@ -1,0 +1,49 @@
+PCB statistics report
+=====================
+- Date: Saturday, March 14, 2026 at 12:57:01 AM
+- Project: default
+- Board name: default
+
+Board
+-----
+- Width: 100.0000 mm
+- Height: 100.0000 mm
+- Area: 10000.0000 mm²
+
+Pads
+----
+- Through hole: 81
+- SMD: 668
+- Connector: 0
+- NPTH: 0
+
+Vias
+----
+- Through vias: 244
+- Blind/buried: 0
+- Micro vias: 0
+
+Components
+----------
+
+|              | Front Side | Back Side | Total |
+|--------------|------------|-----------|-------|
+|THT:          |          8 |         0 |     8 |
+|SMD:          |        223 |         0 |   223 |
+|Unspecified:  |          0 |         0 |     0 |
+|Total:        |        231 |         0 |   231 |
+
+Drill holes
+-----------
+
+| Count | Shape |    X Size |    Y Size | Plated | Via/Pad | Start Layer | Stop Layer |
+|-------|-------|-----------|-----------|--------|---------|-------------|------------|
+|   242 | Round | 0.3000 mm | 0.3000 mm |    PTH |     Via |        F.Cu |       B.Cu |
+|    60 | Round | 1.0500 mm | 1.0500 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     6 | Round | 1.2000 mm | 1.2000 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     4 | Round | 1.4000 mm | 1.4000 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     4 | Round | 1.1000 mm | 1.1000 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     3 | Round | 1.6000 mm | 1.6000 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     2 |  Slot | 1.7998 mm | 0.5999 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     2 |  Slot | 1.7988 mm | 0.5999 mm |    PTH |     Pad |        F.Cu |       B.Cu |
+|     2 | Round | 0.4000 mm | 0.4000 mm |    PTH |     Via |        F.Cu |       B.Cu |

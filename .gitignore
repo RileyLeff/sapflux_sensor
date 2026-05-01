@@ -5,6 +5,9 @@ fp-info-cache
 *-backups/
 _autosave-*
 *.kicad_prl
+.DS_Store
+.codex/
+.history/
 
 
 # Generated files

@@ -1,0 +1,325 @@
+"""
+Sap Flux Sensor Adapter Board v1.1 — atopile implementation.
+24V battery/solar powered, RS-485 comms, STM32G0B1 MCU, ADS1115 ADC
+with 3x 74HC4067 mux (48 thermistors), 32MB SPI flash, heater driver
+with TPL5010 watchdog + SCR latch + 10V gate driver.
+
+Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
+wires connectors, and establishes shared buses (I2C, SPI, power rails).
+
+Power topology:
+  J1 (2-pin screw terminal) → V24_RAW → TVS (shunt, passthrough) → V24_PROT
+  V24_PROT → F1 (PTC) → D1 (SS36 Schottky) → V24_BUCK → LM5165Y → V3V3
+  V24_PROT → heater module (own fuse clips inside)
+  J5 (3-pin screw terminal) → RS-485 A/B + GND
+
+MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
+  PA0:  RS-485 ~RE           PA8:  TIM1_CH1 (heater gate)
+  PA1:  RS-485 DE            PA9:  Mux A enable (~E)
+  PA2:  USART2_TX            PA10: Mux B enable (~E)
+  PA3:  USART2_RX            PA11: Mux C enable (~E) [pin name: PA11PA9]
+  PA4:  TPL5010 WAKE         PA12: EEPROM WP [pin name: PA12PA10]
+  PA5:  TPL5010 DONE         PA13: SWDIO
+  PA6:  Spare GPIO (aux J4)  PA14: SWCLK / BOOT0
+  PA7:  Spare GPIO (aux J4)  PA15: (unused)
+  PB0:  ADC1 ALERT/DRDY      PB6:  I2C1_SCL
+  PB1:  V24 monitor (divider)  PB7:  I2C1_SDA
+  PB2:  (unused)              PB8:  (unused)
+  PB3:  LED R (sink)          PB9:  (unused)
+  PB4:  LED G (sink)          PB10: (unused)
+  PB5:  LED B (sink)          PB11: (unused)
+  PB12: Flash CS              PB13: SPI2_SCK (Flash)
+  PB14: SPI2_MISO (Flash)    PB15: SPI2_MOSI (Flash)
+  PC6:  Excitation GPIO      PC7:  PGOOD input
+  PC13: (unused)              PC14: OSC32_IN (crystal, in mcu.ato)
+  PC15: OSC32_OUT (crystal)   PD0:  Mux S0
+  PD1:  Mux S1                PD2:  Mux S2
+  PD3:  Mux S3
+"""
+
+#pragma experiment("BRIDGE_CONNECT")
+
+import ElectricPower
+import Electrical
+import Resistor
+
+from "protection.ato" import InputProtection
+from "buck.ato" import BuckConverter
+from "mcu.ato" import MCU
+from "adc.ato" import ADCFrontEnd
+from "rs485.ato" import RS485Bus
+from "heater.ato" import HeaterDriver
+from "led.ato" import StatusLED
+from "connectors.ato" import Connectors
+from "flash.ato" import FlashMemory
+from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
+from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
+from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
+from "parts/MDD_Microdiode_Electronics_SS36/MDD_Microdiode_Electronics_SS36.ato" import MDD_Microdiode_Electronics_SS36_package
+
+module SapFluxAdapter:
+    """Top-level module for the sap flux sensor adapter board v1.1."""
+
+    # === Power rails ===
+    power_24v_raw = new ElectricPower
+    power_24v_protected = new ElectricPower
+    power_buck = new ElectricPower
+    """Post-PTC, post-Schottky power for buck converter only."""
+    power_3v3 = new ElectricPower
+
+    # === Shared I2C bus nodes ===
+    sda = new Electrical
+    scl = new Electrical
+
+    # === Subsystem instances ===
+
+    # Connectors (J1 power, J2 60-pin, J3 heater, J4 aux, J5 RS-485, J6 SWD)
+    connectors = new Connectors
+    power_24v_raw ~ connectors.power_24v
+    power_3v3 ~ connectors.power_3v3
+
+    # Input protection (TVS shunt, passthrough)
+    input_protection = new InputProtection
+    power_24v_raw ~ input_protection.power_in
+    input_protection.power_out ~ power_24v_protected
+
+    # --- Buck input path: PTC + Schottky ---
+    f_buck_ptc = new Littelfuse_2920L110_60MR_package
+    """2920 PTC fuse. Limits sustained overcurrent to buck converter."""
+
+    d_buck_schottky = new MDD_Microdiode_Electronics_SS36_package
+    """SS36 Schottky. Reverse polarity protection for buck path."""
+
+    ptc_out = new Electrical
+    f_buck_ptc.p1 ~ power_24v_protected.hv
+    f_buck_ptc.p2 ~ ptc_out
+    d_buck_schottky.A ~ ptc_out
+    d_buck_schottky.K ~ power_buck.hv
+    power_24v_protected.lv ~ power_buck.lv
+
+    # Buck converter (24V -> 3.3V)
+    buck = new BuckConverter
+    power_buck ~ buck.power_in
+    buck.power_out ~ power_3v3
+
+    # MCU
+    mcu = new MCU
+    power_3v3 ~ mcu.power
+
+    # ADC front-end (ADS1115 + 3x 74HC4067 mux + 49-ch protection)
+    adc = new ADCFrontEnd
+    power_3v3 ~ adc.power
+
+    # RS-485 transceiver
+    rs485 = new RS485Bus
+    power_3v3 ~ rs485.power
+
+    # Heater driver + TPL5010 watchdog + SCR latch
+    heater = new HeaterDriver
+    power_24v_protected ~ heater.power_24v
+    power_3v3 ~ heater.power_3v3
+
+    # Status LED
+    led = new StatusLED
+    power_3v3 ~ led.power
+
+    # SPI Flash (W25Q256JVFIQ, 32MB)
+    flash = new FlashMemory
+    power_3v3 ~ flash.power
+
+    # EEPROM (onsemi CAT24C32, SOIC-8, address 0x50)
+    eeprom = new onsemi_CAT24C32WI_GT3_package
+    c_eeprom_decouple = new YAGEO_CC0603KRX7R9BB104_package  # 100nF decoupling
+
+    # === EEPROM wiring ===
+    # Power + decoupling
+    eeprom.VCC ~ power_3v3.hv
+    eeprom.VSS ~ power_3v3.lv
+    c_eeprom_decouple.p1 ~ power_3v3.hv
+    c_eeprom_decouple.p2 ~ power_3v3.lv
+    # I2C
+    sda ~ eeprom.SDA
+    scl ~ eeprom.SCL
+    # Address = 0x50 (A0=A1=A2=GND)
+    eeprom.A0 ~ power_3v3.lv
+    eeprom.A1 ~ power_3v3.lv
+    eeprom.A2 ~ power_3v3.lv
+    # WP: firmware-controlled via PA12 with 10k pull-up (boot-safe: write-protected)
+    r_eeprom_wp = new Resistor
+    r_eeprom_wp.resistance = 10kohm +/- 1%
+    r_eeprom_wp.package = "0603"
+    mcu.package.PA12PA10 ~ eeprom.WP
+    eeprom.WP ~> r_eeprom_wp ~> power_3v3.hv
+
+    # === I2C bus wiring ===
+    # ADC front-end I2C
+    sda ~ adc.sda
+    scl ~ adc.scl
+
+    # MCU I2C1 (PB7=SDA, PB6=SCL)
+    sda ~ mcu.package.PB7
+    scl ~ mcu.package.PB6
+
+    # Auxiliary header I2C (through 1k series R, inside connectors module)
+    sda ~ connectors.i2c_sda
+    scl ~ connectors.i2c_scl
+
+    # === SPI Flash wiring (SPI2) ===
+    mcu.package.PB12 ~ flash.cs
+    mcu.package.PB13 ~ flash.sck
+    mcu.package.PB14 ~ flash.miso
+    mcu.package.PB15 ~ flash.mosi
+
+    # === RS-485 wiring ===
+    # USART2 (PA2=TX, PA3=RX)
+    mcu.package.PA2 ~ rs485.uart_tx
+    mcu.package.PA3 ~ rs485.uart_rx
+    # Control GPIOs (PA1=DE, PA0=~RE)
+    mcu.package.PA1 ~ rs485.de
+    mcu.package.PA0 ~ rs485.n_re
+    # Bus lines to J5 RS-485 terminal
+    rs485.rs485_a ~ connectors.rs485_a
+    rs485.rs485_b ~ connectors.rs485_b
+
+    # === Heater wiring ===
+    # Gate drive from MCU timer (PA8 = TIM1_CH1, one-pulse mode)
+    mcu.package.PA8 ~ heater.gate_drive
+    # Watchdog I/O
+    mcu.package.PA4 ~ heater.wake
+    mcu.package.PA5 ~ heater.done
+    # RSTn shared with MCU NRST
+    mcu.nrst ~ heater.rstn
+    # Heater terminals to J3 connector
+    connectors.heater_hi ~ heater.heater_hi
+    connectors.heater_lo ~ heater.heater_lo
+
+    # === ADC + Mux wiring ===
+    # Excitation GPIO (PC6)
+    mcu.package.PC6 ~ adc.excitation_gpio
+    # Excitation output to J2 connector
+    adc.excitation_out ~ connectors.excitation
+    # ALERT/DRDY (PB0)
+    mcu.package.PB0 ~ adc.alert1
+
+    # Mux select lines (PD0-PD3, shared across all three muxes)
+    mcu.package.PD0 ~ adc.mux_s0
+    mcu.package.PD1 ~ adc.mux_s1
+    mcu.package.PD2 ~ adc.mux_s2
+    mcu.package.PD3 ~ adc.mux_s3
+
+    # Mux enable lines (individual, active low)
+    mcu.package.PA9 ~ adc.mux_en_a
+    mcu.package.PA10 ~ adc.mux_en_b
+    mcu.package.PA11PA9 ~ adc.mux_en_c
+
+    # === 48 thermistor lines (connector → ADC) ===
+    connectors.therm_1 ~ adc.therm_1
+    connectors.therm_2 ~ adc.therm_2
+    connectors.therm_3 ~ adc.therm_3
+    connectors.therm_4 ~ adc.therm_4
+    connectors.therm_5 ~ adc.therm_5
+    connectors.therm_6 ~ adc.therm_6
+    connectors.therm_7 ~ adc.therm_7
+    connectors.therm_8 ~ adc.therm_8
+    connectors.therm_9 ~ adc.therm_9
+    connectors.therm_10 ~ adc.therm_10
+    connectors.therm_11 ~ adc.therm_11
+    connectors.therm_12 ~ adc.therm_12
+    connectors.therm_13 ~ adc.therm_13
+    connectors.therm_14 ~ adc.therm_14
+    connectors.therm_15 ~ adc.therm_15
+    connectors.therm_16 ~ adc.therm_16
+    connectors.therm_17 ~ adc.therm_17
+    connectors.therm_18 ~ adc.therm_18
+    connectors.therm_19 ~ adc.therm_19
+    connectors.therm_20 ~ adc.therm_20
+    connectors.therm_21 ~ adc.therm_21
+    connectors.therm_22 ~ adc.therm_22
+    connectors.therm_23 ~ adc.therm_23
+    connectors.therm_24 ~ adc.therm_24
+    connectors.therm_25 ~ adc.therm_25
+    connectors.therm_26 ~ adc.therm_26
+    connectors.therm_27 ~ adc.therm_27
+    connectors.therm_28 ~ adc.therm_28
+    connectors.therm_29 ~ adc.therm_29
+    connectors.therm_30 ~ adc.therm_30
+    connectors.therm_31 ~ adc.therm_31
+    connectors.therm_32 ~ adc.therm_32
+    connectors.therm_33 ~ adc.therm_33
+    connectors.therm_34 ~ adc.therm_34
+    connectors.therm_35 ~ adc.therm_35
+    connectors.therm_36 ~ adc.therm_36
+    connectors.therm_37 ~ adc.therm_37
+    connectors.therm_38 ~ adc.therm_38
+    connectors.therm_39 ~ adc.therm_39
+    connectors.therm_40 ~ adc.therm_40
+    connectors.therm_41 ~ adc.therm_41
+    connectors.therm_42 ~ adc.therm_42
+    connectors.therm_43 ~ adc.therm_43
+    connectors.therm_44 ~ adc.therm_44
+    connectors.therm_45 ~ adc.therm_45
+    connectors.therm_46 ~ adc.therm_46
+    connectors.therm_47 ~ adc.therm_47
+    connectors.therm_48 ~ adc.therm_48
+
+    # === Spare GPIOs to auxiliary header (J4) ===
+    mcu.package.PA6 ~ connectors.gpio_pa6
+    mcu.package.PA7 ~ connectors.gpio_pa7
+
+    # === SWD programming header (J6) ===
+    mcu.package.PA13 ~ connectors.swdio
+    mcu.package.PA14_BOOT0 ~ connectors.swclk
+
+    # === LED wiring ===
+    # MCU sinks current (GPIOs drive low to turn on)
+    mcu.package.PB3 ~ led.red
+    mcu.package.PB4 ~ led.green
+    mcu.package.PB5 ~ led.blue
+
+    # === PGOOD monitoring ===
+    # LM5165 PGOOD (open-drain) with 10k pull-up to 3.3V
+    # Also gates SCR latch arming (prevents power-on reset from triggering latch)
+    r_pgood_pu = new Resistor
+    r_pgood_pu.resistance = 10kohm +/- 1%
+    r_pgood_pu.package = "0603"
+    mcu.package.PC7 ~ buck.pgood.line
+    buck.pgood.line ~> r_pgood_pu ~> power_3v3.hv
+    buck.pgood.line ~ heater.pgood
+
+    # === 24V voltage monitor (resistor divider on PB1) ===
+    # 1M/100k divider: V24 * 100k/(1M+100k) = V24 * 0.0909
+    # At 24V → 2.18V, at 29V solar → 2.64V, at 33V TVS clamp → 3.0V
+    # 21.8 µA drain. 100nF filter (fc = 15.9 Hz with 100k||1M = 90.9k).
+    r_vmon_hi = new Resistor
+    r_vmon_hi.resistance = 1Mohm +/- 1%
+    r_vmon_hi.package = "0603"
+    r_vmon_lo = new Resistor
+    r_vmon_lo.resistance = 100kohm +/- 1%
+    r_vmon_lo.package = "0603"
+    c_vmon_filt = new YAGEO_CC0603KRX7R9BB104_package
+
+    vmon_mid = new Electrical
+    """Divider midpoint → PB1 (ADC1_IN9)."""
+    power_24v_protected.hv ~> r_vmon_hi ~> vmon_mid
+    vmon_mid ~> r_vmon_lo ~> power_3v3.lv
+    vmon_mid ~ c_vmon_filt.p1
+    c_vmon_filt.p2 ~ power_3v3.lv
+    mcu.package.PB1 ~ vmon_mid
+
+    # === Net name overrides (readable names in KiCad) ===
+    signal V3V3 ~ power_3v3.hv
+    V3V3.override_net_name = "V3V3"
+    signal GND ~ power_3v3.lv
+    GND.override_net_name = "GND"
+    signal V24_RAW ~ power_24v_raw.hv
+    V24_RAW.override_net_name = "V24_RAW"
+    signal V24_BUCK ~ power_buck.hv
+    V24_BUCK.override_net_name = "V24_BUCK"
+    sda.override_net_name = "SDA"
+    scl.override_net_name = "SCL"
+    signal PGOOD ~ buck.pgood.line
+    PGOOD.override_net_name = "PGOOD"
+    signal NRST ~ mcu.nrst
+    NRST.override_net_name = "NRST"
+    signal EXC ~ adc.excitation_out
+    EXC.override_net_name = "EXC"
