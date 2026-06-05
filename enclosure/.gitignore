@@ -1,0 +1,10 @@
+# Generated geometry, renders, and the imported board model.
+# All rebuilt from generate_enclosure.py + render_views.py (board.glb via kicad-cli).
+*.stl
+*.blend
+*.blend1
+*.glb
+*.png
+# Datasheet PDFs (downloaded from LCSC for terminal/heatsink dimensions)
+*.pdf
+# Keep: *.py scripts and riley_logo.svg (source art)
