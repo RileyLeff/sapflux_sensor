@@ -36,17 +36,20 @@ KEEPOUTS = [
 ]
 TESTPADS = [(59.93,"3V3"),(65.93,"24"),(62.93,"G"),(68.93,"GA"),
             (71.93,"PG"),(74.93,"RST"),(77.93,"PNP"),(80.93,"EXC")]
-# Lid access windows (kept in sync with generate_enclosure.py)
+# Lid access windows (kept in sync with generate_enclosure.py).
+# NB: shown here in the BOARD frame (what the windows sit over).  The actual lid is
+# pre-mirrored in by (it's flipped 180deg about bx during assembly) -- see generate_enclosure.py.
 WINDOWS = [
-    ("top_io", 29,83,-2,6),
+    ("top_io", 29,83,-1,6),      # edge rim thickened 1->2mm
     ("fuse",   12,41,7,22),      # extended up + rounded finger scoop
-    ("cr2032", 79,99,11,47),     # widened inward, edge side (x1=99) kept
-    ("ribbon", 10,88,56,67),
+    ("cr2032", 74,99,9,50),      # coin access; OVERLAPS logo -> one flowing opening (no rib)
+    ("logo",   51,76,5,28),      # frames silkscreen line-art; merges into cr2032 window
+    ("ribbon", 10,88,56,66),     # edge rim thickened 1->2mm
+    ("led",    90,93.5,55,58.5), # U10 RGB status LED
     ("q1",     8.2,24.2,27.7,40.7),  # smaller (PLACEHOLDER heatsink)
 ]
 # Terminal lid-ports (screws face UP -> reached through these; wires exit the LEFT wall):
 PORTS = [("power",-0.6,10,7.5,17),("heater",-0.6,10,22.5,33),("rs485",-0.6,10,44.5,57.5)]
-LOGO = (54.0, 34.0, 20.0)       # cx, cy, ~radius (riley_logo RAISED relief on lid)
 
 fig, ax = plt.subplots(figsize=(13, 9))
 # enclosure outer + shroud
@@ -74,21 +77,16 @@ for name,x0,x1,y0,y1 in PORTS:
     ax.text((x0+x1)/2,(y0+y1)/2, f"PORT\n{name}\nscrews up\nwires<-wall", ha="center", va="center",
             fontsize=6, color="#0e2a4a", fontweight="bold")
 
-# logo cutout region
-lx,ly,lr = LOGO
-ax.add_patch(Circle((lx,ly), lr, fill=False, ec="#2f9e44", lw=1.5, ls=(0,(4,3))))
-ax.text(lx, ly, "riley logo\n(deferred)", ha="center", va="center", fontsize=7, color="#2f9e44", fontweight="bold")
-
-# standoff posts / M3 corner screws
+# standoff posts / M3 corner screws (nut trap: 3.4mm clearance hole + bottom hex pocket)
 for cx,cy in CORNERS:
     ax.add_patch(Circle((cx,cy), 3.0, fc="#7a7aff", ec="#22228a", lw=1, alpha=0.8))
-    ax.add_patch(Circle((cx,cy), 1.6, fc="white", ec="#22228a", lw=0.8))
+    ax.add_patch(Circle((cx,cy), 1.7, fc="white", ec="#22228a", lw=0.8))   # 3.4mm screw clearance
 
 ax.set_xlim(OUT[0]-2, OUT[1]+2)
 ax.set_ylim(OUT[3]+2, OUT[2]-2)   # invert Y -> top edge at top of figure
 ax.set_aspect("equal")
-ax.set_title("Sap-flux enclosure LID plan: green=windows, blue=terminal ports (exit UP), "
-             "dashed=logo\nTOP=test pads | LEFT=top-entry screw terminals | RIGHT=CR2032 | BOTTOM=60-pin",
+ax.set_title("Sap-flux enclosure LID plan: green=windows (incl. logo cutout), blue=terminal ports (exit UP)"
+             "\nTOP=test pads | LEFT=top-entry screw terminals | RIGHT=CR2032 | BOTTOM=60-pin",
              fontsize=10)
 ax.set_xlabel("bx (mm)"); ax.set_ylabel("by (mm)")
 ax.grid(True, ls=":", alpha=0.3)
