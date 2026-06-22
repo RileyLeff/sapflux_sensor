@@ -52,6 +52,7 @@ from "heater.ato" import HeaterDriver
 from "led.ato" import StatusLED
 from "connectors.ato" import Connectors
 from "flash.ato" import FlashMemory
+from "mechanical.ato" import MechanicalFeatures
 from "parts/onsemi_CAT24C32WI_GT3/onsemi_CAT24C32WI_GT3.ato" import onsemi_CAT24C32WI_GT3_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Littelfuse_2920L110_60MR/Littelfuse_2920L110_60MR.ato" import Littelfuse_2920L110_60MR_package
@@ -122,6 +123,11 @@ module SapFluxAdapter:
     # Status LED
     led = new StatusLED
     power_3v3 ~ led.power
+
+    # Mechanical and bring-up footprints
+    mechanical = new MechanicalFeatures
+    power_3v3 ~ mechanical.power_3v3
+    power_24v_raw ~ mechanical.power_24v_raw
 
     # SPI Flash (W25Q256JVFIQ, 32MB)
     flash = new FlashMemory
@@ -306,6 +312,13 @@ module SapFluxAdapter:
     c_vmon_filt.p2 ~ power_3v3.lv
     mcu.package.PB1 ~ vmon_mid
 
+    # === Bring-up test pad wiring ===
+    heater.heater_gate ~ mechanical.heater_gate
+    buck.pgood.line ~ mechanical.pgood
+    mcu.nrst ~ mechanical.nrst
+    heater.pnp_collector ~ mechanical.pnp_collector
+    adc.excitation_out ~ mechanical.excitation
+
     # === Net name overrides (readable names in KiCad) ===
     signal V3V3 ~ power_3v3.hv
     V3V3.override_net_name = "V3V3"
@@ -323,3 +336,7 @@ module SapFluxAdapter:
     NRST.override_net_name = "NRST"
     signal EXC ~ adc.excitation_out
     EXC.override_net_name = "EXC"
+    signal HEATER_GATE_NODE ~ heater.heater_gate
+    HEATER_GATE_NODE.override_net_name = "D"
+    signal PNP_COLL_NODE ~ heater.pnp_collector
+    PNP_COLL_NODE.override_net_name = "pnp_coll_node"

@@ -1,0 +1,11 @@
+#pragma experiment("TRAITS")
+import has_designator_prefix
+import has_part_removed
+import is_atomic_part
+
+component SapFlux_ToolingHole_1_152mm_package:
+    """1.152 mm no-pad tooling/fiducial hole for board fabrication."""
+
+    trait is_atomic_part<manufacturer="Sap Flux", partnumber="ToolingHole_1.152mm", footprint="ToolingHole_1.152mm.kicad_mod", symbol="SapFlux_ToolingHole_1_152mm.kicad_sym">
+    trait has_part_removed
+    trait has_designator_prefix<prefix="TH">

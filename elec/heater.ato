@@ -74,6 +74,9 @@ module HeaterDriver:
     gate_drive = new Electrical
     """MCU timer output PA8 (into Q_CTRL gate via R_CTRL)."""
 
+    heater_gate = new Electrical
+    """Probe point for the boosted Q_HEATER gate node."""
+
     wake = new Electrical
     """TPL5010 WAKE output → MCU EXTI input."""
 
@@ -85,6 +88,9 @@ module HeaterDriver:
 
     pgood = new Electrical
     """PGOOD signal from buck converter. Gates latch arming."""
+
+    pnp_collector = new Electrical
+    """Probe point for the PNP collector / watchdog kill gate node."""
 
     # --- Power MOSFET (TM15N10D, DPAK) ---
     q_heater = new Tritech_MOS_TM15N10D_package
@@ -262,6 +268,7 @@ module HeaterDriver:
 
     # Q_HEATER gate connection
     gate_node ~ q_heater.G
+    gate_node ~ heater_gate
 
     # Q_WD (latch kill) clamps gate to GND on fault
     q_wd.D ~ gate_node
@@ -298,6 +305,7 @@ module HeaterDriver:
 
     # PNP collector drives Q_WD gate + feedback
     pnp_coll_node ~ q_wd.G
+    pnp_coll_node ~ pnp_collector
     pnp_coll_node ~> r_wd_pd ~> power_3v3.lv
     pnp_coll_node ~> r_fb ~> fb_out_node
 

@@ -1,0 +1,68 @@
+"""
+Mechanical and bring-up footprints that must stay owned by Atopile.
+
+These are intentionally excluded from BOM/CPL generation while still appearing in
+the PCB graph: enclosure mounting holes, fab tooling holes, and the lab test pads.
+"""
+
+import ElectricPower
+import Electrical
+import has_designator
+
+from "parts/SapFlux_MountingHole_M3/SapFlux_MountingHole_M3.ato" import SapFlux_MountingHole_M3_package
+from "parts/SapFlux_ToolingHole_1_152mm/SapFlux_ToolingHole_1_152mm.ato" import SapFlux_ToolingHole_1_152mm_package
+from "parts/SapFlux_TestPoint_Pad_D1_5mm/SapFlux_TestPoint_Pad_D1_5mm.ato" import SapFlux_TestPoint_Pad_D1_5mm_package
+
+module MechanicalFeatures:
+    """Graph-owned mounting holes, tooling holes, and bring-up test pads."""
+
+    power_3v3 = new ElectricPower
+    power_24v_raw = new ElectricPower
+
+    heater_gate = new Electrical
+    pgood = new Electrical
+    nrst = new Electrical
+    pnp_collector = new Electrical
+    excitation = new Electrical
+
+    h1 = new SapFlux_MountingHole_M3_package
+    h2 = new SapFlux_MountingHole_M3_package
+    h3 = new SapFlux_MountingHole_M3_package
+    h4 = new SapFlux_MountingHole_M3_package
+    trait h1 has_designator<designator="H1">
+    trait h2 has_designator<designator="H2">
+    trait h3 has_designator<designator="H3">
+    trait h4 has_designator<designator="H4">
+
+    th1 = new SapFlux_ToolingHole_1_152mm_package
+    th2 = new SapFlux_ToolingHole_1_152mm_package
+    th3 = new SapFlux_ToolingHole_1_152mm_package
+    trait th1 has_designator<designator="TH1">
+    trait th2 has_designator<designator="TH2">
+    trait th3 has_designator<designator="TH3">
+
+    tp_v3v3 = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_gnd = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_v24 = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_gate = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_pgood = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_nrst = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_pnp = new SapFlux_TestPoint_Pad_D1_5mm_package
+    tp_exc = new SapFlux_TestPoint_Pad_D1_5mm_package
+    trait tp_v3v3 has_designator<designator="V3V3">
+    trait tp_gnd has_designator<designator="GND">
+    trait tp_v24 has_designator<designator="V24">
+    trait tp_gate has_designator<designator="GATE">
+    trait tp_pgood has_designator<designator="PG">
+    trait tp_nrst has_designator<designator="NRST">
+    trait tp_pnp has_designator<designator="PNP">
+    trait tp_exc has_designator<designator="EXC">
+
+    tp_v3v3.contact ~ power_3v3.hv
+    tp_gnd.contact ~ power_3v3.lv
+    tp_v24.contact ~ power_24v_raw.hv
+    tp_gate.contact ~ heater_gate
+    tp_pgood.contact ~ pgood
+    tp_nrst.contact ~ nrst
+    tp_pnp.contact ~ pnp_collector
+    tp_exc.contact ~ excitation

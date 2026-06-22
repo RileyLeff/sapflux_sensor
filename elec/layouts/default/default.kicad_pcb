@@ -13750,6 +13750,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.h3"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "33f60684-4862-57e1-a602-e90f4f9b30be")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "" np_thru_hole circle
 			(at 0 0)
@@ -20245,6 +20257,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.tp_gnd"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "b65133fc-0629-514d-bfc2-e95e52299b4d")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "1" thru_hole circle
 			(at 0 0)
@@ -22944,6 +22968,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.tp_pgood"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "0a64d343-e3da-5f42-b862-9bcb1235214b")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)
@@ -34808,6 +34844,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.h1"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "598d36c1-ce3f-5b29-8609-d034d7ab2e58")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "" np_thru_hole circle
 			(at 0 0)
@@ -40803,6 +40851,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.tp_pnp"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "0d8639e9-2e3e-5dd5-961c-f6f7f5e5fb48")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "1" thru_hole circle
 			(at 0 0)
@@ -42116,6 +42176,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.tp_exc"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "8cf45e9e-5a00-53ab-8cc0-ecb15d2993b2")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)
@@ -47468,6 +47540,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.th2"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "8e38fe9a-218c-52ed-80a4-fc532e44c6f1")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "" np_thru_hole circle
 			(at 0 0)
@@ -49935,6 +50019,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.tp_v3v3"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "d10fd57a-5ff8-5bd8-a5ea-a5a7b173ed49")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)
@@ -52589,6 +52685,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.tp_gate"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "db066e23-3253-50da-b1ea-d09b68a99c38")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)
@@ -55315,6 +55423,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.tp_v24"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "c6b086b5-f9ba-5d34-b2eb-0f9036d01b96")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "1" thru_hole circle
 			(at 0 0)
@@ -55677,6 +55797,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.th1"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "721f1102-e8b6-505c-a1db-4c7035634040")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)
@@ -59107,6 +59239,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.tp_nrst"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "f468cf6a-a5a2-5e58-a834-88f5a5b16caf")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "1" thru_hole circle
 			(at 0 0)
@@ -62518,6 +62662,18 @@
 				)
 			)
 		)
+		(property "atopile_address" "mechanical.h2"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "0119599d-267f-5b53-8013-7d8b1340d17d")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
 		(duplicate_pad_numbers_are_jumpers no)
 		(pad "" np_thru_hole circle
 			(at 0 0)
@@ -62573,6 +62729,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.th3"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "3d22c1c9-fd5b-5628-82bf-69352ae7af1a")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)
@@ -66684,6 +66852,18 @@
 			(effects
 				(font
 					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "atopile_address" "mechanical.h4"
+			(at 0 0 0)
+			(layer "User.9")
+			(hide yes)
+			(uuid "84f6c8cb-0494-5679-938d-a66ebf122885")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
 				)
 			)
 		)

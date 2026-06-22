@@ -1,0 +1,67 @@
+(kicad_symbol_lib
+	(version 20241229)
+	(generator "codex")
+	(symbol "SapFlux_TestPoint_Pad_D1_5mm"
+		(property "Reference" "TP"
+			(id 0)
+			(at 0 3.81 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "TestPoint_Pad_D1.5mm"
+			(id 1)
+			(at 0 -3.81 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "SapFlux_TestPoint_Pad_D1_5mm:TestPoint_Pad_D1.5mm"
+			(id 2)
+			(at 0 -6.35 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(in_bom no)
+		(on_board yes)
+		(symbol "SapFlux_TestPoint_Pad_D1_5mm_0_1"
+			(circle
+				(center 0 0)
+				(radius 1.27)
+				(stroke
+					(width 0)
+					(type default)
+					(color 0 0 0 0)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(pin passive line
+				(at -5.08 0 0)
+				(length 3.81)
+				(name "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+		)
+	)
+)

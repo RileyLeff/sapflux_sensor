@@ -1,0 +1,11 @@
+#pragma experiment("TRAITS")
+import has_designator_prefix
+import has_part_removed
+import is_atomic_part
+
+component SapFlux_MountingHole_M3_package:
+    """No-pad M3 mounting hole used by the board outline/enclosure."""
+
+    trait is_atomic_part<manufacturer="Sap Flux", partnumber="MountingHole_3.2mm_M3", footprint="MountingHole_3.2mm_M3.kicad_mod", symbol="SapFlux_MountingHole_M3.kicad_sym">
+    trait has_part_removed
+    trait has_designator_prefix<prefix="H">

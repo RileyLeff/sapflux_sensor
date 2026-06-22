@@ -1,0 +1,13 @@
+#pragma experiment("TRAITS")
+import has_designator_prefix
+import has_part_removed
+import is_atomic_part
+
+component SapFlux_TestPoint_Pad_D1_5mm_package:
+    """1.5 mm through-hole bring-up test pad."""
+
+    trait is_atomic_part<manufacturer="Sap Flux", partnumber="TestPoint_Pad_D1.5mm", footprint="TestPoint_Pad_D1.5mm.kicad_mod", symbol="SapFlux_TestPoint_Pad_D1_5mm.kicad_sym">
+    trait has_part_removed
+    trait has_designator_prefix<prefix="TP">
+
+    signal contact ~ pin 1
