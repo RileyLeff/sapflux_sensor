@@ -48,6 +48,41 @@ def apply_material(obj, mat):
     try:    obj.visible_shadow = False              # don't drop a hard shadow on the board
     except Exception: pass
 
+def force_board_opaque(board):
+    """The KiCad glb exports the soldermask/substrate with alpha<1 + BLEND (so its own
+    viewer shows copper through the mask) -> here the board reads see-through and the
+    plated barrels look like cylinders running through it.  Walk EVERY board-descendant
+    material and slam it fully opaque (Alpha=1, OPAQUE/DITHERED).  The translucent PETG
+    is a separate material on the base/lid objects, so it is untouched."""
+    if not board:
+        return
+    def descend(o):
+        r = []
+        for c in o.children:
+            r.append(c); r += descend(c)
+        return r
+    seen = set(); n = 0
+    for o in descend(board):
+        if o.type != 'MESH':
+            continue
+        for m in o.data.materials:
+            if not m or m.name in seen:
+                continue
+            seen.add(m.name)
+            try:    m.blend_method = 'OPAQUE'                # EEVEE legacy
+            except Exception: pass
+            try:    m.surface_render_method = 'DITHERED'     # EEVEE Next (opaque path)
+            except Exception: pass
+            if m.use_nodes:
+                b = m.node_tree.nodes.get("Principled BSDF")
+                if b and "Alpha" in b.inputs:
+                    ai = b.inputs["Alpha"]
+                    for l in list(ai.links):                 # drop any alpha driver/link
+                        m.node_tree.links.remove(l)
+                    ai.default_value = 1.0
+            n += 1
+    print(f"forced {n} board materials opaque")
+
 def recolor_board_green(board):
     """The KiCad glb imports the PCB body pale; repaint the board SLAB(s) green.
     The slab is any board-descendant mesh whose footprint covers most of the 100x65
@@ -138,6 +173,7 @@ def main():
     mat = petg_material()
     if base: apply_material(base, mat)
     if lid:  apply_material(lid, mat)
+    force_board_opaque(board)      # board first: kill the glb's see-through soldermask
     recolor_board_green(board)
 
     # explode along +Z: base stays, board floats up, lid floats highest

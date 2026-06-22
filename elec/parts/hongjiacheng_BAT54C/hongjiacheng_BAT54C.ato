@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_BAT54C_package:
+    # Manually added from JLCPCB/LCSC metadata for C22466350.
+    trait is_auto_generated<system="ato_part", source="easyeda:C22466350", date="2026-06-22T00:00:00+00:00", checksum="manual">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="BAT54C", footprint="SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR.kicad_mod", symbol="BAT54C_C22466350.kicad_sym", model="SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22466350", manufacturer="hongjiacheng", partno="BAT54C">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2406171614_hongjiacheng-BAT54C_C22466350.pdf">
+
+    # BAT54C: dual Schottky, common cathode.
+    signal A1 ~ pin 1
+    signal A2 ~ pin 2
+    signal K ~ pin 3

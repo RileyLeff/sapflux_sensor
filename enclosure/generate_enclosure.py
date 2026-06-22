@@ -45,6 +45,16 @@ LID          = 2.5
 STANDOFF_H   = 4.0        # board bottom above floor (clears ~1.5mm clipped back leads)
 
 POST_OD      = 6.0
+# --- base post "volcano" (flared root) ----------------------------------
+# The nut pocket (r3.3) is wider than the post (r3.0), so on the base the post was sheared
+# off the floor by a 0.3mm ring (printed as an island, same failure as the lid).  Unlike the
+# lid there are NO windows near the base corners, so here we CAN reconnect outboard: flare
+# each post into the floor with a cone that is fat (r=BASE_FLARE_R) at the floor and tapers
+# to the post radius by BASE_FLARE_TOP_Z.  The cone roots OUTSIDE the nut pocket (r3.3) so it
+# bridges the gap; it also prints self-supporting (each layer narrower going up) and buttresses
+# into the corner walls.  Top stays below the board (z6.5) so it never lifts the PCB.
+BASE_FLARE_R     = 5.0    # cone radius where it meets the floor (well past the r3.3 pocket)
+BASE_FLARE_TOP_Z = 4.5    # cone tapers back to POST_OD by here (2.0mm under the board)
 SCREW_CLR_D  = 3.4        # M3 clearance hole through BOTH lid pillars and base posts
                          # (the screw no longer threads into plastic - see nut trap).
 # --- captive nut (user owns M3 machine screws + M3 nuts + M3 washers, no self-tappers).
@@ -55,7 +65,14 @@ NUT_AF       = 5.5        # M3 hex nut across-flats (DIN934)
 NUT_POCKET_D = 6.6        # hex pocket across-CORNERS (add_cyl verts=6 dia). AF=6.6*cos30
                          # =5.72mm -> ~0.2mm light press-fit on the 5.5mm nut.
 HEAD_CB_D    = 7.5        # counterbore widened 6.5->7.5 to seat an M3 washer (OD ~7mm)
-HEAD_CB_DEPTH= 2.6        # washer (~0.5) + pan/cheese head (~2) recesses below the lid top
+# HEAD_CB_DEPTH 2.6 -> 1.6: the old 2.6 bored the counterbore (r3.75) clean THROUGH the
+# 2.5mm lid plate (+0.1 into the pillar), so the r3.0 pillar was severed from the plate by
+# a 0.75mm ring -> it printed as a floating island on the supports.  We CANNOT reconnect
+# outboard (a ring past r3.75 would hit the terminal ports / LED, all <=3.54mm from a
+# corner), so we leave a solid WEB under the counterbore: depth 1.6 keeps a 0.9mm-thick
+# plate floor (r up to 3.75) that the pillar joins, reconnecting it firmly.  Head now sits
+# ~1mm proud; pair with M3x18 for full captive-nut engagement (tip flush at box bottom).
+HEAD_CB_DEPTH= 1.6        # leaves a 0.9mm connecting web (LID 2.5 - 1.6) under the bore
 
 # --- box height -------------------------------------------------------
 # Terminals/fuse/headers/60-pin/CR2032 all poke UP through lid windows, so they
@@ -195,6 +212,15 @@ def add_cyl(name, x, y, z0, z1, d, verts=64):
     ob.name = name
     return ob
 
+def add_cone(name, x, y, z0, z1, d0, d1, verts=64):
+    """Frustum: diameter d0 at z0 (bottom) tapering to d1 at z1 (top).  Same vertex count
+    as add_cyl so a coaxial cone+cylinder union shares facets cleanly (no sliver ring)."""
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=d0/2.0, radius2=d1/2.0,
+                                    depth=(z1-z0), location=(x, y, (z0+z1)/2.0))
+    ob = bpy.context.active_object
+    ob.name = name
+    return ob
+
 def boolean(obj, cutter, op='DIFFERENCE'):
     m = obj.modifiers.new(type='BOOLEAN', name='b')
     m.operation = op; m.object = cutter; m.solver = 'EXACT'
@@ -249,6 +275,13 @@ def build_base():
     for i, (cx, cy) in enumerate(CORNERS):
         post = add_cyl(f"post{i}", cx, cy, Z_FLOOR_TOP - 0.6, Z_BOARD_BOT, POST_OD)
         boolean(base, post, 'UNION')
+        # "volcano": flare the post root into the floor so the nut pocket (r3.3 > post r3.0)
+        # can't shear it off.  Cone roots at z=Z_FLOOR_TOP-0.6 (inside the floor, welds to it)
+        # and tapers to POST_OD by BASE_FLARE_TOP_Z.  Unioned BEFORE the pocket is bored, so
+        # the pocket re-clears the nut bore through it -> a 1.2mm solid ring bridges post->floor.
+        flare = add_cone(f"flare{i}", cx, cy, Z_FLOOR_TOP - 0.6, BASE_FLARE_TOP_Z,
+                         2*BASE_FLARE_R, POST_OD)
+        boolean(base, flare, 'UNION')
     # NUT TRAP per corner, each cutter subtracted INDIVIDUALLY: (1) a 3.4mm clearance hole
     # up through the post so the screw passes freely, (2) a hex pocket open at the BOTTOM
     # face (z<=floor top) that captures a press-fit M3 nut.  Shoulder = floor top, so the
@@ -270,6 +303,7 @@ def build_base():
         cm = _mirror_cut(c)
         boolean(base, add_box("wn_"+cm["name"], OUT_X0 - 1.0, IN_X0 + 1.0, cm["y0"], cm["y1"],
                               Z_BOARD_TOP - 1.0, Z_LID_UNDER + 0.5), 'DIFFERENCE')
+    clean_mesh(base)   # weld slivers from the coaxial cone+post unions -> manifold STL
     base.name = "base"
     return base
 
@@ -431,6 +465,29 @@ def clean_mesh(obj):
     bpy.ops.object.mode_set(mode='OBJECT')
 
 # ======================================================================
+def count_shells(obj):
+    """Number of connected mesh islands.  THE definitive test for the detached-post bug:
+    a correct one-piece part is a single shell; every post that floats free of the body
+    adds another shell (e.g. body + 4 islands = 5).  Flood-fill the vertex/edge graph."""
+    bm = bmesh.new(); bm.from_mesh(obj.data)
+    seen = set(); shells = 0
+    for v0 in bm.verts:
+        if v0.index in seen:
+            continue
+        shells += 1
+        stack = [v0]
+        while stack:
+            v = stack.pop()
+            if v.index in seen:
+                continue
+            seen.add(v.index)
+            for e in v.link_edges:
+                o = e.other_vert(v)
+                if o.index not in seen:
+                    stack.append(o)
+    bm.free()
+    return shells
+
 def verify_holes():
     lid = bpy.data.objects.get("lid")
     deps = bpy.context.evaluated_depsgraph_get()
@@ -467,6 +524,22 @@ def verify_holes():
             hit, *_ = base.ray_cast(mathutils.Vector((x, y, z0)), d, depsgraph=deps, distance=dist)
             ok = (hit == want_solid)
             print(f"   {name:<14} {'SOLID' if hit else 'OPEN '}  {'ok' if ok else '*** UNEXPECTED ***'}")
+        # FLARE bridge: a horizontal ray inward at z3.5 must strike the cone OUTSIDE the old
+        # post radius (~3.0).  A hit at radius >3.3 proves the volcano spans the nut-pocket gap
+        # (without it the ray would hit the bare post at r3.0 -> floating island).
+        cx0, cy0 = CORNERS[0]   # (4,4): clear cavity to its +x, ray travels -x
+        hit, loc, *_ = base.ray_cast(mathutils.Vector((cx0 + 9.0, cy0, 3.5)),
+                                     mathutils.Vector((-1, 0, 0)), depsgraph=deps, distance=9.0)
+        rad = (loc.x - cx0) if hit else float('nan')
+        print(f"   flare_bridge   {'SOLID' if hit else 'OPEN '} at r={rad:.2f}mm  "
+              f"{'ok (spans pocket r3.3)' if hit and rad > 3.3 else '*** UNEXPECTED ***'}")
+    # --- ISLAND CHECK: the whole point of this revision.  Each part must be ONE shell. ---
+    print("-- shell count (1 = fully connected, >1 = detached islands) --")
+    for nm in ("base", "lid"):
+        ob = bpy.data.objects.get(nm)
+        if ob is not None:
+            n = count_shells(ob)
+            print(f"   {nm:<14} shells={n}  {'ok' if n == 1 else '*** DETACHED ISLANDS ***'}")
 
 def import_board(path):
     if not (INCLUDE_BOARD and os.path.exists(path)):
@@ -550,8 +623,9 @@ def main():
     print(f"Terminals (top-entry KF2EDGK): header {HDR_H_ABOVE_BOARD:.1f}mm + plug body {PLUG_BODY_H:.1f}mm")
     print(f"  -> mated plug top ~{Z_BOARD_TOP+HDR_H_ABOVE_BOARD+PLUG_BODY_H-HDR_H_ABOVE_BOARD:.0f}mm over board; "
           f"pokes through lid ports, wires exit up")
-    print(f"Corner screw       : M3x16 machine screw + M3 washer (top) -> captive M3 nut in base post")
-    print(f"  nut trap          : hex pocket d{NUT_POCKET_D}mm (AF {NUT_POCKET_D*math.cos(math.radians(30)):.2f}) at post bottom, press-fit; ~3 thread steel engage")
+    print(f"Corner screw       : M3x18 machine screw + M3 washer (top) -> captive M3 nut in base post")
+    print(f"  nut trap          : hex pocket d{NUT_POCKET_D}mm (AF {NUT_POCKET_D*math.cos(math.radians(30)):.2f}) at post bottom, press-fit; M3x18 = full nut engage, tip flush at box bottom")
+    print(f"  post reconnect     : lid pillar via {LID-HEAD_CB_DEPTH:.1f}mm web under counterbore; base post via r{BASE_FLARE_R:.0f} flared 'volcano' root")
     print(f"Heatsink window    : {HS_X1-HS_X0:.0f} x {HS_Y1-HS_Y0:.0f} mm (PLACEHOLDER {HS_L:.0f}x{HS_W:.0f})")
     print(f"Lid windows        : {[c['name'] for c in WINDOWS]}")
     print(f"Terminal ports     : {[c['name'] for c in TERMINAL_PORTS]}")

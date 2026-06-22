@@ -51746,10 +51746,10 @@
 			(layer "F.Fab")
 			(uuid "26fadd87-c093-4ad3-a3de-db98c79cfb14")
 		)
-		(fp_text user "-"
-			(at -11.44 -1.89 270)
+		(fp_text user "+"
+			(at 8.49 0 270)
 			(layer "F.SilkS")
-			(uuid "4f65af70-a5c7-4b32-8811-426fc4f3af11")
+			(uuid "ecead87c-2fab-4c1f-bb59-f9f8899768c5")
 			(effects
 				(font
 					(size 2.03 2.03)
@@ -51758,10 +51758,10 @@
 				(justify left)
 			)
 		)
-		(fp_text user "+"
-			(at 6.25 -2.32 270)
+		(fp_text user "-"
+			(at -5.125 -0.05 270)
 			(layer "F.SilkS")
-			(uuid "ecead87c-2fab-4c1f-bb59-f9f8899768c5")
+			(uuid "4f65af70-a5c7-4b32-8811-426fc4f3af11")
 			(effects
 				(font
 					(size 2.03 2.03)
@@ -52750,7 +52750,7 @@
 		(property "Reference" "CN2"
 			(at -40.865 -1.43 180)
 			(layer "F.SilkS")
-			(uuid "c036eb2e-55af-4260-ba34-fc45bd27a5cc")
+			(uuid "3e77cde5-3622-411a-84e9-77afe3947777")
 			(effects
 				(font
 					(size 1 1)
@@ -52761,7 +52761,7 @@
 		(property "Value" ""
 			(at 0 5.27 180)
 			(layer "F.Fab")
-			(uuid "17ee04e0-d4b8-4f84-b0ca-84d31ac29460")
+			(uuid "2b9d103a-ea10-4b4b-b25e-3c4ea8fae2a3")
 			(effects
 				(font
 					(size 1 1)
@@ -52773,7 +52773,7 @@
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
-			(uuid "3be96270-9987-4704-baeb-20ce661d0f80")
+			(uuid "e73683fc-fd9f-48b6-8120-ccbdae721d96")
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -52785,7 +52785,7 @@
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
-			(uuid "993c4d54-893f-4c10-9a60-153eb1fbc20f")
+			(uuid "ed5b550a-0646-478c-aec0-f8a445688ce8")
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -64026,7 +64026,7 @@
 		(uuid "f54ef170-a7c4-4b5c-95a0-a9304642524b")
 		(at 192.345 142.195 -90)
 		(property "Reference" "U10"
-			(at 0 -4.28 270)
+			(at 0 -4.28 90)
 			(layer "F.SilkS")
 			(hide yes)
 			(uuid "b4c5ac05-aca3-4a4c-8c48-a636461a49c9")
@@ -64038,7 +64038,7 @@
 			)
 		)
 		(property "Value" ""
-			(at 0 4.28 270)
+			(at 0 4.28 90)
 			(layer "F.Fab")
 			(uuid "a124ee53-5531-4f4d-b6c1-d021e46f6db0")
 			(effects
@@ -64166,7 +64166,7 @@
 			(uuid "1c25f737-892b-41cc-b36a-5e084663f4b2")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 0 0 270)
+			(at 0 0 90)
 			(layer "F.Fab")
 			(uuid "c8ff80a2-92be-4c0a-bd24-b446b42e903d")
 			(effects

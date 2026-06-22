@@ -4,7 +4,8 @@ STM32G0B1CBT6 MCU module with power decoupling, BOOT0, NRST, VDDA filtering,
 
 Power topology:
   3.3V rail -> fb_vdda (600 ohm ferrite bead) -> MCU VDD_VDDA, VREFpos
-  VBAT: BAT54S selects higher of VDDA_FILT or CR2032 (backup during power loss)
+  VBAT: BAT54C common-cathode diode-OR selects higher of VDDA_FILT or CR2032
+  (backup during power loss)
   Bypass caps (4x 100nF) + bulk (1x 1uF) on MCU side of ferrite bead.
 
 Note: LQFP-48 merges VDD and VDDA into one pin (VDD_VDDA). Ferrite bead
@@ -31,7 +32,7 @@ from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Seiko_Epson_Q13FC13500004/Seiko_Epson_Q13FC13500004.ato" import Seiko_Epson_Q13FC13500004_package
 from "parts/FH_0402CG180J500NT/FH_0402CG180J500NT.ato" import FH_0402CG180J500NT_package
-from "parts/hongjiacheng_BAT54S/hongjiacheng_BAT54S.ato" import hongjiacheng_BAT54S_package
+from "parts/hongjiacheng_BAT54C/hongjiacheng_BAT54C.ato" import hongjiacheng_BAT54C_package
 from "parts/Lian_Xin_Technology_BS_CR2032_8/Lian_Xin_Technology_BS_CR2032_8.ato" import Lian_Xin_Technology_BS_CR2032_8_package
 
 module MCU:
@@ -79,7 +80,7 @@ module MCU:
     c_xtal_out = new FH_0402CG180J500NT_package   # 18pF load cap on OSC32_OUT
 
     # --- VBAT backup ---
-    bat54s = new hongjiacheng_BAT54S_package
+    bat54c = new hongjiacheng_BAT54C_package
     cr2032 = new Lian_Xin_Technology_BS_CR2032_8_package
     c_vbat_decouple = new YAGEO_CC0603KRX7R9BB104_package     # 100nF VBAT decoupling
     c_vbat_bulk = new Samsung_Electro_Mechanics_CL10A105KB8NNNC_package  # 1uF VBAT bulk
@@ -95,17 +96,17 @@ module MCU:
     power.lv ~ package.VSS_VSSA
 
     # === VBAT backup circuit ===
-    # BAT54S: K1 = main rail, K2 = battery, A = VBAT output
-    # Higher voltage source wins (diode OR)
-    bat54s.K1 ~ VDDA_FILT
-    bat54s.K2 ~ cr2032.POS
-    bat54s.A ~ package.VBAT
+    # BAT54C common-cathode diode-OR:
+    # A1/A2 = sources, K = VBAT output. Higher voltage source wins.
+    bat54c.A1 ~ VDDA_FILT
+    bat54c.A2 ~ cr2032.POS
+    bat54c.K ~ package.VBAT
     cr2032.NEG ~ power.lv
 
     # VBAT decoupling (100nF + 1uF near pin)
-    bat54s.A ~ c_vbat_decouple.p1
+    bat54c.K ~ c_vbat_decouple.p1
     c_vbat_decouple.p2 ~ power.lv
-    bat54s.A ~ c_vbat_bulk.p1
+    bat54c.K ~ c_vbat_bulk.p1
     c_vbat_bulk.p2 ~ power.lv
 
     # === Bypass caps (after ferrite bead) ===
