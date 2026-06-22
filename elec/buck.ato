@@ -2,7 +2,7 @@
 LM5165Y buck converter: 24V protected input to 3.3V output.
 
 PFM mode (RT shorted to GND) for 10.5uA quiescent current.
-RILIM = 56k for 120mA peak / 50mA max PFM output.
+RILIM = 24.9k for 180mA peak / 75mA max PFM output.
 Design follows TI Design 2 (Section 8.2.2, Figure 50).
 
 Topology:
@@ -20,7 +20,7 @@ Topology:
 
   RT -> GND (PFM mode)
   EN -> VIN (always on, internal UVLO at 2.9V)
-  ILIM -> r_ilim (56k) -> GND
+  ILIM -> r_ilim (24.9k) -> GND
   SS -> open, HYS -> open
   EP -> GND
   PGOOD -> MCU (open-drain, needs external pull-up)
@@ -30,7 +30,6 @@ Note: LM5165 VSON-10 has internal bootstrap — no external BST cap needed.
 
 #pragma experiment("BRIDGE_CONNECT")
 
-import Resistor
 import ElectricPower
 import ElectricLogic
 
@@ -40,11 +39,12 @@ from "parts/FH_1206B475K500NT/FH_1206B475K500NT.ato" import FH_1206B475K500NT_pa
 from "parts/TDK_C2012X5R1A226KT000N/TDK_C2012X5R1A226KT000N.ato" import TDK_C2012X5R1A226KT000N_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
+from "parts/FOJAN_FRC0603F2492TS/FOJAN_FRC0603F2492TS.ato" import FOJAN_FRC0603F2492TS_package
 
 module BuckConverter:
     """
     LM5165Y synchronous buck: 24V -> 3.3V, PFM mode, 10.5uA Iq.
-    150mA max output, 120mA peak current limit (RILIM=56k).
+    75mA max PFM output, 180mA peak current limit (RILIM=24.9k).
     """
 
     # --- External interfaces ---
@@ -82,9 +82,8 @@ module BuckConverter:
     """1uF 50V X5R, 0603. Internal VCC LDO decoupling on VOUT."""
 
     # --- Current limit resistor ---
-    r_ilim = new Resistor
-    r_ilim.resistance = 56kohm +/- 1%
-    r_ilim.package = "0603"
+    r_ilim = new FOJAN_FRC0603F2492TS_package
+    """24.9k, 1%, 0603. Sets 180mA peak current limit."""
 
     # === Power connections ===
 
@@ -110,8 +109,9 @@ module BuckConverter:
     # RT -> GND (PFM mode, no timing resistor)
     u_buck.RT ~ power_in.lv
 
-    # ILIM -> 56k -> GND (120mA peak current limit)
-    u_buck.ILIM ~> r_ilim ~> power_in.lv
+    # ILIM -> 24.9k -> GND (180mA peak current limit)
+    u_buck.ILIM ~ r_ilim.p1
+    r_ilim.p2 ~ power_in.lv
 
     # SS -> open (internal 900us soft-start) — no connection needed
     # HYS -> open — no connection needed

@@ -434,4 +434,11 @@
 		(options "")
 		(descr "atopile: part lib: SapFlux_ToolingHole_1_152mm")
 	)
+	(lib
+		(name "FOJAN_FRC0603F2492TS")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/FOJAN_FRC0603F2492TS")
+		(options "")
+		(descr "atopile: part lib: FOJAN_FRC0603F2492TS")
+	)
 )

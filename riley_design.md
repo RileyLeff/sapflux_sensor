@@ -21,12 +21,12 @@ LM5165Y ultra-low Iq synchronous buck, fixed 3.3V output. PFM mode (RT shorted t
 | Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
 |-----|-----------|------|-----|-------|-------|------|-------|
 | U_BUCK | Buck Regulator | C2071924 | TI LM5165YDRCR | 3-65V in, 150mA, fixed 3.3V, 10.5µA Iq, VSON-10 | $1.07 | Extended | Synchronous buck. No external freewheeling diode or feedback divider needed. |
-| L1 | Inductor | C5289353 | XR XRNR4018-68uH/M | 68µH, 470mA Isat, 1Ω DCR, 4x4mm shielded | $0.036 | Extended | 68µH for margin on minimum on-time constraint (LF(min) = 30V x 180ns / 120mA = 45µH). Worst-case 54.4µH at -20% tolerance still clears 45µH. Shielded. |
-| C1 | Input Cap | C29823 | Fenghua 1206B475K500NT | 4.7µF 50V X7R, 1206 | $0.04 | **Basic** | Local energy reservoir for buck switching pulses. Note: X7R DC bias derating at 24V may reduce effective capacitance to ~2µF. Acceptable for LM5165's low current draw (<50mA) in PFM mode. |
+| L1 | Inductor | C5289353 | XR XRNR4018-68uH/M | 68µH, 470mA Isat, 1Ω DCR, 4x4mm shielded | $0.036 | Extended | 68µH for margin on minimum on-time constraint (LF(min) = 30V x 180ns / 180mA = 30µH). Worst-case 54.4µH at -20% tolerance still clears 30µH. Shielded. |
+| C1 | Input Cap | C29823 | Fenghua 1206B475K500NT | 4.7µF 50V X7R, 1206 | $0.04 | **Basic** | Local energy reservoir for buck switching pulses. Note: X7R DC bias derating at 24V may reduce effective capacitance to ~2µF. Acceptable for LM5165's low current draw (<75mA) in PFM mode. |
 | C_VIN | VIN HF Decoupling | C14663 | YAGEO CC0603KRX7R9BB104 | 100nF 50V, 0603 | $0.001 | **Basic** | Place tight to LM5165 VIN/GND pins. Handles HF switching edges that the 4.7µF C1 is too slow for. Same part as bypass caps. |
 | C2 | Output Cap | C76634 | TDK C2012X5R1A226KT000N | 22µF 10V X5R, 0805 | $0.03 | Extended | Smooths 3.3V output ripple. TI Design 2 uses 10µF; 22µF is conservative. |
 | C6 | VCC Decoupling | C15849 | Samsung CL10A105KB8NNNC | 1µF 50V X5R, 0603 | $0.006 | **Basic** | Decouples U_BUCK's internal VCC LDO (pin 10). |
-| R_ILIM | Current Limit | C23206 | UNI-ROYAL 0603WAF5602T5E | 56kΩ 1%, 0603 | $0.001 | **Basic** | ILIM pin to GND. Sets 120mA peak current / 50mA max PFM output per Design 2. |
+| R_ILIM | Current Limit | C2930080 | FOJAN FRC0603F2492TS | 24.9kΩ 1%, 0603 | $0.005 | Extended | ILIM pin to GND. Sets 180mA peak current / 75mA max PFM output for extra 3.3V rail margin while staying in PFM mode. |
 
 **Pin connections:** RT → GND (PFM mode, no resistor). EN → VIN (always on; internal UVLO at 2.9V is sufficient since the data logger controls power — no need for an external EN divider). BST → SW (internal bootstrap, no external cap needed — P-FET high side). SS → open (internal 900µs soft-start). HYS → open. PGOOD → MCU GPIO via 10kΩ pull-up (see MCU section).
 

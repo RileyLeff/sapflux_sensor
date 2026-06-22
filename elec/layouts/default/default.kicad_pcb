@@ -46091,7 +46091,7 @@
 			)
 		)
 	)
-	(footprint "UNI_ROYAL_0603WAF5602T5E:R0603"
+	(footprint "FOJAN_FRC0603F2492TS:R0603"
 		(layer "F.Cu")
 		(uuid "ad63996f-52d0-4c78-934c-6e334642524b")
 		(at 123.4 93.24 -90)
@@ -46106,7 +46106,7 @@
 				)
 			)
 		)
-		(property "Value" "56000Ω"
+		(property "Value" "24.9kΩ"
 			(at 0 4 270)
 			(layer "F.Fab")
 			(uuid "781c0436-f354-400d-bb71-e608cf230791")
@@ -46117,7 +46117,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/lcsc_datasheet_2206010116_UNI-ROYAL-Uniroyal-Elec-0603WAF5602T5E_C23206.pdf"
+		(property "Datasheet" "https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2308241009_FOJAN-FRC0603F2492TS_C2930080.pdf"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46141,7 +46141,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C23206"
+		(property "LCSC" "C2930080"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46153,7 +46153,7 @@
 				)
 			)
 		)
-		(property "Manufacturer" "UNI-ROYAL(Uniroyal Elec)"
+		(property "Manufacturer" "FOJAN"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46189,7 +46189,7 @@
 				)
 			)
 		)
-		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 55440.000012516975, \"max\": 56559.999987483025}}]}}, \"unit\": \"ohm\"}}"
+		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 24651.0, \"max\": 25149.0}}]}}, \"unit\": \"ohm\"}}"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46201,7 +46201,7 @@
 				)
 			)
 		)
-		(property "Partnumber" "0603WAF5602T5E"
+		(property "Partnumber" "FRC0603F2492TS"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46213,7 +46213,7 @@
 				)
 			)
 		)
-		(property "resistance" "56000±1.0%Ω"
+		(property "resistance" "24900±1.0%Ω"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46261,7 +46261,7 @@
 				)
 			)
 		)
-		(property "lcsc_id" "C23206"
+		(property "lcsc_id" "C2930080"
 			(at 0 0 0)
 			(layer "User.9")
 			(hide yes)
@@ -46384,7 +46384,7 @@
 			(uuid "901b1da5-ac9f-4e0f-a950-f62e83802e10")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../../parts/UNI_ROYAL_0603WAF5602T5E/R0603.STEP"
+		(model "${KIPRJMOD}/../../parts/FOJAN_FRC0603F2492TS/R0603.STEP"
 			(offset
 				(xyz 0 0 -0)
 			)
