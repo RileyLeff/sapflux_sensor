@@ -406,4 +406,11 @@
 		(options "")
 		(descr "atopile: part lib: Murata_Electronics_GRM21BR61H106KE43L")
 	)
+	(lib
+		(name "hongjiacheng_BAT54C")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/hongjiacheng_BAT54C")
+		(options "")
+		(descr "atopile: part lib: hongjiacheng_BAT54C")
+	)
 )
