@@ -1,0 +1,130 @@
+(footprint "XFCN_XF_508P_B_B:FUSE-TH_4P-L16.0-W6.7"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "37a30d64-fa47-4515-81f6-2313c32fa85d")
+	(property "Reference" "REF**"
+		(at 0 -5.7)
+		(layer "F.SilkS")
+		(uuid "c39b28d5-0569-4779-8ffb-9ffb41501829")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "FUSE-TH_4P-L16.0-W6.7"
+		(at 0 5.7)
+		(layer "F.Fab")
+		(uuid "c414ae9b-d3a4-4beb-a804-7730da5e3dd1")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_circle
+		(center -8 -3.35)
+		(end -7.97 -3.35)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "647bb0c0-2e97-47f2-b959-47803601fde5")
+	)
+	(fp_line
+		(start 8.13 -3.43)
+		(end -8.12 -3.43)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "b68c74f5-126d-4c18-8d54-39b53ed6c732")
+	)
+	(fp_line
+		(start -8.12 -3.43)
+		(end -8.12 3.43)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "5f91181e-c5d8-421b-9a24-e97d595050ac")
+	)
+	(fp_line
+		(start -8.12 3.43)
+		(end 8.13 3.43)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "1edcbd1b-46a8-42e6-abef-a50db0d341b3")
+	)
+	(fp_line
+		(start 8.13 3.43)
+		(end 8.13 -3.43)
+		(stroke
+			(width 0.25)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "6b8e28c6-2eeb-4639-ab9c-6d4e218d9da7")
+	)
+	(pad "4" thru_hole circle
+		(at -4.9 1.7 0)
+		(size 2.5 2.5)
+		(drill 1.7999964)
+		(layers "*.Cu" "*.Mask")
+		(uuid "a2aeee08-f449-49cc-bbfe-e2336c544587")
+	)
+	(pad "3" thru_hole circle
+		(at 4.9 1.7 0)
+		(size 2.5 2.5)
+		(drill 1.7999964)
+		(layers "*.Cu" "*.Mask")
+		(uuid "5d4ac0c5-b914-4c53-85bb-73bae03b5889")
+	)
+	(pad "2" thru_hole circle
+		(at 4.9 -1.7 0)
+		(size 2.5 2.5)
+		(drill 1.7999964)
+		(layers "*.Cu" "*.Mask")
+		(uuid "6cec521d-e5ae-42a3-9771-78fcdd6a0d95")
+	)
+	(pad "1" thru_hole circle
+		(at -4.9 -1.7 0)
+		(size 2.5 2.5)
+		(drill 1.7999964)
+		(layers "*.Cu" "*.Mask")
+		(uuid "6a28a5c0-7bf0-4470-add2-86dfa077039b")
+	)
+	(model "${KIPRJMOD}/../../parts/XFCN_XF_508P_B_B/FUSE-TH_4P-L16.0-W6.7.STEP"
+		(offset
+			(xyz 0 -0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(embedded_fonts no)
+)

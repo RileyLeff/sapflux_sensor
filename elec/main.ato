@@ -8,9 +8,9 @@ Top-level wiring: connects all subsystem modules, assigns MCU GPIOs,
 wires connectors, and establishes shared buses (I2C, SPI, power rails).
 
 Power topology:
-  J1 (2-pin screw terminal) → V24_RAW → TVS (shunt, passthrough) → V24_PROT
+  J1 (2-pin screw terminal) → input fuse → bidirectional TVS → PMOS reverse protection → V24_PROT
   V24_PROT → F1 (PTC) → D1 (SS36 Schottky) → V24_BUCK → LM5165Y → V3V3
-  V24_PROT → heater module (own fuse clips inside)
+  V24_PROT → heater module
   J5 (3-pin screw terminal) → RS-485 A/B + GND
 
 MCU GPIO assignment (STM32G0B1CBT6 LQFP-48):
@@ -79,7 +79,7 @@ module SapFluxAdapter:
     power_24v_raw ~ connectors.power_24v
     power_3v3 ~ connectors.power_3v3
 
-    # Input protection (TVS shunt, passthrough)
+    # Input protection (main input fuse, TVS clamp, PMOS reverse polarity block)
     input_protection = new InputProtection
     power_24v_raw ~ input_protection.power_in
     input_protection.power_out ~ power_24v_protected
@@ -127,7 +127,7 @@ module SapFluxAdapter:
     # Mechanical and bring-up footprints
     mechanical = new MechanicalFeatures
     power_3v3 ~ mechanical.power_3v3
-    power_24v_raw ~ mechanical.power_24v_raw
+    power_24v_protected ~ mechanical.power_24v_protected
 
     # SPI Flash (W25Q256JVFIQ, 32MB)
     flash = new FlashMemory
@@ -326,6 +326,8 @@ module SapFluxAdapter:
     GND.override_net_name = "GND"
     signal V24_RAW ~ power_24v_raw.hv
     V24_RAW.override_net_name = "V24_RAW"
+    signal V24_PROT ~ power_24v_protected.hv
+    V24_PROT.override_net_name = "V24_PROT"
     signal V24_BUCK ~ power_buck.hv
     V24_BUCK.override_net_name = "V24_BUCK"
     sda.override_net_name = "SDA"

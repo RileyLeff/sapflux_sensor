@@ -17,7 +17,7 @@ module MechanicalFeatures:
     """Graph-owned mounting holes, tooling holes, and bring-up test pads."""
 
     power_3v3 = new ElectricPower
-    power_24v_raw = new ElectricPower
+    power_24v_protected = new ElectricPower
 
     heater_gate = new Electrical
     pgood = new Electrical
@@ -60,7 +60,7 @@ module MechanicalFeatures:
 
     tp_v3v3.contact ~ power_3v3.hv
     tp_gnd.contact ~ power_3v3.lv
-    tp_v24.contact ~ power_24v_raw.hv
+    tp_v24.contact ~ power_24v_protected.hv
     tp_gate.contact ~ heater_gate
     tp_pgood.contact ~ pgood
     tp_nrst.contact ~ nrst

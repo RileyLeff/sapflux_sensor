@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 PCB_PATH = Path(__file__).parent / "layouts" / "default" / "default.kicad_pcb"
-PASSIVE_PREFIXES = {"R", "C", "L", "D"}
+PASSIVE_PREFIXES = {"R", "C", "L"}
 
 
 def fix_passive_layers(pcb_path: Path) -> int:

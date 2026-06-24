@@ -1,36 +1,81 @@
 """
-Input protection: TVS clamp on 24V rail.
-
-v1.1: PTC fuse and Schottky diode moved to main.ato (split between
-buck and heater power paths). This module is now TVS-only.
+Input protection: main input fuse, bidirectional TVS, and PMOS reverse
+polarity protection on the 24V rail.
 
 Topology:
-  24V rail ──┬── passthrough
-             │
-           D2 (TVS, cathode to rail, anode to GND)
-             │
-            GND
+  CN1+ -> mini blade fuse holder -> V24_FUSED_RAW -> PMOS reverse protector -> V24_PROT
+                                            |
+                                       D2 bidirectional TVS
+                                            |
+                                           GND
+
+The TVS sits after the input fuse so a failed-short clamp has an upstream
+opening device. The PMOS blocks reverse battery connection without relying on
+the TVS to sacrifice itself. Its gate-source zener limits |Vgs| at normal
+24V/29V battery voltages.
 """
 
 import ElectricPower
+import Electrical
 
-from "parts/FTR_SMAJ33A/FTR_SMAJ33A.ato" import FTR_SMAJ33A_package
+from "parts/HUASHUO_HSU0195A/HUASHUO_HSU0195A.ato" import HUASHUO_HSU0195A_package
+from "parts/XFCN_XF_508P_B_B/XFCN_XF_508P_B_B.ato" import XFCN_XF_508P_B_B_package
+from "parts/hongjiacheng_MM3Z10/hongjiacheng_MM3Z10.ato" import hongjiacheng_MM3Z10_package
+from "parts/hongjiacheng_SMAJ33CA/hongjiacheng_SMAJ33CA.ato" import hongjiacheng_SMAJ33CA_package
+from "parts/UNI_ROYAL_0603WAF4704T5E/UNI_ROYAL_0603WAF4704T5E.ato" import UNI_ROYAL_0603WAF4704T5E_package
 
 module InputProtection:
     """
-    24V input TVS clamp (33V standoff, ~53V clamp).
-    Protects against transients on the 24V rail.
+    24V input protection block.
+
+    CN1+ first passes through a user-installed mini blade input fuse. D2 is a
+    bidirectional SMAJ33CA TVS on the fused raw node. Q_REVERSE is a
+    P-channel MOSFET wired drain-to-input/source-to-load for high-side reverse
+    polarity protection. R_GATE pulls the gate toward GND; D_GATE clamps Vgs
+    to about -10V in normal operation.
     """
 
     # External interfaces
     power_in = new ElectricPower
-    power_out = new ElectricPower
+    """Raw battery input from CN1."""
 
-    # D2: TVS clamp, cathode to rail, anode to GND
-    d2_tvs = new FTR_SMAJ33A_package
-    d2_tvs.C ~ power_in.hv
+    power_out = new ElectricPower
+    """Protected 24V rail for buck, heater, and monitoring."""
+
+    # Input fuse holder: CN1+ -> user fuse -> fused raw rail
+    input_fuse_holder = new XFCN_XF_508P_B_B_package
+
+    fused_raw_hv = new Electrical
+    """Post-input-fuse, pre-reverse-protection 24V node."""
+    fused_raw_hv.override_net_name = "V24_FUSED_RAW"
+
+    power_in.hv ~ input_fuse_holder.side_a
+    input_fuse_holder.side_b ~ fused_raw_hv
+
+    # D2: bidirectional TVS clamp. C/A names are electrical handles only; the
+    # bidirectional part has no functional polarity.
+    d2_tvs = new hongjiacheng_SMAJ33CA_package
+    d2_tvs.C ~ fused_raw_hv
     d2_tvs.A ~ power_in.lv
 
-    # Passthrough (TVS is shunt, not series)
-    power_in.hv ~ power_out.hv
+    # Q_REVERSE: P-FET high-side reverse polarity protection.
+    # PMOS body diode is oriented from drain/input to source/load; once the
+    # output rises, the pulled-low gate turns the channel on.
+    q_reverse = new HUASHUO_HSU0195A_package
+    gate_node = new Electrical
+    gate_node.override_net_name = "Q_REV_GATE"
+    q_reverse.D ~ fused_raw_hv
+    q_reverse.S ~ power_out.hv
+    q_reverse.G ~ gate_node
+
+    # Gate bias and Vgs clamp. Idle draw is approximately (Vin - 10V) / 4.7M
+    # when powered from a 24V battery.
+    r_gate_pull = new UNI_ROYAL_0603WAF4704T5E_package
+    d_gate_zener = new hongjiacheng_MM3Z10_package
+    r_gate_pull.p1 ~ gate_node
+    r_gate_pull.p2 ~ power_in.lv
+    d_gate_zener.K ~ power_out.hv
+    d_gate_zener.A ~ gate_node
+
+    # Ground passes through unchanged.
     power_in.lv ~ power_out.lv

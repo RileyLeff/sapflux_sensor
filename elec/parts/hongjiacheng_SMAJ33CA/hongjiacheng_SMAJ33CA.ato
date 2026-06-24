@@ -1,0 +1,20 @@
+#pragma experiment("TRAITS")
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component hongjiacheng_SMAJ33CA_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C19077549", date="2026-06-22T17:13:38.648336+00:00", checksum="011de79232882b778a824eaa99ec34131d793b8b3a58f84cc670048900a5e80b">
+
+    trait is_atomic_part<manufacturer="hongjiacheng", partnumber="SMAJ33CA", footprint="SMA_L4.3-W2.6-LS5.0-RD.kicad_mod", symbol="SMAJ33CA_C19077549.kicad_sym", model="SMA_L4.3-W2.6-LS5.0-RD.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C19077549", manufacturer="hongjiacheng", partno="SMAJ33CA">
+    trait has_designator_prefix<prefix="D">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2312280937_hongjiacheng-SMAJ33CA_C19077549.pdf">
+
+    # pins
+    signal C ~ pin 1
+    signal A ~ pin 2

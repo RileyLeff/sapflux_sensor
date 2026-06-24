@@ -1,0 +1,17 @@
+import has_datasheet
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+
+component XFCN_XF_508P_B_B_package:
+    trait is_atomic_part<manufacturer="XFCN", partnumber="XF-508P-B-B", footprint="FUSE-TH_4P-L16.0-W6.7.kicad_mod", symbol="XF-508P-B-B.kicad_sym", model="FUSE-TH_4P-L16.0-W6.7.STEP">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C19727305", manufacturer="XFCN", partno="XF-508P-B-B">
+    trait has_designator_prefix<prefix="F">
+    trait has_datasheet<datasheet="https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2312251802_XFCN-XF-508P-B-B_C19727305.pdf">
+
+    # pins
+    # Footprint pads 1/4 are one fuse-blade side; pads 2/3 are the other.
+    signal side_a ~ pin 1
+    side_a ~ pin 4
+    signal side_b ~ pin 2
+    side_b ~ pin 3

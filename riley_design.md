@@ -10,9 +10,13 @@ These parts sit between the 24V power input and the rest of the board. They prot
 
 | Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
 |-----|-----------|------|-----|-------|-------|------|-------|
-| F1 | PTC Fuse | C315903 | Littelfuse 2920L110/60MR | 1.1A hold, 60V, 2920 | $0.21 | Extended | Resettable fuse. If current exceeds ~1.1A, it goes high-resistance, cutting off power. Resets when cooled. 60V rating handles solar-charged battery (up to 29V+). |
-| D1 | Schottky (reverse polarity) | C16015 | MDD SS36 | 60V/3A, SMA | $0.04 | Extended | Blocks reverse-polarity wiring. Low ~0.5V forward drop in normal operation. |
-| D2 | TVS Diode | C693627 | FTR SMAJ33A | 33V standoff, ~53.3V clamp, SMA | $0.018 | Extended | Clamps voltage spikes (lightning, ESD) to ~53V. 33V standoff gives 4V margin above solar max (29V+). Clamp 67V below Q1 MOSFET (120V). |
+| F_IN | Mini Blade Fuse Holder | C19727305 | XFCN XF-508P-B-B | User-installed mini automotive blade fuse | $0.27 | Extended | Single upstream fuse before the TVS/reverse-protection block. Protects the board and heater path. Use a low-current fuse for bring-up, then size for heater current after validation. |
+| D2 | Bidirectional TVS | C19077549 | hongjiacheng SMAJ33CA | 33V standoff, ~53.3V clamp, SMA | $0.03 | **Preferred** | Clamps voltage spikes on the fused raw input. Bidirectional package removes D2 polarity/orientation risk. |
+| Q_REV | Reverse Protection P-FET | C51025867 | HUASHUO HSU0195A | 100V, 17mΩ@10V, TO-252 | $1.04 | Extended | High-side PMOS reverse-polarity blocker. Drain to fused input, source to protected rail. Much lower loss than a series Schottky. |
+| D_GS | Gate Clamp Zener | C19077459 | hongjiacheng MM3Z10 | 10V zener, SOD-323 | $0.01 | Extended | Clamps Q_REV Vgs so a 24V/29V battery does not exceed the MOSFET gate rating. |
+| R_GS | Gate Pull Resistor | C23163 | UNI-ROYAL 0603WAF4704T5E | 4.7MΩ, 0603, 1% | $0.001 | Extended | Pulls Q_REV gate low in normal polarity. Adds only a few microamps of input-protection idle current. |
+| F_BUCK | Buck PTC Fuse | C315903 | Littelfuse 2920L110/60MR | 1.1A hold, 60V, 2920 | $0.21 | Extended | Local/resettable buck-branch overcurrent protection. Can remain as redundant branch protection after the new main input fuse. |
+| D_BUCK | Buck Schottky | C16015 | MDD SS36 | 60V/3A, SMA | $0.04 | Extended | Local buck-branch reverse-current protection. No longer the whole-board reverse-polarity element. |
 
 ### Buck Converter (24V to 3.3V)
 
@@ -320,21 +324,23 @@ Watch out: black is **not** ground. In the M8 world, blue is ground.
 
 **Shield capacitor (C5, 100nF 50V):** AC-couples the M8 housing to GND. Shunts high-frequency EMI while blocking DC ground loop current on long cable runs.
 
-#### Protection Circuit (F1, D2, D1)
+#### Protection Circuit (F_IN, D2, Q_REV)
 
 ```
-J1 Pin 1 (24V) --> [F1 fuse] --> node A --> [D1: anode->cathode] --> +24V Protected
-                                    |
-                                  [D2 TVS]  (cathode at node A, anode to GND)
-                                    |
-                                   GND
+CN1+ --> [F_IN mini blade fuse] --> V24_FUSED_RAW --> [Q_REV PMOS] --> +24V Protected
+                                      |
+                                  [D2 bidirectional TVS]
+                                      |
+                                     GND
 ```
 
-**F1 (PTC fuse, 1.1A hold, 60V):** Series fuse. Cuts power on overcurrent. Also current-limits TVS during transients.
+**F_IN (mini blade input fuse):** Main upstream fuse. Protects the whole board, including the heater path, and gives D2 an upstream opening device if the TVS ever fails short. Fuse value is user-selectable: start conservative for bring-up, then size for validated heater current.
 
-**D2 (TVS, SMAJ33A, 33V standoff, ~53V clamp):** Parallel voltage clamp. Absorbs transient spikes. 33V standoff gives 4V margin above solar max (29V+).
+There is intentionally no second heater-branch fuse. The heater copper is routed as part of the protected 24V distribution, so duplicating a high-current fuse downstream adds routing congestion and extra hot joints without isolating many realistic faults. For bring-up, install a small fuse first. For full-power validation, choose the value around the measured heater current and wiring limit; 8 heaters at 50Ω from 30V would be 4.8A if all were energized together, so a 7.5A mini blade fuse is a practical full-load lab value after low-current checks pass.
 
-**D1 (Schottky, SS36, 60V/3A):** Series reverse-polarity protection. ~0.5V forward drop.
+**D2 (SMAJ33CA bidirectional TVS, 33V standoff, ~53V clamp):** Parallel voltage clamp on the fused raw input. Bidirectional TVS removes the polarity-sensitive assembly failure mode from v1.1.
+
+**Q_REV (P-channel MOSFET):** Series high-side reverse-polarity protection. Drain faces the fused input, source feeds the protected rail, and a 10V zener clamps gate-source voltage. Normal idle draw from the gate network is only a few microamps.
 
 ### Firmware Architecture
 

@@ -1,0 +1,119 @@
+(footprint "HUASHUO_HSU0195A:TO-252-2_L6.5-W5.6-P4.60-LS9.7-BR"
+	(version 20241229)
+	(generator "faebryk_convert")
+	(generator_version "v5")
+	(layer "F.Cu")
+	(tedit "5DC5F6A4")
+	(uuid "1fb5ecda-6909-4284-bea5-3570248c9bae")
+	(property "Reference" "REF**"
+		(at 0 -6.29)
+		(layer "F.SilkS")
+		(uuid "a21adb68-9bc4-4e53-add7-e8d72406b606")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "TO-252-2_L6.5-W5.6-P4.60-LS9.7-BR"
+		(at 0 6.29)
+		(layer "F.Fab")
+		(uuid "29f63e24-191c-4c3e-927d-b27064f8da4e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd)
+	(fp_circle
+		(center 3.82 3.25)
+		(end 3.85 3.25)
+		(stroke
+			(width 0.06)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(locked no)
+		(uuid "0edaedd9-a332-44c5-a9f8-9af54c905011")
+	)
+	(fp_circle
+		(center 5.08 2.29)
+		(end 5.28 2.29)
+		(stroke
+			(width 0.4)
+			(type solid)
+		)
+		(layer "Cmts.User")
+		(locked no)
+		(uuid "01dab665-e3b5-41c0-a6d4-bba3fcd7f467")
+	)
+	(fp_line
+		(start -4.58 3.35)
+		(end 1.38 3.35)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "aedfad57-3caa-4588-b514-f5c01646ff16")
+	)
+	(fp_line
+		(start -4.58 -3.35)
+		(end 1.38 -3.35)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "7b1ceef5-3e3c-4349-89f2-069b59f86d5e")
+	)
+	(fp_line
+		(start 1.38 3.35)
+		(end 1.38 -3.35)
+		(stroke
+			(width 0.15)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(layers "F.SilkS")
+		(locked no)
+		(uuid "0c6fd8e0-9375-497e-a8f7-57da6a73b67c")
+	)
+	(pad "1" smd rect
+		(at 3.42 2.29 0)
+		(size 3 1.6)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "e2f4dd28-af6b-4812-a916-bfaf927a1ab5")
+	)
+	(pad "2" smd rect
+		(at 3.42 -2.29 0)
+		(size 3 1.6)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "3cf85e09-06f0-49d5-853a-a1a56b2fbcd4")
+	)
+	(pad "3" smd rect
+		(at -3.42 0 0)
+		(size 6.2 5.8)
+		(layers "F.Cu" "F.Paste" "F.Mask")
+		(uuid "7252929d-1e10-45fe-a5bc-47f068daf524")
+	)
+	(model "${KIPRJMOD}/../../parts/HUASHUO_HSU0195A/TO-252-2_L6.5-W5.6-P4.60-LS9.7-BR.step"
+		(offset
+			(xyz 0 0 -0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 270)
+		)
+	)
+	(embedded_fonts no)
+)

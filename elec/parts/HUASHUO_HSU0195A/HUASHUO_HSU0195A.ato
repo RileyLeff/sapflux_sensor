@@ -1,0 +1,18 @@
+import has_designator_prefix
+import has_part_picked
+import is_atomic_part
+import is_auto_generated
+
+component HUASHUO_HSU0195A_package:
+    # This trait marks this file as auto-generated
+    # If you want to manually change it, remove the trait
+    trait is_auto_generated<system="ato_part", source="easyeda:C51025867", date="2026-06-22T17:14:26.934950+00:00", checksum="63c59b83b6a9ea19492b6605747a9b7b633996f9ad7322d0dbd7ba648cd4ca1a">
+
+    trait is_atomic_part<manufacturer="HUASHUO", partnumber="HSU0195A", footprint="TO-252-2_L6.5-W5.6-P4.60-LS9.7-BR.kicad_mod", symbol="HSU0195A.kicad_sym", model="TO-252-2_L6.5-W5.6-P4.60-LS9.7-BR.step">
+    trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C51025867", manufacturer="HUASHUO", partno="HSU0195A">
+    trait has_designator_prefix<prefix="Q">
+
+    # pins
+    signal D ~ pin 3
+    signal G ~ pin 1
+    signal S ~ pin 2

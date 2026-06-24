@@ -6,7 +6,7 @@ v1.1 changes:
   - Gate driver: Q_CTRL + Q_DRIVER + D_ZENER (10V) boosts gate to 10V
     from 24V rail. Non-inverted logic (PA8 HIGH = heater ON).
   - Flyback: SS56 replaces SS36 (5A vs 3A, handles 8-heater inrush)
-  - Fuse clips: 2x 5x20mm clips in heater power path (user-supplied fuse)
+  - Heater branch now relies on the upstream input fuse on V24_PROT.
   - Old R_GATE (1k) and R4 (10k gate pulldown) removed — gate driver
     replaces both functions.
 
@@ -40,7 +40,6 @@ import Electrical
 from "parts/Tritech_MOS_TM15N10D/Tritech_MOS_TM15N10D.ato" import Tritech_MOS_TM15N10D_package
 from "parts/hongjiacheng_SS56/hongjiacheng_SS56.ato" import hongjiacheng_SS56_package
 from "parts/hongjiacheng_MM3Z10/hongjiacheng_MM3Z10.ato" import hongjiacheng_MM3Z10_package
-from "parts/Xucheng_Elec_5x20/Xucheng_Elec_5x20.ato" import Xucheng_Elec_5x20_package
 from "parts/Texas_Instruments_TPL5010DDCR/Texas_Instruments_TPL5010DDCR.ato" import Texas_Instruments_TPL5010DDCR_package
 from "parts/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350/Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350.ato" import Changjiang_Electronics_Tech_SS8550_Y2_RANGE_200_350_package
 from "parts/Changjiang_Electronics_Tech_2N7002/Changjiang_Electronics_Tech_2N7002.ato" import Changjiang_Electronics_Tech_2N7002_package
@@ -55,12 +54,12 @@ from "parts/Murata_Electronics_GRM21BR61H106KE43L/Murata_Electronics_GRM21BR61H1
 module HeaterDriver:
     """
     24V heater driver with gate driver (10V from 24V), TM15N10D DPAK MOSFET,
-    fuse clips, TPL5010 watchdog, and SCR latch safety.
+    TPL5010 watchdog, and SCR latch safety.
     """
 
     # --- External interfaces ---
     power_24v = new ElectricPower
-    """24V rail (post-TVS V24_RAW). Fuse and gate driver draw from here."""
+    """Protected 24V rail after the main input fuse, TVS, and reverse protection."""
 
     power_3v3 = new ElectricPower
     """3.3V rail (watchdog, PNP emitter, pull-ups)."""
@@ -99,10 +98,6 @@ module HeaterDriver:
     # --- Flyback diode (SS56, 5A SMA) ---
     d_flyback = new hongjiacheng_SS56_package
     """60V/5A flyback Schottky across heater."""
-
-    # --- Fuse clips (2x, hold 5x20mm glass fuse) ---
-    fuse_clip_1 = new Xucheng_Elec_5x20_package
-    fuse_clip_2 = new Xucheng_Elec_5x20_package
 
     # --- Bulk decoupling on 24V ---
     c_bulk_24v = new Honor_Elec_VP1H101M0607_package
@@ -199,9 +194,6 @@ module HeaterDriver:
     ctrl_gate_node = new Electrical
     """Q_CTRL gate: R_CTRL output, R_CTRL_PD top."""
 
-    fused_24v = new Electrical
-    """Post-fuse 24V node for heater path."""
-
     pnp_coll_node = new Electrical
     pnp_base_node = new Electrical
     d_iso_anode_node = new Electrical
@@ -210,23 +202,19 @@ module HeaterDriver:
     arm_node = new Electrical
 
     # =====================================================================
-    # Heater power path (with fuse)
+    # Heater power path
     # =====================================================================
 
-    # V24 → fuse_clip_1 → [physical fuse] → fuse_clip_2 → fused_24v
-    power_24v.hv ~ fuse_clip_1.p1
-    fuse_clip_2.p1 ~ fused_24v
-
-    # Fused 24V → heater_hi, heater_lo → Q_HEATER → GND
-    fused_24v ~ heater_hi
+    # V24_PROT → heater_hi, heater_lo → Q_HEATER → GND
+    power_24v.hv ~ heater_hi
     heater_lo ~ q_heater.D
     q_heater.S ~ power_24v.lv
 
     # Flyback diode across heater
     d_flyback.A ~ heater_lo
-    d_flyback.K ~ fused_24v
+    d_flyback.K ~ power_24v.hv
 
-    # Bulk cap on 24V rail (before fuse, on main rail)
+    # Bulk cap on protected 24V rail
     power_24v.hv ~ c_bulk_24v.p1
     c_bulk_24v.p2 ~ power_24v.lv
 

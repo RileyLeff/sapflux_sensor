@@ -11,9 +11,9 @@ Open-source adapter board connecting sap flux sensors to a field data logger. De
 | Input voltage (continuous) | 5–30V DC |
 | Nominal voltage | 24V (12V compatible at reduced heater power) |
 | Absolute max voltage | 33V (TVS clamp) |
-| Reverse polarity protection | Yes (Schottky) |
+| Reverse polarity protection | Yes (high-side PMOS) |
 | Surge protection | SMAJ33A TVS, 53V clamp |
-| Overcurrent protection | 2920 PTC fuse (resettable) |
+| Overcurrent protection | Single user-supplied mini blade input fuse; 2920 PTC on buck branch |
 | Idle power (15s RS-485 poll) | 984 µW (41µA @ 24V) |
 | Idle power (RS-485 always-on) | 3.6 mW (150µA @ 24V) |
 
@@ -27,7 +27,7 @@ Open-source adapter board connecting sap flux sensors to a field data logger. De
 | Peak power per pulse | 14.4W @ 24V |
 | MOSFET | TM15N10D (100V/15A DPAK, 75mΩ) |
 | Protection | 4-layer safety: firmware timer, IWDG, TPL5010 external watchdog (~10s), discrete SCR latch (permanent lockout until power cycle) |
-| Fusing | User-supplied 5×20mm glass fuse (clips on board) |
+| Fusing | Protected by the main mini blade input fuse; no separate heater-branch fuse |
 | Flyback protection | SS56 Schottky (60V/5A) |
 
 ### Heater power per pulse (40Ω heater, sequential firing)
@@ -111,7 +111,7 @@ Thermistor readings are unaffected by cable length (ratiometric measurement canc
 | Aux header (J4) | GND, GND, I2C SDA (1kΩ protected), I2C SCL (1kΩ protected), GPIO PA6, GPIO PA7 |
 | SWD header (J6) | VCC, SWDIO, SWCLK, GND |
 | Unused MCU pins | PB2, PB10 (I2C2_SCL), PB11 (I2C2_SDA), PB8, PB9, PC13, PA15 |
-| Test pads | V3V3, GND, V24_RAW, GATE, PGOOD, NRST, PNP_COLL, EXC |
+| Test pads | V3V3, GND, V24_PROT, GATE, PGOOD, NRST, PNP_COLL, EXC |
 
 ## Physical
 
