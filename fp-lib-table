@@ -1,4 +1,5 @@
 (fp_lib_table
   (version 7)
   (lib (name "sap_footprints")(type "KiCad")(uri "${KIPRJMOD}/common_lib/sap_footprints")(options "")(descr ""))
+  (lib (name "XFCN_XF_508P_B_B")(type "KiCad")(uri "${KIPRJMOD}/elec/parts/XFCN_XF_508P_B_B")(options "")(descr "atopile: part lib: XFCN_XF_508P_B_B"))
 )
