@@ -27,3 +27,11 @@ component Winbond_Elec_W25Q256JVFIQ_package:
     signal WPhIO2 ~ pin 9
     signal nCS ~ pin 7
     signal nRESET ~ pin 3
+
+    flash_nc_pin_4.override_net_name = "flash_nc_pin_4"
+    flash_nc_pin_5.override_net_name = "flash_nc_pin_5"
+    flash_nc_pin_6.override_net_name = "flash_nc_pin_6"
+    flash_nc_pin_11.override_net_name = "flash_nc_pin_11"
+    flash_nc_pin_12.override_net_name = "flash_nc_pin_12"
+    flash_nc_pin_13.override_net_name = "flash_nc_pin_13"
+    flash_nc_pin_14.override_net_name = "flash_nc_pin_14"
