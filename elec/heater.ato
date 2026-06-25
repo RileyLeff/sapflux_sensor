@@ -11,11 +11,11 @@ v1.1 changes:
     replaces both functions.
 
 Gate driver circuit:
-  V24 ── R_GATE_PULL (1M) ──┬── Q_HEATER Gate ── D_ZENER (10V) ── GND
+  V24 ── R_GATE_PULL (4.7M) ──┬── Q_HEATER Gate ── D_ZENER (10V) ── GND
                              │
                         Q_DRIVER drain (source to GND)
 
-  Q_DRIVER gate: V24 ── R_BIAS (4.7M) ──┬── R_GATE_PD (1M) ── GND
+  Q_DRIVER gate: V24 ── R_BIAS (10M) ──┬── R_GATE_PD (2M) ── GND
                                           │
                                      Q_CTRL drain (source to GND)
 
@@ -117,18 +117,18 @@ module HeaterDriver:
     d_zener = new hongjiacheng_MM3Z10_package
     """10V zener. Clamps Q1 gate voltage to safe 10V level."""
 
-    r_gate_pull = new Resistor
-    r_gate_pull.resistance = 1Mohm +/- 1%
-    r_gate_pull.package = "0603"
-    """Pulls Q1 gate toward 24V when Q_DRIVER is OFF."""
+    r_gate_pull = new UNI_ROYAL_0603WAF4704T5E_package
+    """4.7M resistor. Pulls Q1 gate toward 24V when Q_DRIVER is OFF."""
 
-    r_bias = new UNI_ROYAL_0603WAF4704T5E_package
-    """4.7M resistor. 24V divider upper leg for Q_DRIVER gate bias."""
+    r_bias = new Resistor
+    r_bias.resistance = 10Mohm +/- 1%
+    r_bias.package = "0603"
+    """10M resistor. 24V divider upper leg for Q_DRIVER gate bias."""
 
     r_gate_pd = new Resistor
-    r_gate_pd.resistance = 1Mohm +/- 1%
+    r_gate_pd.resistance = 2Mohm +/- 1%
     r_gate_pd.package = "0603"
-    """24V divider lower leg for Q_DRIVER gate. V_gate = 24 * 1M/5.7M = 4.2V."""
+    """24V divider lower leg for Q_DRIVER gate. V_gate = 24 * 2M/12M = 4.0V."""
 
     r_ctrl = new Resistor
     r_ctrl.resistance = 10kohm +/- 1%
@@ -228,8 +228,9 @@ module HeaterDriver:
     # Gate driver circuit
     # =====================================================================
 
-    # R_GATE_PULL: 24V → 1M → gate_node (charges Q_HEATER gate when Q_DRIVER OFF)
-    power_24v.hv ~> r_gate_pull ~> gate_node
+    # R_GATE_PULL: 24V → 4.7M → gate_node (charges Q_HEATER gate when Q_DRIVER OFF)
+    power_24v.hv ~ r_gate_pull.p1
+    r_gate_pull.p2 ~ gate_node
 
     # D_ZENER: clamps gate_node to 10V (cathode at gate, anode to GND)
     d_zener.K ~ gate_node
@@ -239,9 +240,8 @@ module HeaterDriver:
     q_driver.D ~ gate_node
     q_driver.S ~ power_24v.lv
 
-    # Q_DRIVER gate bias: 24V divider (R_BIAS 4.7M / R_GATE_PD 1M)
-    r_bias.p1 ~ power_24v.hv
-    r_bias.p2 ~ driver_gate_node
+    # Q_DRIVER gate bias: 24V divider (R_BIAS 10M / R_GATE_PD 2M)
+    power_24v.hv ~> r_bias ~> driver_gate_node
     driver_gate_node ~> r_gate_pd ~> power_24v.lv
     driver_gate_node ~ q_driver.G
 

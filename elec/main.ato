@@ -293,14 +293,14 @@ module SapFluxAdapter:
     buck.pgood.line ~ heater.pgood
 
     # === 24V voltage monitor (resistor divider on PB1) ===
-    # 1M/100k divider: V24 * 100k/(1M+100k) = V24 * 0.0909
+    # 4.7M/470k divider: V24 * 470k/(4.7M+470k) = V24 * 0.0909
     # At 24V → 2.18V, at 29V solar → 2.64V, at 33V TVS clamp → 3.0V
-    # 21.8 µA drain. 100nF filter (fc = 15.9 Hz with 100k||1M = 90.9k).
+    # 4.6 µA drain. 100nF filter (fc = 3.7 Hz with 470k||4.7M = 427k).
     r_vmon_hi = new Resistor
-    r_vmon_hi.resistance = 1Mohm +/- 1%
+    r_vmon_hi.resistance = 4.7Mohm +/- 1%
     r_vmon_hi.package = "0603"
     r_vmon_lo = new Resistor
-    r_vmon_lo.resistance = 100kohm +/- 1%
+    r_vmon_lo.resistance = 470kohm +/- 1%
     r_vmon_lo.package = "0603"
     c_vmon_filt = new YAGEO_CC0603KRX7R9BB104_package
 
