@@ -4,8 +4,8 @@ RS-485 transceiver: SP3485 + AC termination + SM712 TVS + boot pull-ups/downs.
 Topology:
   MCU UART TX → SP3485 DI
   MCU UART RX ← SP3485 RO
-  MCU GPIO DE → SP3485 DE (R_DE_PD 100k pull-down: driver OFF during boot)
-  MCU GPIO ~RE → SP3485 ~RE (R_RE_PD 100k pull-down: receiver ON during boot)
+  MCU GPIO DE → SP3485 DE (R_DE_PD 1M pull-down: driver OFF during boot)
+  MCU GPIO ~RE → SP3485 ~RE (R_RE_PD 1M pull-down: receiver ON during boot)
 
   SP3485 A/B → SM712 TVS → M8 connector (via top-level wiring)
   A-B: R_TERM (120 ohm) + C_TERM (100nF) in series (AC termination)
@@ -67,13 +67,13 @@ module RS485Bus:
     rs485_a ~ transceiver.rs485_bus.p.line
     rs485_b ~ transceiver.rs485_bus.n.line
 
-    # --- Boot-state pull resistors (100k, auto-pick) ---
+    # --- Boot-state pull resistors (1M, auto-pick) ---
     r_de_pd = new Resistor
-    r_de_pd.resistance = 100kohm +/- 1%
+    r_de_pd.resistance = 1Mohm +/- 1%
     r_de_pd.package = "0603"
 
     r_re_pd = new Resistor
-    r_re_pd.resistance = 100kohm +/- 1%
+    r_re_pd.resistance = 1Mohm +/- 1%
     r_re_pd.package = "0603"
 
     # DE pull-down: driver OFF during boot (Hi-Z GPIOs)

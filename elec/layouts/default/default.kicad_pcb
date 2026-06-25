@@ -37215,7 +37215,7 @@
 			)
 		)
 	)
-	(footprint "UNI_ROYAL_0603WAF1003T5E:R0603"
+	(footprint "UNI_ROYAL_0603WAF1004T5E:R0603"
 		(layer "F.Cu")
 		(uuid "8ac9f436-b30c-4e69-bd23-701d4642524b")
 		(at 103.1 129.825 180)
@@ -37230,7 +37230,7 @@
 				)
 			)
 		)
-		(property "Value" "100kΩ ±1%"
+		(property "Value" "1MΩ ±1%"
 			(at 0 4 180)
 			(layer "F.Fab")
 			(uuid "38fe1bac-51bb-439b-83fc-6d0cede9bb07")
@@ -37241,7 +37241,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1003T5E_C25803.pdf"
+		(property "Datasheet" "https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1004T5E_C22935.pdf"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -37265,7 +37265,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C25803"
+		(property "LCSC" "C22935"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -37313,7 +37313,7 @@
 				)
 			)
 		)
-		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 99000.00002235174, \"max\": 100999.99997764826}}]}}, \"unit\": \"ohm\"}}"
+		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 990000.0002235174, \"max\": 1009999.9997764826}}]}}, \"unit\": \"ohm\"}}"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -37325,7 +37325,7 @@
 				)
 			)
 		)
-		(property "Partnumber" "0603WAF1003T5E"
+		(property "Partnumber" "0603WAF1004T5E"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -37337,7 +37337,7 @@
 				)
 			)
 		)
-		(property "resistance" "100kΩ ±1%"
+		(property "resistance" "1MΩ ±1%"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -37385,7 +37385,7 @@
 				)
 			)
 		)
-		(property "lcsc_id" "C25803"
+		(property "lcsc_id" "C22935"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -37508,7 +37508,7 @@
 			(uuid "7fcd7101-75e7-4e15-a655-bdce4cfdaaa3")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../../parts/UNI_ROYAL_0603WAF1003T5E/R0603.STEP"
+		(model "${KIPRJMOD}/../../parts/UNI_ROYAL_0603WAF1004T5E/R0603.STEP"
 			(offset
 				(xyz 0 0 -0)
 			)
@@ -51633,7 +51633,7 @@
 			)
 		)
 	)
-	(footprint "UNI_ROYAL_0603WAF1003T5E:R0603"
+	(footprint "UNI_ROYAL_0603WAF1004T5E:R0603"
 		(layer "F.Cu")
 		(uuid "bfb386a1-6424-434d-adee-ca4b4642524b")
 		(at 105.875 129.8)
@@ -51648,7 +51648,7 @@
 				)
 			)
 		)
-		(property "Value" "100kΩ ±1%"
+		(property "Value" "1MΩ ±1%"
 			(at 0 4 0)
 			(layer "F.Fab")
 			(uuid "d23f4a41-3429-49c8-bf54-a12e51c0285e")
@@ -51659,7 +51659,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "https://www.lcsc.com/datasheet/lcsc_datasheet_2206010045_UNI-ROYAL-Uniroyal-Elec-0603WAF1003T5E_C25803.pdf"
+		(property "Datasheet" "https://www.lcsc.com/datasheet/lcsc_datasheet_2206010130_UNI-ROYAL-Uniroyal-Elec-0603WAF1004T5E_C22935.pdf"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -51683,7 +51683,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C25803"
+		(property "LCSC" "C22935"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -51731,7 +51731,7 @@
 				)
 			)
 		)
-		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 99000.00002235174, \"max\": 100999.99997764826}}]}}, \"unit\": \"ohm\"}}"
+		(property "PARAM_resistance" "{\"type\": \"Quantity_Interval_Disjoint\", \"data\": {\"intervals\": {\"type\": \"Numeric_Interval_Disjoint\", \"data\": {\"intervals\": [{\"type\": \"Numeric_Interval\", \"data\": {\"min\": 990000.0002235174, \"max\": 1009999.9997764826}}]}}, \"unit\": \"ohm\"}}"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -51743,7 +51743,7 @@
 				)
 			)
 		)
-		(property "Partnumber" "0603WAF1003T5E"
+		(property "Partnumber" "0603WAF1004T5E"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -51755,7 +51755,7 @@
 				)
 			)
 		)
-		(property "resistance" "100kΩ ±1%"
+		(property "resistance" "1MΩ ±1%"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -51803,7 +51803,7 @@
 				)
 			)
 		)
-		(property "lcsc_id" "C25803"
+		(property "lcsc_id" "C22935"
 			(at 0 0 90)
 			(layer "User.9")
 			(hide yes)
@@ -51926,7 +51926,7 @@
 			(uuid "280c2159-a211-4132-b30b-442ddd376d6b")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../../parts/UNI_ROYAL_0603WAF1003T5E/R0603.STEP"
+		(model "${KIPRJMOD}/../../parts/UNI_ROYAL_0603WAF1004T5E/R0603.STEP"
 			(offset
 				(xyz 0 0 -0)
 			)
