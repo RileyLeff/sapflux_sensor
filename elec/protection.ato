@@ -17,12 +17,12 @@ the TVS to sacrifice itself. Its gate-source zener limits |Vgs| at normal
 
 import ElectricPower
 import Electrical
+import Resistor
 
 from "parts/HUASHUO_HSU0195A/HUASHUO_HSU0195A.ato" import HUASHUO_HSU0195A_package
 from "parts/XFCN_XF_508P_B_B/XFCN_XF_508P_B_B.ato" import XFCN_XF_508P_B_B_package
 from "parts/hongjiacheng_MM3Z10/hongjiacheng_MM3Z10.ato" import hongjiacheng_MM3Z10_package
 from "parts/hongjiacheng_SMAJ33CA/hongjiacheng_SMAJ33CA.ato" import hongjiacheng_SMAJ33CA_package
-from "parts/UNI_ROYAL_0603WAF4704T5E/UNI_ROYAL_0603WAF4704T5E.ato" import UNI_ROYAL_0603WAF4704T5E_package
 
 module InputProtection:
     """
@@ -70,10 +70,11 @@ module InputProtection:
 
     # Gate bias and Vgs clamp. Idle draw is approximately (Vin - 10V) / 4.7M
     # when powered from a 24V battery.
-    r_gate_pull = new UNI_ROYAL_0603WAF4704T5E_package
+    r_gate_pull = new Resistor
+    r_gate_pull.resistance = 4.7Mohm +/- 1%
+    r_gate_pull.package = "0603"
     d_gate_zener = new hongjiacheng_MM3Z10_package
-    r_gate_pull.p1 ~ gate_node
-    r_gate_pull.p2 ~ power_in.lv
+    gate_node ~> r_gate_pull ~> power_in.lv
     d_gate_zener.K ~ power_out.hv
     d_gate_zener.A ~ gate_node
 

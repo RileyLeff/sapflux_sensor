@@ -48,7 +48,6 @@ from "parts/Changjiang_Electronics_Tech_MMBT3904_RANGE_100_300/Changjiang_Electr
 from "parts/Honor_Elec_VP1H101M0607/Honor_Elec_VP1H101M0607.ato" import Honor_Elec_VP1H101M0607_package
 from "parts/YAGEO_CC0603KRX7R9BB104/YAGEO_CC0603KRX7R9BB104.ato" import YAGEO_CC0603KRX7R9BB104_package
 from "parts/Samsung_Electro_Mechanics_CL10A105KB8NNNC/Samsung_Electro_Mechanics_CL10A105KB8NNNC.ato" import Samsung_Electro_Mechanics_CL10A105KB8NNNC_package
-from "parts/UNI_ROYAL_0603WAF4704T5E/UNI_ROYAL_0603WAF4704T5E.ato" import UNI_ROYAL_0603WAF4704T5E_package
 from "parts/Murata_Electronics_GRM21BR61H106KE43L/Murata_Electronics_GRM21BR61H106KE43L.ato" import Murata_Electronics_GRM21BR61H106KE43L_package
 
 module HeaterDriver:
@@ -117,7 +116,9 @@ module HeaterDriver:
     d_zener = new hongjiacheng_MM3Z10_package
     """10V zener. Clamps Q1 gate voltage to safe 10V level."""
 
-    r_gate_pull = new UNI_ROYAL_0603WAF4704T5E_package
+    r_gate_pull = new Resistor
+    r_gate_pull.resistance = 4.7Mohm +/- 1%
+    r_gate_pull.package = "0603"
     """4.7M resistor. Pulls Q1 gate toward 24V when Q_DRIVER is OFF."""
 
     r_bias = new Resistor
@@ -229,8 +230,7 @@ module HeaterDriver:
     # =====================================================================
 
     # R_GATE_PULL: 24V → 4.7M → gate_node (charges Q_HEATER gate when Q_DRIVER OFF)
-    power_24v.hv ~ r_gate_pull.p1
-    r_gate_pull.p2 ~ gate_node
+    power_24v.hv ~> r_gate_pull ~> gate_node
 
     # D_ZENER: clamps gate_node to 10V (cathode at gate, anode to GND)
     d_zener.K ~ gate_node
