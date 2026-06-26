@@ -1,0 +1,1660 @@
+** Drc report for default.kicad_pcb **
+** Created on 2026-06-26T14:58:03 **
+** Report includes: Errors, Warnings, Exclusions **
+
+** Found 414 DRC violations **
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(162.9500 mm, 88.9857 mm): Reference field of GND
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(162.9500 mm, 88.9857 mm): Reference field of GND
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(171.8250 mm, 88.9857 mm): Reference field of PG
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(171.8250 mm, 88.9857 mm): Reference field of PG
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(177.9750 mm, 88.9857 mm): Reference field of PNP
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(177.9750 mm, 88.9857 mm): Reference field of PNP
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(180.9500 mm, 88.9857 mm): Reference field of EXC
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(180.9500 mm, 88.9857 mm): Reference field of EXC
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(159.8750 mm, 88.9857 mm): Reference field of V3V3
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(159.8750 mm, 88.9857 mm): Reference field of V3V3
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(168.9250 mm, 88.9857 mm): Reference field of GATE
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(168.9250 mm, 88.9857 mm): Reference field of GATE
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(165.9500 mm, 88.9857 mm): Reference field of V24
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(165.9500 mm, 88.9857 mm): Reference field of V24
+[text_thickness]: Text thickness out of range (rule 'Silkscreen Minimum Stroke Width' min thickness 0.1500 mm; actual 0.1200 mm)
+    Rule: Silkscreen Minimum Stroke Width; warning
+    @(174.9500 mm, 88.9857 mm): Reference field of NRST
+[text_height]: Text height out of range (rule 'Silkscreen Minimum Text Height' min height 1.0000 mm; actual 0.8000 mm)
+    Rule: Silkscreen Minimum Text Height; warning
+    @(174.9500 mm, 88.9857 mm): Reference field of NRST
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(152.9450 mm, 140.3050 mm): Segment of R45 on F.Silkscreen
+    @(153.1250 mm, 139.3450 mm): Segment of R44 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(154.2650 mm, 140.3050 mm): Segment of R45 on F.Silkscreen
+    @(153.1250 mm, 139.3450 mm): Segment of R44 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 140.3050 mm): Segment of R44 on F.Silkscreen
+    @(152.9450 mm, 140.3050 mm): Segment of R45 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 140.3050 mm): Segment of R44 on F.Silkscreen
+    @(154.2650 mm, 140.3050 mm): Segment of R45 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0557 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(150.9250 mm, 142.3250 mm): Reference field of D10
+    @(151.8350 mm, 143.7950 mm): Segment of D10 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0657 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(150.9250 mm, 142.3250 mm): Reference field of D10
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+    @(151.8350 mm, 143.7950 mm): Segment of D10 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.8350 mm, 140.6950 mm): Segment of D10 on F.Silkscreen
+    @(151.1350 mm, 139.9350 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.8350 mm, 140.6950 mm): Segment of D10 on F.Silkscreen
+    @(149.9850 mm, 139.9350 mm): Segment of R46 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0062 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.8350 mm, 140.6950 mm): Segment of D10 on F.Silkscreen
+    @(149.9850 mm, 140.8950 mm): Segment of R46 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0200 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.8350 mm, 140.6950 mm): Segment of D10 on F.Silkscreen
+    @(149.8150 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.8350 mm, 140.6950 mm): Segment of D10 on F.Silkscreen
+    @(151.1350 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0461 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(150.9250 mm, 142.3250 mm): Reference field of D10
+    @(151.1350 mm, 139.9350 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0181 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.1350 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(150.9250 mm, 142.3250 mm): Reference field of D10
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 137.5250 mm): Segment of R44 on F.Silkscreen
+    @(152.9450 mm, 137.5250 mm): Segment of R45 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 137.5250 mm): Segment of R44 on F.Silkscreen
+    @(154.2650 mm, 137.5250 mm): Segment of R45 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(152.9450 mm, 137.5250 mm): Segment of R45 on F.Silkscreen
+    @(153.1250 mm, 138.4850 mm): Segment of R44 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 138.4850 mm): Segment of R44 on F.Silkscreen
+    @(154.2650 mm, 137.5250 mm): Segment of R45 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 138.1150 mm): Segment of R46 on F.Silkscreen
+    @(149.8150 mm, 138.1150 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.1350 mm, 138.1150 mm): Segment of R47 on F.Silkscreen
+    @(149.9850 mm, 138.1150 mm): Segment of R46 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0200 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 139.9350 mm): Segment of R46 on F.Silkscreen
+    @(149.8150 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.1350 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(149.9850 mm, 139.9350 mm): Segment of R46 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.8150 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(149.9850 mm, 140.8950 mm): Segment of R46 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.1350 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(149.9850 mm, 140.8950 mm): Segment of R46 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.6650 mm, 139.3900 mm): Segment of R48 on F.Silkscreen
+    @(147.7850 mm, 140.3450 mm): Segment of R49 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(147.7850 mm, 140.3450 mm): Segment of R49 on F.Silkscreen
+    @(146.6650 mm, 140.3500 mm): Segment of R48 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.6650 mm, 139.3900 mm): Segment of R48 on F.Silkscreen
+    @(146.4650 mm, 140.3450 mm): Segment of R49 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0200 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 139.0750 mm): Segment of R46 on F.Silkscreen
+    @(149.8150 mm, 138.1150 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 139.0750 mm): Segment of R46 on F.Silkscreen
+    @(151.1350 mm, 138.1150 mm): Segment of R47 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.4650 mm, 140.3450 mm): Segment of R49 on F.Silkscreen
+    @(146.6650 mm, 140.3500 mm): Segment of R48 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.4650 mm, 137.5650 mm): Segment of R49 on F.Silkscreen
+    @(146.6650 mm, 137.5700 mm): Segment of R48 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(147.7850 mm, 137.5650 mm): Segment of R49 on F.Silkscreen
+    @(146.6650 mm, 137.5700 mm): Segment of R48 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.4650 mm, 137.5650 mm): Segment of R49 on F.Silkscreen
+    @(146.6650 mm, 138.5300 mm): Segment of R48 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(147.7850 mm, 137.5650 mm): Segment of R49 on F.Silkscreen
+    @(146.6650 mm, 138.5300 mm): Segment of R48 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0431 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.5450 mm, 142.2500 mm): Reference field of D11
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+    @(144.7550 mm, 139.9650 mm): Segment of R51 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 139.9650 mm): Segment of R50 on F.Silkscreen
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.4350 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.7550 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+    @(143.6500 mm, 140.9250 mm): Segment of R50 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(145.4450 mm, 143.8450 mm): Segment of D11 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 138.1450 mm): Segment of R50 on F.Silkscreen
+    @(143.4350 mm, 138.1450 mm): Segment of R51 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 138.1450 mm): Segment of R50 on F.Silkscreen
+    @(144.7550 mm, 138.1450 mm): Segment of R51 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0650 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 139.1050 mm): Segment of R50 on F.Silkscreen
+    @(143.4350 mm, 138.1450 mm): Segment of R51 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.7550 mm, 138.1450 mm): Segment of R51 on F.Silkscreen
+    @(143.6500 mm, 139.1050 mm): Segment of R50 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0650 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 139.9650 mm): Segment of R50 on F.Silkscreen
+    @(143.4350 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.7550 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(143.6500 mm, 139.9650 mm): Segment of R50 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.4350 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(143.6500 mm, 140.9250 mm): Segment of R50 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.7550 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(143.6500 mm, 140.9250 mm): Segment of R50 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 138.1450 mm): Segment of R55 on F.Silkscreen
+    @(137.2400 mm, 138.1450 mm): Segment of R54 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 138.1450 mm): Segment of R55 on F.Silkscreen
+    @(137.2400 mm, 139.1050 mm): Segment of R54 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(139.1150 mm, 140.7450 mm): Segment of D12 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(137.2400 mm, 139.9650 mm): Segment of R54 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.2400 mm, 140.9250 mm): Segment of R54 on F.Silkscreen
+    @(137.0450 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 138.1450 mm): Segment of R55 on F.Silkscreen
+    @(137.2400 mm, 138.1450 mm): Segment of R54 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 138.1450 mm): Segment of R55 on F.Silkscreen
+    @(137.2400 mm, 139.1050 mm): Segment of R54 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0107 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(138.2000 mm, 142.3000 mm): Reference field of D12
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(139.1150 mm, 140.7450 mm): Segment of D12 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(137.2400 mm, 139.9650 mm): Segment of R54 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.2400 mm, 140.9250 mm): Segment of R54 on F.Silkscreen
+    @(138.3650 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 139.9650 mm): Segment of R55 on F.Silkscreen
+    @(139.1150 mm, 140.7450 mm): Segment of D12 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.1750 mm, 137.5850 mm): Segment of R53 on F.Silkscreen
+    @(140.3800 mm, 137.5900 mm): Segment of R52 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(141.4950 mm, 137.5850 mm): Segment of R53 on F.Silkscreen
+    @(140.3800 mm, 137.5900 mm): Segment of R52 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0550 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.1750 mm, 137.5850 mm): Segment of R53 on F.Silkscreen
+    @(140.3800 mm, 138.5500 mm): Segment of R52 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.3800 mm, 138.5500 mm): Segment of R52 on F.Silkscreen
+    @(141.4950 mm, 137.5850 mm): Segment of R53 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(141.4950 mm, 140.3650 mm): Segment of R53 on F.Silkscreen
+    @(140.3800 mm, 139.4100 mm): Segment of R52 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0550 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.1750 mm, 140.3650 mm): Segment of R53 on F.Silkscreen
+    @(140.3800 mm, 139.4100 mm): Segment of R52 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.3800 mm, 140.3700 mm): Segment of R52 on F.Silkscreen
+    @(141.4950 mm, 140.3650 mm): Segment of R53 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.3800 mm, 140.3700 mm): Segment of R52 on F.Silkscreen
+    @(140.1750 mm, 140.3650 mm): Segment of R53 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.3250 mm): Segment of R5 on F.Silkscreen
+    @(185.4800 mm, 127.3250 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 126.6150 mm): Segment of R5 on F.Silkscreen
+    @(185.4800 mm, 127.3250 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.3250 mm): Segment of R5 on F.Silkscreen
+    @(185.6300 mm, 126.6750 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 126.6750 mm): Segment of C11 on F.Silkscreen
+    @(185.6800 mm, 126.6150 mm): Segment of R5 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 126.6750 mm): Segment of C11 on F.Silkscreen
+    @(186.2075 mm, 125.6650 mm): Segment of R73 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 126.8250 mm): Arc of C11 on F.Silkscreen
+    @(186.2075 mm, 125.6650 mm): Segment of R73 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.3250 mm): Segment of R5 on F.Silkscreen
+    @(185.6300 mm, 126.8250 mm): Arc of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 126.8250 mm): Arc of C11 on F.Silkscreen
+    @(185.6800 mm, 126.6150 mm): Segment of R5 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.4750 mm, 130.2550 mm): Segment of U4 on F.Silkscreen
+    @(187.2475 mm, 130.0750 mm): Segment of R72 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.4750 mm, 130.2550 mm): Segment of U4 on F.Silkscreen
+    @(188.5675 mm, 130.0750 mm): Segment of R72 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.6350 mm, 130.2550 mm): Segment of U4 on F.Silkscreen
+    @(188.5675 mm, 130.0750 mm): Segment of R72 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 127.4850 mm): Segment of R73 on F.Silkscreen
+    @(188.5675 mm, 127.2950 mm): Segment of R72 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(187.2475 mm, 127.2950 mm): Segment of R72 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(186.4800 mm, 127.7650 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(186.3300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.7850 mm): Segment of R5 on F.Silkscreen
+    @(185.4800 mm, 128.2650 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.7850 mm): Segment of R5 on F.Silkscreen
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+    @(186.2075 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+    @(185.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.7850 mm): Segment of R5 on F.Silkscreen
+    @(185.6300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+    @(185.6300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+    @(186.2075 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 128.0050 mm): Segment of R4 on F.Silkscreen
+    @(184.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 128.7150 mm): Segment of R4 on F.Silkscreen
+    @(185.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(176.8450 mm, 140.6150 mm): Segment of D3 on F.Silkscreen
+    @(176.1750 mm, 139.8950 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(176.8450 mm, 143.7150 mm): Segment of D3 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.8950 mm): Segment of R12 on F.Silkscreen
+    @(176.8450 mm, 140.6150 mm): Segment of D3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 140.8550 mm): Segment of R12 on F.Silkscreen
+    @(176.8450 mm, 140.6150 mm): Segment of D3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(174.8550 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+    @(176.8450 mm, 140.6150 mm): Segment of D3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(176.1750 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+    @(176.8450 mm, 140.6150 mm): Segment of D3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 138.5650 mm): Segment of R36 on F.Silkscreen
+    @(166.8550 mm, 137.6050 mm): Segment of R37 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0550 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.5350 mm, 137.6050 mm): Segment of R37 on F.Silkscreen
+    @(165.7400 mm, 138.5650 mm): Segment of R36 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(166.8550 mm, 137.6050 mm): Segment of R37 on F.Silkscreen
+    @(165.7400 mm, 137.6050 mm): Segment of R36 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(166.8550 mm, 140.3850 mm): Segment of R37 on F.Silkscreen
+    @(165.7400 mm, 139.4250 mm): Segment of R36 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0550 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 139.4250 mm): Segment of R36 on F.Silkscreen
+    @(165.5350 mm, 140.3850 mm): Segment of R37 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 140.3850 mm): Segment of R36 on F.Silkscreen
+    @(166.8550 mm, 140.3850 mm): Segment of R37 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(173.2850 mm, 137.4950 mm): Segment of R20 on F.Silkscreen
+    @(172.1650 mm, 137.4950 mm): Segment of R14 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(173.2850 mm, 137.4950 mm): Segment of R20 on F.Silkscreen
+    @(172.1650 mm, 138.4550 mm): Segment of R14 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 139.3150 mm): Segment of R14 on F.Silkscreen
+    @(173.2850 mm, 140.2750 mm): Segment of R20 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 140.2750 mm): Segment of R14 on F.Silkscreen
+    @(173.2850 mm, 140.2750 mm): Segment of R20 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 138.0750 mm): Segment of R12 on F.Silkscreen
+    @(174.8550 mm, 138.0750 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 138.0750 mm): Segment of R12 on F.Silkscreen
+    @(176.1750 mm, 138.0750 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.8950 mm): Segment of R12 on F.Silkscreen
+    @(174.8550 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.8950 mm): Segment of R12 on F.Silkscreen
+    @(176.1750 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 140.8550 mm): Segment of R12 on F.Silkscreen
+    @(174.8550 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 140.8550 mm): Segment of R12 on F.Silkscreen
+    @(176.1750 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.0350 mm): Segment of R12 on F.Silkscreen
+    @(174.8550 mm, 138.0750 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.0350 mm): Segment of R12 on F.Silkscreen
+    @(176.1750 mm, 138.0750 mm): Segment of R13 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(177.8950 mm, 137.5250 mm): Segment of R11 on F.Silkscreen
+    @(178.1000 mm, 137.5250 mm): Segment of R10 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(179.2150 mm, 137.5250 mm): Segment of R11 on F.Silkscreen
+    @(178.1000 mm, 137.5250 mm): Segment of R10 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 140.3050 mm): Segment of R10 on F.Silkscreen
+    @(177.8950 mm, 140.3050 mm): Segment of R11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 140.3050 mm): Segment of R10 on F.Silkscreen
+    @(179.2150 mm, 140.3050 mm): Segment of R11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(155.9450 mm, 138.0050 mm): Segment of R43 on F.Silkscreen
+    @(156.1100 mm, 138.0050 mm): Segment of R42 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(157.2650 mm, 138.0050 mm): Segment of R43 on F.Silkscreen
+    @(156.1100 mm, 138.0050 mm): Segment of R42 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0150 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 138.9650 mm): Segment of R42 on F.Silkscreen
+    @(155.9450 mm, 138.0050 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 138.9650 mm): Segment of R42 on F.Silkscreen
+    @(157.2650 mm, 138.0050 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 140.7850 mm): Segment of R42 on F.Silkscreen
+    @(157.2650 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 140.7850 mm): Segment of R42 on F.Silkscreen
+    @(155.9450 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 140.7850 mm): Segment of R42 on F.Silkscreen
+    @(157.9250 mm, 140.6200 mm): Segment of D9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(157.9250 mm, 140.6200 mm): Segment of D9 on F.Silkscreen
+    @(157.2650 mm, 139.8250 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 139.8250 mm): Segment of R42 on F.Silkscreen
+    @(157.2650 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(157.9250 mm, 140.6200 mm): Segment of D9 on F.Silkscreen
+    @(157.2650 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(157.9250 mm, 143.7200 mm): Segment of D9 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 137.4950 mm): Segment of R14 on F.Silkscreen
+    @(171.9650 mm, 137.4950 mm): Segment of R20 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 138.4550 mm): Segment of R14 on F.Silkscreen
+    @(171.9650 mm, 137.4950 mm): Segment of R20 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 139.3150 mm): Segment of R14 on F.Silkscreen
+    @(171.9650 mm, 140.2750 mm): Segment of R20 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(171.9650 mm, 140.2750 mm): Segment of R20 on F.Silkscreen
+    @(172.1650 mm, 140.2750 mm): Segment of R14 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0650 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 138.0350 mm): Segment of R35 on F.Silkscreen
+    @(169.0300 mm, 138.9950 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.1350 mm, 138.0350 mm): Segment of R35 on F.Silkscreen
+    @(169.0300 mm, 138.9950 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 138.0350 mm): Segment of R35 on F.Silkscreen
+    @(169.0300 mm, 138.0350 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.1350 mm, 138.0350 mm): Segment of R35 on F.Silkscreen
+    @(169.0300 mm, 138.0350 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.8650 mm, 140.6150 mm): Segment of D4 on F.Silkscreen
+    @(169.0300 mm, 139.8550 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0650 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(169.0300 mm, 139.8550 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.1350 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(169.0300 mm, 139.8550 mm): Segment of R24 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.1350 mm, 139.8550 mm): Segment of R35 on F.Silkscreen
+    @(170.8650 mm, 140.6150 mm): Segment of D4 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.8650 mm, 143.7150 mm): Segment of D4 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0030 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 140.8150 mm): Segment of R24 on F.Silkscreen
+    @(170.8650 mm, 140.6150 mm): Segment of D4 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 140.8150 mm): Segment of R24 on F.Silkscreen
+    @(168.8150 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 140.8150 mm): Segment of R24 on F.Silkscreen
+    @(170.1350 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(170.8650 mm, 140.6150 mm): Segment of D4 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.1350 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(170.8650 mm, 140.6150 mm): Segment of D4 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.5350 mm, 137.6050 mm): Segment of R37 on F.Silkscreen
+    @(165.7400 mm, 137.6050 mm): Segment of R36 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 140.3850 mm): Segment of R36 on F.Silkscreen
+    @(165.5350 mm, 140.3850 mm): Segment of R37 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(163.6750 mm, 138.1850 mm): Segment of R39 on F.Silkscreen
+    @(162.6000 mm, 139.1450 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 140.7050 mm): Segment of D8 on F.Silkscreen
+    @(162.3550 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.6000 mm, 140.9650 mm): Segment of R38 on F.Silkscreen
+    @(162.3550 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 140.7050 mm): Segment of D8 on F.Silkscreen
+    @(163.6750 mm, 140.0050 mm): Segment of R39 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 140.7050 mm): Segment of D8 on F.Silkscreen
+    @(163.6750 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(163.6750 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+    @(162.6000 mm, 140.0050 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(163.6750 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+    @(162.6000 mm, 140.9650 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 140.7050 mm): Segment of D8 on F.Silkscreen
+    @(162.6000 mm, 140.0050 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 140.7050 mm): Segment of D8 on F.Silkscreen
+    @(162.6000 mm, 140.9650 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 143.8050 mm): Segment of D8 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0150 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 139.8250 mm): Segment of R42 on F.Silkscreen
+    @(155.9450 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 139.8250 mm): Segment of R42 on F.Silkscreen
+    @(157.9250 mm, 140.6200 mm): Segment of D9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(155.9450 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+    @(157.9250 mm, 140.6200 mm): Segment of D9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.0250 mm, 140.2350 mm): Segment of R41 on F.Silkscreen
+    @(159.2500 mm, 140.2150 mm): Segment of R40 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(160.3450 mm, 137.4550 mm): Segment of R41 on F.Silkscreen
+    @(159.2500 mm, 138.3950 mm): Segment of R40 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.2500 mm, 139.2550 mm): Segment of R40 on F.Silkscreen
+    @(160.3450 mm, 140.2350 mm): Segment of R41 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(160.3450 mm, 137.4550 mm): Segment of R41 on F.Silkscreen
+    @(159.2500 mm, 137.4350 mm): Segment of R40 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.2500 mm, 140.2150 mm): Segment of R40 on F.Silkscreen
+    @(160.3450 mm, 140.2350 mm): Segment of R41 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.3550 mm, 138.1850 mm): Segment of R39 on F.Silkscreen
+    @(162.6000 mm, 138.1850 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(163.6750 mm, 138.1850 mm): Segment of R39 on F.Silkscreen
+    @(162.6000 mm, 138.1850 mm): Segment of R38 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.2500 mm, 137.4350 mm): Segment of R40 on F.Silkscreen
+    @(159.0250 mm, 137.4550 mm): Segment of R41 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 139.1600 mm): Segment of R8 on F.Silkscreen
+    @(180.7400 mm, 138.2000 mm): Segment of R9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 139.1600 mm): Segment of R8 on F.Silkscreen
+    @(182.0600 mm, 138.2000 mm): Segment of R9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.7400 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(180.8850 mm, 140.0200 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.6950 mm, 140.7650 mm): Segment of D1 on F.Silkscreen
+    @(180.8850 mm, 140.0200 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.0600 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(180.8850 mm, 140.0200 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.7400 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(180.8850 mm, 140.9800 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0152 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.6950 mm, 140.7650 mm): Segment of D1 on F.Silkscreen
+    @(180.8850 mm, 140.9800 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 140.9800 mm): Segment of R8 on F.Silkscreen
+    @(182.0600 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 138.2000 mm): Segment of R8 on F.Silkscreen
+    @(180.7400 mm, 138.2000 mm): Segment of R9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.7400 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(182.6950 mm, 140.7650 mm): Segment of D1 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.6950 mm, 143.8650 mm): Segment of D1 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.0600 mm, 138.2000 mm): Segment of R9 on F.Silkscreen
+    @(180.8850 mm, 138.2000 mm): Segment of R8 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0550 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 138.4850 mm): Segment of R10 on F.Silkscreen
+    @(177.8950 mm, 137.5250 mm): Segment of R11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 138.4850 mm): Segment of R10 on F.Silkscreen
+    @(179.2150 mm, 137.5250 mm): Segment of R11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0550 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 139.3450 mm): Segment of R10 on F.Silkscreen
+    @(177.8950 mm, 140.3050 mm): Segment of R11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 139.3450 mm): Segment of R10 on F.Silkscreen
+    @(179.2150 mm, 140.3050 mm): Segment of R11 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.6950 mm, 140.7650 mm): Segment of D1 on F.Silkscreen
+    @(182.0600 mm, 140.0200 mm): Segment of R9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0150 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.6950 mm, 140.7650 mm): Segment of D1 on F.Silkscreen
+    @(182.0600 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.9850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+    @(187.0850 mm, 145.5250 mm): Segment of L3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.2250 mm, 145.6750 mm): Segment of L3 on F.Silkscreen
+    @(186.9850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.9850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+    @(188.2350 mm, 145.6750 mm): Segment of L3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.0850 mm, 142.9750 mm): Segment of L3 on F.Silkscreen
+    @(110.7850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.9850 mm, 143.8050 mm): Segment of CN2 on F.Silkscreen
+    @(187.0850 mm, 142.9750 mm): Segment of L3 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.5050 mm, 143.1850 mm): Circle of D17 on F.Silkscreen
+    @(185.7150 mm, 143.1750 mm): Circle of CN2 on F.Silkscreen
+[silk_overlap]: Silkscreen clearance (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.0550 mm, 139.7850 mm): Segment of D17 on F.Silkscreen
+    @(186.5750 mm, 140.8250 mm): Reference field of D17
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 139.3450 mm): Segment of R44 on F.Silkscreen
+    @(153.6050 mm, 139.6650 mm): Pad 1 [therm_22] of R45 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(152.9450 mm, 140.3050 mm): Segment of R45 on F.Silkscreen
+    @(152.4650 mm, 139.6650 mm): Pad 1 [therm_21] of R44 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.8350 mm, 140.6950 mm): Segment of D10 on F.Silkscreen
+    @(150.4750 mm, 140.2550 mm): Pad 1 [therm_24] of R47 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(153.1250 mm, 138.4850 mm): Segment of R44 on F.Silkscreen
+    @(153.6050 mm, 138.1650 mm): Pad 2 [prot_22] of R45 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(152.9450 mm, 137.5250 mm): Segment of R45 on F.Silkscreen
+    @(152.4650 mm, 138.1650 mm): Pad 2 [prot_21] of R44 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 139.9350 mm): Segment of R46 on F.Silkscreen
+    @(150.4750 mm, 140.2550 mm): Pad 1 [therm_24] of R47 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 139.9350 mm): Segment of R46 on F.Silkscreen
+    @(149.5850 mm, 141.2950 mm): Pad 1 [therm_24] of D10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 140.8950 mm): Segment of R46 on F.Silkscreen
+    @(149.5850 mm, 141.2950 mm): Pad 1 [therm_24] of D10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.8150 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(149.3250 mm, 140.2550 mm): Pad 1 [therm_23] of R46 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.8150 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(149.5850 mm, 141.2950 mm): Pad 1 [therm_24] of D10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(151.1350 mm, 140.8950 mm): Segment of R47 on F.Silkscreen
+    @(149.5850 mm, 141.2950 mm): Pad 1 [therm_24] of D10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0650 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(147.7850 mm, 140.3450 mm): Segment of R49 on F.Silkscreen
+    @(147.1350 mm, 140.8850 mm): Pad 2 [GND] of C79 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0615 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.6650 mm, 139.3900 mm): Segment of R48 on F.Silkscreen
+    @(147.1350 mm, 140.8850 mm): Pad 2 [GND] of C79 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.6650 mm, 139.3900 mm): Segment of R48 on F.Silkscreen
+    @(147.1250 mm, 139.7050 mm): Pad 1 [therm_26] of R49 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.9850 mm, 139.0750 mm): Segment of R46 on F.Silkscreen
+    @(150.4750 mm, 138.7550 mm): Pad 2 [prot_24] of R47 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(149.8150 mm, 138.1150 mm): Segment of R47 on F.Silkscreen
+    @(149.3250 mm, 138.7550 mm): Pad 2 [prot_23] of R46 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(136.9650 mm, 104.5100 mm): Segment of L2 on F.Silkscreen
+    @(137.4650 mm, 103.9300 mm): Pad 1 [VDDA_FILT] of C88 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(139.2750 mm, 115.3250 mm): Pad 25 [sck] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(139.7750 mm, 115.3250 mm): Pad 26 [miso] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(140.2750 mm, 115.3250 mm): Pad 27 [mosi] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(140.7750 mm, 115.3250 mm): Pad 28 [gate_drive] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(141.2750 mm, 115.3250 mm): Pad 29 [mux_en_a] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(141.7750 mm, 115.3250 mm): Pad 30 [excitation_gpio] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(142.2750 mm, 115.3250 mm): Pad 31 [PGOOD] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(142.7750 mm, 115.3250 mm): Pad 32 [mux_en_b] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(143.2750 mm, 115.3250 mm): Pad 33 [mux_en_c] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(143.7750 mm, 115.3250 mm): Pad 34 [WP] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(144.2750 mm, 115.3250 mm): Pad 35 [swdio] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.9150 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(144.7750 mm, 115.3250 mm): Pad 36 [swclk] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(145.3450 mm, 114.4150 mm): Segment of U3 on F.Silkscreen
+    @(144.7750 mm, 115.3250 mm): Pad 36 [swclk] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0241 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.4950 mm, 116.0200 mm): Segment of R2 on F.Silkscreen
+    @(144.2750 mm, 115.3250 mm): Pad 35 [swdio] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.4950 mm, 116.0200 mm): Segment of R2 on F.Silkscreen
+    @(144.7750 mm, 115.3250 mm): Pad 36 [swclk] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0241 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.4950 mm, 116.9800 mm): Segment of R2 on F.Silkscreen
+    @(144.2750 mm, 115.3250 mm): Pad 35 [swdio] of U3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.4650 mm, 140.3450 mm): Segment of R49 on F.Silkscreen
+    @(146.0050 mm, 139.7100 mm): Pad 1 [therm_25] of R48 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0615 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.6650 mm, 140.3500 mm): Segment of R48 on F.Silkscreen
+    @(147.1350 mm, 140.8850 mm): Pad 2 [GND] of C79 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.4650 mm, 137.5650 mm): Segment of R49 on F.Silkscreen
+    @(146.0050 mm, 138.2100 mm): Pad 2 [prot_25] of R48 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(146.6650 mm, 138.5300 mm): Segment of R48 on F.Silkscreen
+    @(147.1250 mm, 138.2050 mm): Pad 2 [prot_26] of R49 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(145.4450 mm, 140.7450 mm): Segment of D11 on F.Silkscreen
+    @(144.0950 mm, 140.2850 mm): Pad 1 [therm_28] of R51 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 139.1050 mm): Segment of R50 on F.Silkscreen
+    @(144.0950 mm, 138.7850 mm): Pad 2 [prot_28] of R51 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 139.9650 mm): Segment of R50 on F.Silkscreen
+    @(143.1950 mm, 141.3450 mm): Pad 1 [therm_28] of D11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.6500 mm, 139.9650 mm): Segment of R50 on F.Silkscreen
+    @(144.0950 mm, 140.2850 mm): Pad 1 [therm_28] of R51 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.4350 mm, 138.1450 mm): Segment of R51 on F.Silkscreen
+    @(142.9900 mm, 138.7850 mm): Pad 2 [prot_27] of R50 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.4350 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(142.9900 mm, 140.2850 mm): Pad 1 [therm_27] of R50 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(143.4350 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(143.1950 mm, 141.3450 mm): Pad 1 [therm_28] of D11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(144.7550 mm, 140.9250 mm): Segment of R51 on F.Silkscreen
+    @(143.1950 mm, 141.3450 mm): Pad 1 [therm_28] of D11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 138.1450 mm): Segment of R55 on F.Silkscreen
+    @(136.5800 mm, 138.7850 mm): Pad 2 [prot_31] of R54 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(136.8650 mm, 141.3450 mm): Pad 1 [therm_32] of D12 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(137.0450 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(136.5800 mm, 140.2850 mm): Pad 1 [therm_31] of R54 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(138.3650 mm, 140.9250 mm): Segment of R55 on F.Silkscreen
+    @(136.8650 mm, 141.3450 mm): Pad 1 [therm_32] of D12 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.3800 mm, 138.5500 mm): Segment of R52 on F.Silkscreen
+    @(140.8350 mm, 138.2250 mm): Pad 2 [prot_30] of R53 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(140.3800 mm, 139.4100 mm): Segment of R52 on F.Silkscreen
+    @(140.8350 mm, 139.7250 mm): Pad 1 [therm_30] of R53 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.4800 mm, 127.3250 mm): Segment of C11 on F.Silkscreen
+    @(185.1800 mm, 127.1250 mm): Pad 2 [V3V3] of R5 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0325 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 126.6750 mm): Segment of C11 on F.Silkscreen
+    @(186.8675 mm, 126.3050 mm): Pad 2 [GND] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0676 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 126.8250 mm): Arc of C11 on F.Silkscreen
+    @(186.8675 mm, 126.3050 mm): Pad 2 [GND] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.3250 mm): Segment of R5 on F.Silkscreen
+    @(185.9800 mm, 127.1250 mm): Pad 2 [GND] of C11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0415 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 126.8250 mm): Arc of C11 on F.Silkscreen
+    @(185.1800 mm, 127.1250 mm): Pad 2 [V3V3] of R5 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(194.6300 mm, 135.7300 mm): Segment of R33 on F.Silkscreen
+    @(195.2800 mm, 134.7350 mm): Pad 7 [WP] of U9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(192.7850 mm, 140.3550 mm): Segment of R30 on F.Silkscreen
+    @(192.6250 mm, 141.7150 mm): Pad 3 [B] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.2475 mm, 130.0750 mm): Segment of R72 on F.Silkscreen
+    @(187.0550 mm, 129.2150 mm): Pad 6 [6] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0555 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.5675 mm, 130.0750 mm): Segment of R72 on F.Silkscreen
+    @(187.0550 mm, 129.2150 mm): Pad 6 [6] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 127.4850 mm): Segment of R73 on F.Silkscreen
+    @(187.9075 mm, 127.9350 mm): Pad 2 [GND] of R72 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.2475 mm, 127.2950 mm): Segment of R72 on F.Silkscreen
+    @(186.8675 mm, 127.8050 mm): Pad 1 [7] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.4800 mm, 126.8250 mm): Segment of C11 on F.Silkscreen
+    @(186.8675 mm, 127.8050 mm): Pad 1 [7] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.4800 mm, 126.8250 mm): Segment of C11 on F.Silkscreen
+    @(186.8675 mm, 126.3050 mm): Pad 2 [GND] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0749 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.4800 mm, 127.7650 mm): Segment of C11 on F.Silkscreen
+    @(186.5550 mm, 129.2150 mm): Pad 7 [7] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.4800 mm, 127.7650 mm): Segment of C11 on F.Silkscreen
+    @(186.8675 mm, 127.8050 mm): Pad 1 [7] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(187.0550 mm, 129.2150 mm): Pad 6 [6] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(186.5550 mm, 129.2150 mm): Pad 7 [7] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(186.0550 mm, 129.2150 mm): Pad 8 [V3V3] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.5275 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(187.9075 mm, 127.9350 mm): Pad 2 [GND] of R72 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.4800 mm, 128.2650 mm): Segment of C11 on F.Silkscreen
+    @(185.1800 mm, 127.9850 mm): Pad 1 [SDA] of R5 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0749 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.4800 mm, 128.2650 mm): Segment of C11 on F.Silkscreen
+    @(185.5550 mm, 129.2150 mm): Pad 9 [SDA] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0449 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+    @(186.5550 mm, 129.2150 mm): Pad 7 [7] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+    @(186.0550 mm, 129.2150 mm): Pad 8 [V3V3] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.4150 mm): Segment of C11 on F.Silkscreen
+    @(185.5550 mm, 129.2150 mm): Pad 9 [SDA] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+    @(185.1800 mm, 127.9850 mm): Pad 1 [SDA] of R5 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+    @(185.5550 mm, 129.2150 mm): Pad 9 [SDA] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+    @(186.5550 mm, 129.2150 mm): Pad 7 [7] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0200 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.3300 mm, 128.2650 mm): Arc of C11 on F.Silkscreen
+    @(186.8675 mm, 127.8050 mm): Pad 1 [7] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.7850 mm): Segment of R5 on F.Silkscreen
+    @(185.5550 mm, 129.2150 mm): Pad 9 [SDA] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 127.7850 mm): Segment of R5 on F.Silkscreen
+    @(185.9800 mm, 127.9650 mm): Pad 1 [V3V3] of C11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.2075 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(186.0550 mm, 129.2150 mm): Pad 8 [V3V3] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.2075 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(185.9800 mm, 127.9650 mm): Pad 1 [V3V3] of C11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0350 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.2075 mm, 128.4450 mm): Segment of R73 on F.Silkscreen
+    @(185.9800 mm, 127.1250 mm): Pad 2 [GND] of C11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+    @(184.4300 mm, 128.5150 mm): Pad 2 [V3V3] of R4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+    @(185.0550 mm, 129.2150 mm): Pad 10 [SCL] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+    @(184.4300 mm, 128.5150 mm): Pad 2 [V3V3] of R4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.6800 mm, 128.4950 mm): Segment of R5 on F.Silkscreen
+    @(185.5550 mm, 129.2150 mm): Pad 9 [SDA] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 128.0050 mm): Segment of R4 on F.Silkscreen
+    @(185.1800 mm, 127.9850 mm): Pad 1 [SDA] of R5 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 128.7150 mm): Segment of R4 on F.Silkscreen
+    @(185.0550 mm, 129.2150 mm): Pad 10 [SCL] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 128.7150 mm): Segment of R4 on F.Silkscreen
+    @(185.1800 mm, 127.9850 mm): Pad 1 [SDA] of R5 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 129.1750 mm): Segment of R4 on F.Silkscreen
+    @(185.0550 mm, 129.2150 mm): Pad 10 [SCL] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9300 mm, 129.8850 mm): Segment of R4 on F.Silkscreen
+    @(185.0550 mm, 129.2150 mm): Pad 10 [SCL] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.5675 mm, 127.2950 mm): Segment of R72 on F.Silkscreen
+    @(186.8675 mm, 127.8050 mm): Pad 1 [7] of R73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.9800 mm, 118.3475 mm): Segment of R79 on F.Silkscreen
+    @(164.7500 mm, 117.9675 mm): Pad 7 [cs] of U13 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.9800 mm, 119.2075 mm): Segment of R79 on F.Silkscreen
+    @(164.7500 mm, 119.2375 mm): Pad 6 [flash_nc_pin_6] of U13 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(174.2850 mm, 125.8250 mm): Segment of R74 on F.Silkscreen
+    @(174.3250 mm, 126.6650 mm): Pad 16 [prot_10] of U1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.6050 mm, 124.8650 mm): Segment of R74 on F.Silkscreen
+    @(175.6250 mm, 126.6650 mm): Pad 14 [14] of U1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.6050 mm, 125.8250 mm): Segment of R74 on F.Silkscreen
+    @(175.6250 mm, 126.6650 mm): Pad 14 [14] of U1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.6050 mm, 125.8250 mm): Segment of R74 on F.Silkscreen
+    @(174.9750 mm, 126.6650 mm): Pad 15 [mux_en_a] of U1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.6050 mm, 125.8250 mm): Segment of R74 on F.Silkscreen
+    @(174.3250 mm, 126.6650 mm): Pad 16 [prot_10] of U1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(176.8450 mm, 140.6150 mm): Segment of D3 on F.Silkscreen
+    @(175.5150 mm, 140.2150 mm): Pad 1 [therm_8] of R13 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 138.5650 mm): Segment of R36 on F.Silkscreen
+    @(166.1950 mm, 138.2450 mm): Pad 2 [prot_14] of R37 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0350 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 139.4250 mm): Segment of R36 on F.Silkscreen
+    @(166.1500 mm, 140.8950 mm): Pad 2 [GND] of C76 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 139.4250 mm): Segment of R36 on F.Silkscreen
+    @(166.1950 mm, 139.7450 mm): Pad 1 [therm_14] of R37 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0350 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(166.8550 mm, 140.3850 mm): Segment of R37 on F.Silkscreen
+    @(166.1500 mm, 140.8950 mm): Pad 2 [GND] of C76 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(173.2850 mm, 140.2750 mm): Segment of R20 on F.Silkscreen
+    @(172.6000 mm, 140.7800 mm): Pad 2 [GND] of C75 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.8950 mm): Segment of R12 on F.Silkscreen
+    @(175.5150 mm, 140.2150 mm): Pad 1 [therm_8] of R13 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.8950 mm): Segment of R12 on F.Silkscreen
+    @(174.5950 mm, 141.2150 mm): Pad 1 [therm_8] of D3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 140.8550 mm): Segment of R12 on F.Silkscreen
+    @(174.5950 mm, 141.2150 mm): Pad 1 [therm_8] of D3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(174.8550 mm, 138.0750 mm): Segment of R13 on F.Silkscreen
+    @(174.4150 mm, 138.7150 mm): Pad 2 [prot_7] of R12 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(174.8550 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+    @(174.4150 mm, 140.2150 mm): Pad 1 [therm_7] of R12 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(174.8550 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+    @(174.5950 mm, 141.2150 mm): Pad 1 [therm_8] of D3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(175.0750 mm, 139.0350 mm): Segment of R12 on F.Silkscreen
+    @(175.5150 mm, 138.7150 mm): Pad 2 [prot_8] of R13 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 140.3050 mm): Segment of R10 on F.Silkscreen
+    @(178.5050 mm, 140.7400 mm): Pad 2 [GND] of C74 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(176.1750 mm, 140.8550 mm): Segment of R13 on F.Silkscreen
+    @(174.5950 mm, 141.2150 mm): Pad 1 [therm_8] of D3 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(155.9450 mm, 138.0050 mm): Segment of R43 on F.Silkscreen
+    @(155.4500 mm, 138.6450 mm): Pad 2 [prot_19] of R42 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 140.7850 mm): Segment of R42 on F.Silkscreen
+    @(155.6750 mm, 141.2200 mm): Pad 1 [therm_20] of D9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(157.2650 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+    @(155.6750 mm, 141.2200 mm): Pad 1 [therm_20] of D9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(171.9650 mm, 137.4950 mm): Segment of R20 on F.Silkscreen
+    @(171.5050 mm, 138.1350 mm): Pad 2 [prot_9] of R14 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(171.9650 mm, 140.2750 mm): Segment of R20 on F.Silkscreen
+    @(171.5050 mm, 139.6350 mm): Pad 1 [therm_9] of R14 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 138.4550 mm): Segment of R14 on F.Silkscreen
+    @(172.6250 mm, 138.1350 mm): Pad 2 [prot_10] of R20 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 139.3150 mm): Segment of R14 on F.Silkscreen
+    @(172.6250 mm, 139.6350 mm): Pad 1 [therm_10] of R20 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 139.3150 mm): Segment of R14 on F.Silkscreen
+    @(172.6000 mm, 140.7800 mm): Pad 2 [GND] of C75 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0300 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(172.1650 mm, 140.2750 mm): Segment of R14 on F.Silkscreen
+    @(172.6000 mm, 140.7800 mm): Pad 2 [GND] of C75 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 138.9950 mm): Segment of R24 on F.Silkscreen
+    @(169.4750 mm, 138.6750 mm): Pad 2 [prot_12] of R35 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 138.0350 mm): Segment of R35 on F.Silkscreen
+    @(168.3700 mm, 138.6750 mm): Pad 2 [prot_11] of R24 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 139.8550 mm): Segment of R24 on F.Silkscreen
+    @(168.6150 mm, 141.2150 mm): Pad 1 [therm_12] of D4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 139.8550 mm): Segment of R24 on F.Silkscreen
+    @(169.4750 mm, 140.1750 mm): Pad 1 [therm_12] of R35 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(169.0300 mm, 140.8150 mm): Segment of R24 on F.Silkscreen
+    @(168.6150 mm, 141.2150 mm): Pad 1 [therm_12] of D4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.8650 mm, 140.6150 mm): Segment of D4 on F.Silkscreen
+    @(169.4750 mm, 140.1750 mm): Pad 1 [therm_12] of R35 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(168.3700 mm, 140.1750 mm): Pad 1 [therm_11] of R24 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(168.8150 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(168.6150 mm, 141.2150 mm): Pad 1 [therm_12] of D4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0250 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(170.1350 mm, 140.8150 mm): Segment of R35 on F.Silkscreen
+    @(168.6150 mm, 141.2150 mm): Pad 1 [therm_12] of D4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0350 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.7400 mm, 140.3850 mm): Segment of R36 on F.Silkscreen
+    @(166.1500 mm, 140.8950 mm): Pad 2 [GND] of C76 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.5350 mm, 137.6050 mm): Segment of R37 on F.Silkscreen
+    @(165.0800 mm, 138.2450 mm): Pad 2 [prot_13] of R36 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(165.5350 mm, 140.3850 mm): Segment of R37 on F.Silkscreen
+    @(165.0800 mm, 139.7450 mm): Pad 1 [therm_13] of R36 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.6000 mm, 139.1450 mm): Segment of R38 on F.Silkscreen
+    @(163.0150 mm, 138.8250 mm): Pad 2 [prot_16] of R39 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.3550 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+    @(162.1450 mm, 141.3050 mm): Pad 1 [therm_16] of D8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.3550 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+    @(161.9400 mm, 140.3250 mm): Pad 1 [therm_15] of R38 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(163.6750 mm, 140.9650 mm): Segment of R39 on F.Silkscreen
+    @(162.1450 mm, 141.3050 mm): Pad 1 [therm_16] of D8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(164.3950 mm, 140.7050 mm): Segment of D8 on F.Silkscreen
+    @(163.0150 mm, 140.3250 mm): Pad 1 [therm_16] of R39 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.6000 mm, 140.0050 mm): Segment of R38 on F.Silkscreen
+    @(163.0150 mm, 140.3250 mm): Pad 1 [therm_16] of R39 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.6000 mm, 140.0050 mm): Segment of R38 on F.Silkscreen
+    @(162.1450 mm, 141.3050 mm): Pad 1 [therm_16] of D8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 138.9650 mm): Segment of R42 on F.Silkscreen
+    @(156.6050 mm, 138.6450 mm): Pad 2 [prot_20] of R43 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 139.8250 mm): Segment of R42 on F.Silkscreen
+    @(156.6050 mm, 140.1450 mm): Pad 1 [therm_20] of R43 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(156.1100 mm, 139.8250 mm): Segment of R42 on F.Silkscreen
+    @(155.6750 mm, 141.2200 mm): Pad 1 [therm_20] of D9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(155.9450 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+    @(155.4500 mm, 140.1450 mm): Pad 1 [therm_19] of R42 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0600 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(155.9450 mm, 140.7850 mm): Segment of R43 on F.Silkscreen
+    @(155.6750 mm, 141.2200 mm): Pad 1 [therm_20] of D9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.0250 mm, 140.2350 mm): Segment of R41 on F.Silkscreen
+    @(158.5900 mm, 139.5750 mm): Pad 1 [therm_17] of R40 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(157.9250 mm, 140.6200 mm): Segment of D9 on F.Silkscreen
+    @(156.6050 mm, 140.1450 mm): Pad 1 [therm_20] of R43 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.2500 mm, 138.3950 mm): Segment of R40 on F.Silkscreen
+    @(159.6850 mm, 138.0950 mm): Pad 2 [prot_18] of R41 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.2500 mm, 139.2550 mm): Segment of R40 on F.Silkscreen
+    @(159.6850 mm, 139.5950 mm): Pad 1 [therm_18] of R41 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.3550 mm, 138.1850 mm): Segment of R39 on F.Silkscreen
+    @(161.9400 mm, 138.8250 mm): Pad 2 [prot_15] of R38 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(159.0250 mm, 137.4550 mm): Segment of R41 on F.Silkscreen
+    @(158.5900 mm, 138.0750 mm): Pad 2 [prot_17] of R40 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(162.6000 mm, 140.9650 mm): Segment of R38 on F.Silkscreen
+    @(162.1450 mm, 141.3050 mm): Pad 1 [therm_16] of D8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 139.1600 mm): Segment of R8 on F.Silkscreen
+    @(181.4000 mm, 138.8400 mm): Pad 2 [prot_4] of R9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 140.0200 mm): Segment of R8 on F.Silkscreen
+    @(180.4450 mm, 141.3650 mm): Pad 1 [therm_4] of D1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 140.0200 mm): Segment of R8 on F.Silkscreen
+    @(181.4000 mm, 140.3400 mm): Pad 1 [therm_4] of R9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.8850 mm, 140.9800 mm): Segment of R8 on F.Silkscreen
+    @(180.4450 mm, 141.3650 mm): Pad 1 [therm_4] of D1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.7400 mm, 138.2000 mm): Segment of R9 on F.Silkscreen
+    @(180.2250 mm, 138.8400 mm): Pad 2 [prot_3] of R8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.7400 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(180.2250 mm, 140.3400 mm): Pad 1 [therm_3] of R8 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(180.7400 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(180.4450 mm, 141.3650 mm): Pad 1 [therm_4] of D1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(177.8950 mm, 137.5250 mm): Segment of R11 on F.Silkscreen
+    @(177.4400 mm, 138.1650 mm): Pad 2 [prot_5] of R10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 138.4850 mm): Segment of R10 on F.Silkscreen
+    @(178.5550 mm, 138.1650 mm): Pad 2 [prot_6] of R11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(177.8950 mm, 140.3050 mm): Segment of R11 on F.Silkscreen
+    @(177.4400 mm, 139.6650 mm): Pad 1 [therm_5] of R10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(179.2150 mm, 140.3050 mm): Segment of R11 on F.Silkscreen
+    @(178.5050 mm, 140.7400 mm): Pad 2 [GND] of C74 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 139.3450 mm): Segment of R10 on F.Silkscreen
+    @(178.5550 mm, 139.6650 mm): Pad 1 [therm_6] of R11 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(178.1000 mm, 139.3450 mm): Segment of R10 on F.Silkscreen
+    @(178.5050 mm, 140.7400 mm): Pad 2 [GND] of C74 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.6950 mm, 140.7650 mm): Segment of D1 on F.Silkscreen
+    @(181.4000 mm, 140.3400 mm): Pad 1 [therm_4] of R9 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0100 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(182.0600 mm, 140.9800 mm): Segment of R9 on F.Silkscreen
+    @(180.4450 mm, 141.3650 mm): Pad 1 [therm_4] of D1 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0418 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(187.3118 mm, 133.6436 mm): Segment of R15 on F.Silkscreen
+    @(187.0550 mm, 133.4350 mm): Pad 5 [prot_exc] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0418 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.2718 mm, 133.6436 mm): Segment of R15 on F.Silkscreen
+    @(187.0550 mm, 133.4350 mm): Pad 5 [prot_exc] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0150 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.2718 mm, 133.6436 mm): Segment of R15 on F.Silkscreen
+    @(187.9718 mm, 133.1036 mm): Pad 1 [prot_exc] of C19 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0150 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(189.1318 mm, 133.6436 mm): Segment of R15 on F.Silkscreen
+    @(189.3718 mm, 133.1036 mm): Pad 2 [GND] of C19 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.2175 mm, 134.1650 mm): Segment of R3 on F.Silkscreen
+    @(185.0550 mm, 133.4350 mm): Pad 1 [GND] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.2175 mm, 134.1650 mm): Segment of R3 on F.Silkscreen
+    @(185.5550 mm, 133.4350 mm): Pad 2 [ALERT_RDY] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.2175 mm, 134.1650 mm): Segment of R3 on F.Silkscreen
+    @(186.0550 mm, 133.4350 mm): Pad 3 [GND] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.2175 mm, 134.8750 mm): Segment of R3 on F.Silkscreen
+    @(185.0550 mm, 133.4350 mm): Pad 1 [GND] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(186.2175 mm, 134.1650 mm): Segment of R3 on F.Silkscreen
+    @(186.0550 mm, 133.4350 mm): Pad 3 [GND] of U4 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.1550 mm, 136.9050 mm): Segment of R16 on F.Silkscreen
+    @(187.7650 mm, 136.6850 mm): Pad 2 [GND] of C20 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(188.1550 mm, 137.7650 mm): Segment of R16 on F.Silkscreen
+    @(187.7650 mm, 138.0850 mm): Pad 1 [EXC] of C20 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(192.7850 mm, 141.3150 mm): Segment of R30 on F.Silkscreen
+    @(192.0650 mm, 141.7150 mm): Pad 4 [G] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0500 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(192.7850 mm, 141.3150 mm): Segment of R30 on F.Silkscreen
+    @(192.6250 mm, 141.7150 mm): Pad 3 [B] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(191.7450 mm, 141.5950 mm): Segment of U10 on F.Silkscreen
+    @(192.0650 mm, 141.7150 mm): Pad 4 [G] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(191.7450 mm, 141.5950 mm): Segment of U10 on F.Silkscreen
+    @(192.0650 mm, 142.6750 mm): Pad 1 [R] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(192.9450 mm, 141.5950 mm): Segment of U10 on F.Silkscreen
+    @(192.6250 mm, 142.6750 mm): Pad 2 [V3V3] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0700 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(192.9450 mm, 141.5950 mm): Segment of U10 on F.Silkscreen
+    @(192.6250 mm, 141.7150 mm): Pad 3 [B] of U10 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(183.7950 mm, 137.5750 mm): Segment of R7 on F.Silkscreen
+    @(183.2500 mm, 138.2100 mm): Pad 2 [prot_1] of R6 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0450 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.1150 mm, 140.3550 mm): Segment of R7 on F.Silkscreen
+    @(184.4350 mm, 140.8750 mm): Pad 2 [GND] of C73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(183.9100 mm, 138.5300 mm): Segment of R6 on F.Silkscreen
+    @(184.4550 mm, 138.2150 mm): Pad 2 [prot_2] of R7 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(183.9100 mm, 139.3900 mm): Segment of R6 on F.Silkscreen
+    @(184.4550 mm, 139.7150 mm): Pad 1 [therm_2] of R7 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0708 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(183.9100 mm, 139.3900 mm): Segment of R6 on F.Silkscreen
+    @(184.4350 mm, 140.8750 mm): Pad 2 [GND] of C73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0708 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(183.9100 mm, 140.3500 mm): Segment of R6 on F.Silkscreen
+    @(184.4350 mm, 140.8750 mm): Pad 2 [GND] of C73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0400 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(183.7950 mm, 140.3550 mm): Segment of R7 on F.Silkscreen
+    @(183.2500 mm, 139.7100 mm): Pad 1 [therm_1] of R6 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0650 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(185.1150 mm, 139.3950 mm): Segment of R7 on F.Silkscreen
+    @(185.5550 mm, 139.3350 mm): Pad 6 [GND] of D17 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9550 mm, 139.7850 mm): Segment of D17 on F.Silkscreen
+    @(184.4550 mm, 139.7150 mm): Pad 1 [therm_2] of R7 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(184.9550 mm, 139.7850 mm): Segment of D17 on F.Silkscreen
+    @(184.4350 mm, 140.8750 mm): Pad 2 [GND] of C73 on F.Cu
+[silk_over_copper]: Silkscreen clipped by solder mask (rule 'Silkscreen to Pad Clearance' clearance 0.0750 mm; actual 0.0000 mm)
+    Rule: Silkscreen to Pad Clearance; warning
+    @(119.9350 mm, 140.7450 mm): Segment of D15 on F.Silkscreen
+    @(118.5450 mm, 140.3300 mm): Pad 1 [therm_44] of R67 on F.Cu
+
+** Found 0 unconnected pads **
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - PTH inside courtyard
+    - NPTH inside courtyard
+    - Footprint doesn't match copy in library
+
+** End of Report **
