@@ -1,5 +1,6 @@
 # Build atopile project, then fix passive silkscreen layers
 build:
+    python3 elec/normalize_kicad10_for_atopile.py
     cd elec && ato build
     python3 elec/fix_passive_layers.py
 

@@ -483,4 +483,11 @@
 		(options "")
 		(descr "atopile: part lib: UNI_ROYAL_0603WAF4703T5E")
 	)
+	(lib
+		(name "UNI_ROYAL_0603WAF6802T5E")
+		(type "KiCad")
+		(uri "${KIPRJMOD}/../../parts/UNI_ROYAL_0603WAF6802T5E")
+		(options "")
+		(descr "atopile: part lib: UNI_ROYAL_0603WAF6802T5E")
+	)
 )
