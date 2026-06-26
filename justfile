@@ -2,6 +2,7 @@
 build:
     python3 elec/normalize_kicad10_for_atopile.py
     cd elec && ato build
+    python3 elec/restore_kicad10_after_atopile.py
     python3 elec/fix_passive_layers.py
 
 # Add a component from LCSC to the local library
