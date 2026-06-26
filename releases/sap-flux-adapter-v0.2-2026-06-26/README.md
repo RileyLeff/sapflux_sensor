@@ -58,6 +58,16 @@ Critical v0.2 part checks passed:
 - `D20`: `BAT54C`, LCSC `C22466350`
 - `F1`: `XF-508P-B-B`, LCSC `C19727305`
 
+JLC BOM substitutions:
+
+- `R22`: source part `0603WAF1102T5E` / `C25950` replaced in the JLC BOM by
+  `RC0603FR-0711KL` / `C137801` due to JLC stock shortfall. Same package,
+  resistance, tolerance, power, voltage rating, and temperature coefficient.
+- `R84`, `R86`, `R88`: source part `0603WAF4704T5E` / `C23163` replaced in the
+  JLC BOM by `FRC0603F4704TS` / `C2930153` due to JLC stock shortfall. Same
+  package, resistance, tolerance, power, voltage rating, and temperature
+  coefficient.
+
 Obsolete v0.1/v1.1 parts intentionally absent from the JLC BOM:
 
 - `BAT54S`
