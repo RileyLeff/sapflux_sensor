@@ -3,20 +3,15 @@ import has_datasheet
 import has_designator_prefix
 import has_part_picked
 import is_atomic_part
-import is_auto_generated
 
 component XINGLIGHT_XL_B1212RGBA_HF_package:
-    # This trait marks this file as auto-generated
-    # If you want to manually change it, remove the trait
-    trait is_auto_generated<system="ato_part", source="easyeda:C22461780", date="2026-02-19T02:25:31.709829+00:00", checksum="125ab94ef5e2b5af9c04d02fcddbc8ac7a64d0bb8e043c2cabcd7ac925f8c119">
-
     trait is_atomic_part<manufacturer="XINGLIGHT", partnumber="XL-B1212RGBA-HF", footprint="LED-SMD_4P-L1.2-W1.2_BR.kicad_mod", symbol="XL-B1212RGBA-HF.kicad_sym", model="LED-SMD_4P-L1.2-W1.2_BR.STEP">
     trait has_part_picked::by_supplier<supplier_id="lcsc", supplier_partno="C22461780", manufacturer="XINGLIGHT", partno="XL-B1212RGBA-HF">
     trait has_designator_prefix<prefix="U">
     trait has_datasheet<datasheet="https://www.lcsc.com/datasheet/lcsc_datasheet_2406131539_XINGLIGHT-XL-B1212RGBA-HF_C22461780.pdf">
 
-    # pins (common-anode RGB)
+    # Datasheet pinout: 1=R-, 2=common anode, 3=B-, 4=G-.
     signal A ~ pin 2
     signal R ~ pin 1
-    signal G ~ pin 3
-    signal B ~ pin 4
+    signal G ~ pin 4
+    signal B ~ pin 3

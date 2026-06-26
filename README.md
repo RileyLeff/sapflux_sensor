@@ -59,6 +59,7 @@ Design highlights:
 
 - 48 thermistor channels through three analog multiplexers.
 - One ADS1115 ADC for heat-pulse temperature traces and excitation sensing.
+- East30 probe support using the probes' internal 10k reference half-bridges.
 - Controlled heater output for short, high-power heat pulses.
 - Supports up to 120W of raw power output across all attached sensors in short bursts.
 - 24V field power input with protection and a 3.3V buck supply.

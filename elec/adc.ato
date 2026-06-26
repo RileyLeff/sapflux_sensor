@@ -9,6 +9,12 @@ Signal path per thermistor:
   Connector pin → [TVS ESD pin] → R (1k) → [C 100nF to GND] → Mux Y input
   Mux Z output → ADC AIN0
 
+East30 probe topology:
+  The East30 probes contain the precision 10k reference resistors internally.
+  Each thermistor sense wire is already the midpoint of an internal
+  R_ref/NTC half-bridge, so this board routes and protects sense nodes; it
+  does not add onboard reference resistors for those probes.
+
 Excitation sense:
   Filtered exc → [TVS] → R (1k) → [C 100nF to GND] → ADC AIN1
 

@@ -45,12 +45,17 @@ Peak current and power are the same regardless of sensor count (one heater fires
 | Parameter | Value |
 |---|---|
 | Thermistor channels | 48 |
+| Sensor topology | East30 internal 10k reference + NTC half-bridge |
 | ADC | ADS1115, 16-bit sigma-delta |
 | Multiplexing | 3× 74HC4067 (16:1 analog mux) |
 | Input filtering | 1kΩ + 100nF per channel (fc = 1.6 kHz) |
 | ESD protection | 13× PRTR5V0U4D TVS arrays, ferrite-isolated supply |
 | Measurement method | Ratiometric (excitation sense on AIN1) |
 | Excitation | Switched GPIO, 270Ω + 1µF filtered (fc = 589 Hz) |
+
+The board does not add precision reference resistors for East30 probes. Their
+fixed references are inside the probe assemblies; the PCB protects, filters,
+muxes, and digitizes the resulting sense-node voltages.
 
 ### Scan rates
 
