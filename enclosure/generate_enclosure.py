@@ -190,7 +190,11 @@ WINDOWS = [
     # in by), pokes up through the lid.  x0=7.4 is pillar-limited: the (4,4) corner pillar
     # (r3.0) reaches bx7.0 -> 0.4mm clearance.  Merges with the t_power port (they overlap)
     # into one opening over the power corner -> finger room to pull the fuse.
-    dict(name="fuse",   x0=7.4,  x1=17.2, y0=-1.0, y1=20.0, r=3.0),  # ATO blade fuse in F1 holder
+    # y1=26 (was 20): the fuse crowds the power plug, so the user leans it toward the buck
+    # area (+by) -- give the tilted fuse top room.  This merges the window with the heater
+    # port too (a y1 between ~21-22 would leave an unprintable sliver vs the port's y0=22.3);
+    # a corner of U12 (buck cap, x7.4-8.8 of it) is now exposed through the opening - harmless.
+    dict(name="fuse",   x0=7.4,  x1=17.2, y0=-1.0, y1=26.0, r=3.0),  # ATO blade fuse in F1 holder
     # cr2032 + logo are ONE flowing opening: the two rects OVERLAP (bx74-76 over ~19mm of
     # by) so they merge into a single cutout that both frames the riley logo and opens up
     # the coin for finger access -- no dividing rib.
