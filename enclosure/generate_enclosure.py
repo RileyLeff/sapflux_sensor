@@ -26,6 +26,22 @@ TERMINAL DIRECTION (verified from datasheets + photos + glb, 2026-06-05):
   HORIZONTALLY to the side. So each terminal needs BOTH: a LID PORT above it
   (screwdriver access + the plug body pokes through) AND a LEFT-WALL NOTCH beside
   it (the wires leave the box horizontally). Walls are flush (no outward shroud).
+
+v0.2 BOARD / rev 7 (2026-07-11):
+  * FUSE changed: the 5x20 clips are gone; F1 is now an XFCN XF-508P-B-B blade-
+    fuse clip holder (16x6.7mm body, 7.35 tall) at bx8.4-15.2, by0.75-17.0.  Pad
+    pitch 9.8mm = STANDARD ATO blade fuse (~19.1 wide, ~18.5 tall incl blades),
+    long axis along by; the fuse pokes up through a new lid window (the holder
+    itself fits under the lid).
+  * Q1 moved on v0.2: courtyard now bx12.3-19.0, by35.5-44.4 -> heatsink window
+    recentred at (15.7, 39.9).
+  * Terminal lid PORTS deepened: the KF2EDGK plug TOP is 15.7mm deep vs the 8mm
+    header (datasheet), overhanging ~8.7mm INBOARD (toward the PCB) -> back face
+    ~bx16.7.  Old ports ended at bx10 and fouled the plug tops; now PORT_X1=18.
+  * ZIP-TIE STRAP LOOPS on the left+right (bx) walls for lashing the box to a
+    tree: staple-style tunnels flush with the back face (print flat, no
+    supports).  Mount the box long-axis-vertical; each tie runs through the two
+    collinear tunnels on one end wall and wraps the trunk just beyond the box.
 """
 
 import bpy, bmesh, math, os
@@ -85,18 +101,42 @@ UNDER_LID_GAP = TRAPPED_MAX + TRAPPED_CLR     # = 9.02mm
 # Mated terminal stack (FYI, drives how far plugs poke ABOVE the lid):
 HDR_H_ABOVE_BOARD = 9.2   # KF2EDGV-3.5 socket height above PCB (datasheet)
 PLUG_BODY_H       = 11.1  # KF2EDGK-3.5 plug body height (datasheet) -> top ~20mm above PCB + wires
+PLUG_TOP_DEPTH    = 15.7  # KF2EDGK plug TOP depth (datasheet); header is only 8.0 deep
+                          # (bx1..9), so the screw-top overhangs INBOARD to ~bx16.7.
+PORT_X1           = 18.0  # terminal lid ports reach this far inboard: 16.7 + 1.3 clearance
+                          # (rev-6 ports ended at bx10 and the plug tops fouled the lid).
+
+# --- zip-tie strap loops (rev 7): lash the box to a tree ----------------
+# Two staple-style loops on EACH bx end wall (left + right), flush with the back
+# face so the base still prints flat with zero supports.  A tie slides through the
+# two collinear tunnels of one wall (lying flat against the bark through the open
+# tunnel bottoms) and wraps the trunk just beyond that end of the box -> mount the
+# box long-axis-vertical and use one tie per end.  Tension presses the loop (and
+# box) against the bark; the roof only sees pull-away load.
+ZIP_TIE_W    = 10.0       # max tie width (9mm heavy-duty tie + slack); tunnel clear = +1.4
+ZIP_TIE_T    = 3.6        # tunnel height (HD tie ~2.5 thick + slack)
+ZIP_ROOF     = 3.2        # roof thickness over the tunnel (bridges 11.4mm when printing - fine)
+ZIP_LEG      = 3.4        # solid outer leg beyond the tunnel
+ZIP_LOOP_YS  = [(10.0, 20.0), (45.0, 55.0)]   # tunnel spans along the wall; the pair is
+                          # symmetric about by32.5 so the board mirror can't misplace them.
+                          # Loop top = ZIP_TIE_T+ZIP_ROOF = 6.8 -- MUST stay below the wall
+                          # wire-notch floor (Z_BOARD_TOP-1 = 7.1) on the left wall.
 
 ENABLE_VENTS = True
 VENT_D       = 4.0
 VENT_PITCH   = 9.0
 
 # --- Q1 heatsink bounding box (PLACEHOLDER - set to your real heatsink!) ---
-# Shrunk per request.  Q1 (DPAK) footprint is bx10.5-21.9, by31.2-37.2.
-HS_CENTER_BX = 16.2
-HS_CENTER_BY = 34.2
-HS_L         = 13.0       # along bx  (was 20 - shrunk)
-HS_W         = 10.0       # along by  (was 20 - shrunk)
-HS_WIN_MARGIN= 1.5
+# v0.2: Q1 moved; courtyard is now bx12.3-19.0, by35.5-44.4 (was centred ~34.2).
+HS_CENTER_BX = 15.7
+HS_CENTER_BY = 39.9
+HS_L         = 13.0       # along bx  (placeholder heatsink)
+HS_W         = 10.0       # along by  (placeholder heatsink)
+HS_WIN_MARGIN= 2.0        # 2.0 (was 1.5) so the window's y0=32.9 OVERLAPS the heater port
+                          # (y1=33.3) -- a near-tangent gap would leave an unprintable
+                          # 0.1mm lid sliver between the two cuts.  With v0.2's Q1 position
+                          # the window also overlaps the rs485 port -> the heater port, Q1
+                          # window and rs485 port merge into one big west-side opening.
 
 INCLUDE_BOARD = True
 BOARD_GLB     = "board.glb"   # produced by: kicad-cli pcb export glb ...
@@ -147,7 +187,11 @@ HS_Y1 = HS_CENTER_BY + HS_W/2 + HS_WIN_MARGIN
 # Access windows (things you look at / reach through the top):
 WINDOWS = [
     dict(name="top_io", x0=29.0, x1=83.0, y0=-1.0, y1=6.0,  r=0.0),  # SWD + aux + test pads (edge rim 1->2mm)
-    dict(name="fuse",   x0=12.0, x1=41.0, y0=7.0,  y1=22.0, r=4.0),  # 5x20 fuse, finger scoop up into freed Q1 space
+    # v0.2 blade fuse: ATO fuse body bx8.95-14.65, by-0.7-18.4 (overhangs the 16mm holder
+    # in by), pokes up through the lid.  x0=7.4 is pillar-limited: the (4,4) corner pillar
+    # (r3.0) reaches bx7.0 -> 0.4mm clearance.  Merges with the t_power port (they overlap)
+    # into one opening over the power corner -> finger room to pull the fuse.
+    dict(name="fuse",   x0=7.4,  x1=17.2, y0=-1.0, y1=20.0, r=3.0),  # ATO blade fuse in F1 holder
     # cr2032 + logo are ONE flowing opening: the two rects OVERLAP (bx74-76 over ~19mm of
     # by) so they merge into a single cutout that both frames the riley logo and opens up
     # the coin for finger access -- no dividing rib.
@@ -157,11 +201,14 @@ WINDOWS = [
     dict(name="led",    x0=90.0, x1=93.5, y0=55.0, y1=58.5, r=1.5),  # U10 RGB status LED (bx92.3,by57.2)
     dict(name="q1",     x0=HS_X0, x1=HS_X1, y0=HS_Y0, y1=HS_Y1, r=3.0),  # heatsink (smaller, PLACEHOLDER)
 ]
-# Terminal I/O-shield ports (top-entry plugs pass straight UP through these):
+# Terminal I/O-shield ports (top-entry plugs pass straight UP through these).
+# rev 7: x1 = PORT_X1 (18.0, was 10.0) because the plug screw-tops overhang inboard to
+# ~bx16.7 (see PLUG_TOP_DEPTH).  y widened toward the headers where the corner pillars
+# allow: t_power y0 and t_rs485 y1 stop 0.3-0.4mm short of the r3.0 pillars at (4,4)/(4,61).
 TERMINAL_PORTS = [
-    dict(name="t_power",  x0=IN_X0, x1=10.0, y0=7.5,  y1=17.0, r=2.0),  # CN1 2P  (by7.9-16.0)
-    dict(name="t_heater", x0=IN_X0, x1=10.0, y0=22.5, y1=33.0, r=2.0),  # J1  2P  (by23.8-31.8)
-    dict(name="t_rs485",  x0=IN_X0, x1=10.0, y0=44.5, y1=57.5, r=2.0),  # J3  3P  (by45.8-57.1)
+    dict(name="t_power",  x0=IN_X0, x1=PORT_X1, y0=7.4,  y1=17.5, r=2.0),  # CN1 2P (hdr by7.95-15.95)
+    dict(name="t_heater", x0=IN_X0, x1=PORT_X1, y0=22.3, y1=33.3, r=2.0),  # J1  2P (hdr by23.8-31.8)
+    dict(name="t_rs485",  x0=IN_X0, x1=PORT_X1, y0=44.2, y1=57.7, r=2.0),  # J3  3P (hdr by45.71-57.21)
 ]
 LID_CUTS = WINDOWS + TERMINAL_PORTS
 
@@ -303,6 +350,22 @@ def build_base():
         cm = _mirror_cut(c)
         boolean(base, add_box("wn_"+cm["name"], OUT_X0 - 1.0, IN_X0 + 1.0, cm["y0"], cm["y1"],
                               Z_BOARD_TOP - 1.0, Z_LID_UNDER + 0.5), 'DIFFERENCE')
+    # zip-tie strap loops (rev 7), two per bx end wall.  Each loop: a block rooted 0.3mm
+    # INTO the wall face (welds to wall AND backplate edge), with an open-bottomed tunnel
+    # bored along y -> a "staple" the tie slides through while lying flat on the bark.
+    # The tunnel cutter reaches 0.4mm INTO the wall (no coincident-plane boolean, see
+    # napkin) and 1mm past both y ends so the ends are fully open.  Loop top (6.8) sits
+    # below the left wall's wire-notch floor (7.1), so loops and notches never interact.
+    for (ly0, ly1) in ZIP_LOOP_YS:
+        for tag, wf, sgn in (("L", OUT_X0, -1.0), ("R", OUT_X1, +1.0)):
+            xa = wf - sgn * 0.3
+            xb = wf + sgn * (1.4 + ZIP_TIE_W + ZIP_LEG)
+            boolean(base, add_box(f"zl_{tag}_{ly0:.0f}", min(xa, xb), max(xa, xb),
+                                  ly0, ly1, 0.0, ZIP_TIE_T + ZIP_ROOF), 'UNION')
+            ta = wf - sgn * 0.4          # 0.4 into the wall
+            tb = wf + sgn * (1.4 + ZIP_TIE_W)
+            boolean(base, add_box(f"zt_{tag}_{ly0:.0f}", min(ta, tb), max(ta, tb),
+                                  ly0 - 1.0, ly1 + 1.0, -0.1, ZIP_TIE_T), 'DIFFERENCE')
     clean_mesh(base)   # weld slivers from the coaxial cone+post unions -> manifold STL
     base.name = "base"
     return base
@@ -533,6 +596,24 @@ def verify_holes():
         rad = (loc.x - cx0) if hit else float('nan')
         print(f"   flare_bridge   {'SOLID' if hit else 'OPEN '} at r={rad:.2f}mm  "
               f"{'ok (spans pocket r3.3)' if hit and rad > 3.3 else '*** UNEXPECTED ***'}")
+        # ZIP strap loops: for each loop, a y-ray through the tunnel must pass clean
+        # (open ends, open along the full span), and down-rays must strike the roof and
+        # the outer leg (solid, i.e. the staple actually exists and is attached).
+        print("-- zip-tie strap loop verification --")
+        for (ly0, ly1) in ZIP_LOOP_YS:
+            for tag, wf, sgn in (("L", OUT_X0, -1.0), ("R", OUT_X1, +1.0)):
+                xt = wf + sgn * (1.4 + ZIP_TIE_W) / 2.0          # mid-tunnel x
+                xl = wf + sgn * (1.4 + ZIP_TIE_W + ZIP_LEG/2.0)  # mid-leg x
+                hit, *_ = base.ray_cast(mathutils.Vector((xt, ly0 - 3.0, ZIP_TIE_T/2.0)),
+                                        mathutils.Vector((0, 1, 0)), depsgraph=deps,
+                                        distance=(ly1 - ly0) + 6.0)
+                print(f"   zt_{tag}_{ly0:.0f} tunnel  {'SOLID' if hit else 'OPEN '}  "
+                      f"{'*** BLOCKED ***' if hit else 'ok'}")
+                for nm, x in (("roof", xt), ("leg ", xl)):
+                    hit, *_ = base.ray_cast(mathutils.Vector((x, (ly0+ly1)/2.0, ZIP_TIE_T + ZIP_ROOF + 2.0)),
+                                            DN, depsgraph=deps, distance=4.0)
+                    print(f"   zl_{tag}_{ly0:.0f} {nm}    {'SOLID' if hit else 'OPEN '}  "
+                          f"{'ok' if hit else '*** MISSING ***'}")
     # --- ISLAND CHECK: the whole point of this revision.  Each part must be ONE shell. ---
     print("-- shell count (1 = fully connected, >1 = detached islands) --")
     for nm in ("base", "lid"):
@@ -616,7 +697,14 @@ def main():
 
     print("\n================ ENCLOSURE SUMMARY ================")
     print(f"Style              : flush walls; terminals -> lid port (screws up) + wall notch (wires out side)")
-    print(f"External footprint : {OUT_X1-OUT_X0:.1f} x {OUT_Y1-OUT_Y0:.1f} mm")
+    zip_ext = 1.4 + ZIP_TIE_W + ZIP_LEG
+    print(f"External footprint : {OUT_X1-OUT_X0:.1f} x {OUT_Y1-OUT_Y0:.1f} mm "
+          f"(+{zip_ext:.1f}mm zip loops each bx end -> {OUT_X1-OUT_X0+2*zip_ext:.1f}mm total; needs a >=140mm bed in x)")
+    print(f"Zip-tie loops      : 2 per bx end wall at by{ZIP_LOOP_YS[0][0]:.0f}-{ZIP_LOOP_YS[0][1]:.0f}/"
+          f"{ZIP_LOOP_YS[1][0]:.0f}-{ZIP_LOOP_YS[1][1]:.0f}; tunnel {1.4+ZIP_TIE_W:.1f}w x {ZIP_TIE_T:.1f}h "
+          f"(ties up to ~{ZIP_TIE_W:.0f}mm wide); one tie per end, box long-axis vertical on the trunk")
+    print(f"Terminal ports     : reach inboard to bx{PORT_X1:.0f} (plug top {PLUG_TOP_DEPTH:.1f} deep -> back ~bx16.7)")
+    print(f"Fuse               : v0.2 ATO blade fuse pokes through lid window (holder 7.35 tall fits under lid)")
     print(f"External height    : {Z_LID_TOP:.1f} mm  (lid gap {UNDER_LID_GAP:.2f}mm clears U12 {TRAPPED_MAX:.2f}mm)")
     print(f"Board sits at z     = {Z_BOARD_BOT:.1f}..{Z_BOARD_TOP:.1f}  (standoff {STANDOFF_H:.0f}mm)")
     print(f"Lid underside z     = {Z_LID_UNDER:.2f}   top z={Z_LID_TOP:.2f}")
