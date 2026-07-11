@@ -38,10 +38,11 @@ v0.2 BOARD / rev 7 (2026-07-11):
   * Terminal lid PORTS deepened: the KF2EDGK plug TOP is 15.7mm deep vs the 8mm
     header (datasheet), overhanging ~8.7mm INBOARD (toward the PCB) -> back face
     ~bx16.7.  Old ports ended at bx10 and fouled the plug tops; now PORT_X1=18.
-  * ZIP-TIE STRAP LOOPS on the left+right (bx) walls for lashing the box to a
-    tree: staple-style tunnels flush with the back face (print flat, no
-    supports).  Mount the box long-axis-vertical; each tie runs through the two
-    collinear tunnels on one end wall and wraps the trunk just beyond the box.
+  * ZIP-TIE TABS on the left+right (bx) end walls for lashing the box to a
+    tree (rev 7b, per user sketch): one trapezoidal flange per end, flush with
+    the back face (prints flat, no supports), with a circular tie hole through
+    it.  Mount the box long-axis-vertical; each tie threads its end's hole and
+    wraps the trunk just beyond the box.
 """
 
 import bpy, bmesh, math, os
@@ -106,21 +107,19 @@ PLUG_TOP_DEPTH    = 15.7  # KF2EDGK plug TOP depth (datasheet); header is only 8
 PORT_X1           = 18.0  # terminal lid ports reach this far inboard: 16.7 + 1.3 clearance
                           # (rev-6 ports ended at bx10 and the plug tops fouled the lid).
 
-# --- zip-tie strap loops (rev 7): lash the box to a tree ----------------
-# Two staple-style loops on EACH bx end wall (left + right), flush with the back
-# face so the base still prints flat with zero supports.  A tie slides through the
-# two collinear tunnels of one wall (lying flat against the bark through the open
-# tunnel bottoms) and wraps the trunk just beyond that end of the box -> mount the
-# box long-axis-vertical and use one tie per end.  Tension presses the loop (and
-# box) against the bark; the roof only sees pull-away load.
-ZIP_TIE_W    = 10.0       # max tie width (9mm heavy-duty tie + slack); tunnel clear = +1.4
-ZIP_TIE_T    = 3.6        # tunnel height (HD tie ~2.5 thick + slack)
-ZIP_ROOF     = 3.2        # roof thickness over the tunnel (bridges 11.4mm when printing - fine)
-ZIP_LEG      = 3.4        # solid outer leg beyond the tunnel
-ZIP_LOOP_YS  = [(10.0, 20.0), (45.0, 55.0)]   # tunnel spans along the wall; the pair is
-                          # symmetric about by32.5 so the board mirror can't misplace them.
-                          # Loop top = ZIP_TIE_T+ZIP_ROOF = 6.8 -- MUST stay below the wall
-                          # wire-notch floor (Z_BOARD_TOP-1 = 7.1) on the left wall.
+# --- zip-tie tabs (rev 7b): lash the box to a tree -----------------------
+# One trapezoidal flange per bx end wall (left + right), flush with the back face
+# so the base still prints flat with zero supports, with a circular tie hole bored
+# through it (user sketch).  The tie threads the hole and wraps the trunk just
+# beyond that end of the box -> mount the box long-axis-vertical, one tie per end.
+# Tabs are centred on by32.5 (by-symmetric, so the board mirror can't misplace them)
+# and sit at z0..ZIP_TAB_T, well below the left wall's wire-notch floor (z7.1).
+ZIP_TAB_ROOT_W = 40.0     # trapezoid width where it meets the wall
+ZIP_TAB_TIP_W  = 24.0     # width at the outer edge
+ZIP_TAB_OUT    = 15.0     # how far the tab extends past the wall face
+ZIP_TAB_T      = 4.0      # tab thickness (backplate is 2.5; a bit thicker for tie loads)
+ZIP_HOLE_D     = 8.0      # circular tie hole (ties up to ~7.6mm wide thread through)
+ZIP_HOLE_OFF   = 7.5      # hole centre distance out from the wall face -> >=3mm rim all round
 
 ENABLE_VENTS = True
 VENT_D       = 4.0
@@ -268,6 +267,24 @@ def add_cone(name, x, y, z0, z1, d0, d1, verts=64):
     ob.name = name
     return ob
 
+def add_trap(name, x_root, x_tip, yc, w_root, w_tip, z0, z1):
+    """Symmetric trapezoidal prism: width w_root at x_root tapering to w_tip at
+    x_tip (works for either sign of x_tip-x_root), centred on yc."""
+    me = bpy.data.meshes.new(name)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(ob)
+    bm = bmesh.new()
+    corners = [(x_root, yc - w_root/2), (x_root, yc + w_root/2),
+               (x_tip,  yc + w_tip/2),  (x_tip,  yc - w_tip/2)]
+    v = [bm.verts.new((x, y, z0)) for x, y in corners] + \
+        [bm.verts.new((x, y, z1)) for x, y in corners]
+    for f in [(0,1,2,3),(7,6,5,4),(0,4,5,1),(1,5,6,2),(2,6,7,3),(3,7,4,0)]:
+        bm.faces.new([v[i] for i in f])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])  # REQUIRED or boolean no-ops
+    bm.normal_update()
+    bm.to_mesh(me); bm.free()
+    return ob
+
 def boolean(obj, cutter, op='DIFFERENCE'):
     m = obj.modifiers.new(type='BOOLEAN', name='b')
     m.operation = op; m.object = cutter; m.solver = 'EXACT'
@@ -350,22 +367,16 @@ def build_base():
         cm = _mirror_cut(c)
         boolean(base, add_box("wn_"+cm["name"], OUT_X0 - 1.0, IN_X0 + 1.0, cm["y0"], cm["y1"],
                               Z_BOARD_TOP - 1.0, Z_LID_UNDER + 0.5), 'DIFFERENCE')
-    # zip-tie strap loops (rev 7), two per bx end wall.  Each loop: a block rooted 0.3mm
-    # INTO the wall face (welds to wall AND backplate edge), with an open-bottomed tunnel
-    # bored along y -> a "staple" the tie slides through while lying flat on the bark.
-    # The tunnel cutter reaches 0.4mm INTO the wall (no coincident-plane boolean, see
-    # napkin) and 1mm past both y ends so the ends are fully open.  Loop top (6.8) sits
-    # below the left wall's wire-notch floor (7.1), so loops and notches never interact.
-    for (ly0, ly1) in ZIP_LOOP_YS:
-        for tag, wf, sgn in (("L", OUT_X0, -1.0), ("R", OUT_X1, +1.0)):
-            xa = wf - sgn * 0.3
-            xb = wf + sgn * (1.4 + ZIP_TIE_W + ZIP_LEG)
-            boolean(base, add_box(f"zl_{tag}_{ly0:.0f}", min(xa, xb), max(xa, xb),
-                                  ly0, ly1, 0.0, ZIP_TIE_T + ZIP_ROOF), 'UNION')
-            ta = wf - sgn * 0.4          # 0.4 into the wall
-            tb = wf + sgn * (1.4 + ZIP_TIE_W)
-            boolean(base, add_box(f"zt_{tag}_{ly0:.0f}", min(ta, tb), max(ta, tb),
-                                  ly0 - 1.0, ly1 + 1.0, -0.1, ZIP_TIE_T), 'DIFFERENCE')
+    # zip-tie tabs (rev 7b), one trapezoidal flange per bx end wall.  Rooted 0.3mm
+    # INTO the wall face so it welds to the wall AND the backplate edge, then a
+    # circular tie hole bored through (cutter overshoots both faces -> no coincident
+    # planes).  Convex prism + separate cylinder cut = EXACT-solver safe.
+    yc_tab = (OUT_Y0 + OUT_Y1) / 2.0
+    for tag, wf, sgn in (("L", OUT_X0, -1.0), ("R", OUT_X1, +1.0)):
+        boolean(base, add_trap(f"ztab_{tag}", wf - sgn*0.3, wf + sgn*ZIP_TAB_OUT, yc_tab,
+                               ZIP_TAB_ROOT_W, ZIP_TAB_TIP_W, 0.0, ZIP_TAB_T), 'UNION')
+        boolean(base, add_cyl(f"zhole_{tag}", wf + sgn*ZIP_HOLE_OFF, yc_tab,
+                              -0.5, ZIP_TAB_T + 0.5, ZIP_HOLE_D), 'DIFFERENCE')
     clean_mesh(base)   # weld slivers from the coaxial cone+post unions -> manifold STL
     base.name = "base"
     return base
@@ -596,24 +607,19 @@ def verify_holes():
         rad = (loc.x - cx0) if hit else float('nan')
         print(f"   flare_bridge   {'SOLID' if hit else 'OPEN '} at r={rad:.2f}mm  "
               f"{'ok (spans pocket r3.3)' if hit and rad > 3.3 else '*** UNEXPECTED ***'}")
-        # ZIP strap loops: for each loop, a y-ray through the tunnel must pass clean
-        # (open ends, open along the full span), and down-rays must strike the roof and
-        # the outer leg (solid, i.e. the staple actually exists and is attached).
-        print("-- zip-tie strap loop verification --")
-        for (ly0, ly1) in ZIP_LOOP_YS:
-            for tag, wf, sgn in (("L", OUT_X0, -1.0), ("R", OUT_X1, +1.0)):
-                xt = wf + sgn * (1.4 + ZIP_TIE_W) / 2.0          # mid-tunnel x
-                xl = wf + sgn * (1.4 + ZIP_TIE_W + ZIP_LEG/2.0)  # mid-leg x
-                hit, *_ = base.ray_cast(mathutils.Vector((xt, ly0 - 3.0, ZIP_TIE_T/2.0)),
-                                        mathutils.Vector((0, 1, 0)), depsgraph=deps,
-                                        distance=(ly1 - ly0) + 6.0)
-                print(f"   zt_{tag}_{ly0:.0f} tunnel  {'SOLID' if hit else 'OPEN '}  "
-                      f"{'*** BLOCKED ***' if hit else 'ok'}")
-                for nm, x in (("roof", xt), ("leg ", xl)):
-                    hit, *_ = base.ray_cast(mathutils.Vector((x, (ly0+ly1)/2.0, ZIP_TIE_T + ZIP_ROOF + 2.0)),
-                                            DN, depsgraph=deps, distance=4.0)
-                    print(f"   zl_{tag}_{ly0:.0f} {nm}    {'SOLID' if hit else 'OPEN '}  "
-                          f"{'ok' if hit else '*** MISSING ***'}")
+        # ZIP tabs: the tie hole must be OPEN straight through, and the tab must be
+        # SOLID between the hole and the tip (i.e. the flange exists and is attached).
+        print("-- zip-tie tab verification --")
+        yc_tab = (OUT_Y0 + OUT_Y1) / 2.0
+        for tag, wf, sgn in (("L", OUT_X0, -1.0), ("R", OUT_X1, +1.0)):
+            xh = wf + sgn * ZIP_HOLE_OFF
+            xs = wf + sgn * (ZIP_HOLE_OFF + ZIP_HOLE_D/2.0 + ZIP_TAB_OUT) / 2.0  # mid rim, hole edge->tip
+            for nm, x, want_solid in (("hole", xh, False), ("rim ", xs, True)):
+                hit, *_ = base.ray_cast(mathutils.Vector((x, yc_tab, ZIP_TAB_T + 2.0)),
+                                        DN, depsgraph=deps, distance=ZIP_TAB_T + 4.0)
+                ok = (hit == want_solid)
+                print(f"   ztab_{tag} {nm}   {'SOLID' if hit else 'OPEN '}  "
+                      f"{'ok' if ok else '*** UNEXPECTED ***'}")
     # --- ISLAND CHECK: the whole point of this revision.  Each part must be ONE shell. ---
     print("-- shell count (1 = fully connected, >1 = detached islands) --")
     for nm in ("base", "lid"):
@@ -697,12 +703,11 @@ def main():
 
     print("\n================ ENCLOSURE SUMMARY ================")
     print(f"Style              : flush walls; terminals -> lid port (screws up) + wall notch (wires out side)")
-    zip_ext = 1.4 + ZIP_TIE_W + ZIP_LEG
     print(f"External footprint : {OUT_X1-OUT_X0:.1f} x {OUT_Y1-OUT_Y0:.1f} mm "
-          f"(+{zip_ext:.1f}mm zip loops each bx end -> {OUT_X1-OUT_X0+2*zip_ext:.1f}mm total; needs a >=140mm bed in x)")
-    print(f"Zip-tie loops      : 2 per bx end wall at by{ZIP_LOOP_YS[0][0]:.0f}-{ZIP_LOOP_YS[0][1]:.0f}/"
-          f"{ZIP_LOOP_YS[1][0]:.0f}-{ZIP_LOOP_YS[1][1]:.0f}; tunnel {1.4+ZIP_TIE_W:.1f}w x {ZIP_TIE_T:.1f}h "
-          f"(ties up to ~{ZIP_TIE_W:.0f}mm wide); one tie per end, box long-axis vertical on the trunk")
+          f"(+{ZIP_TAB_OUT:.0f}mm zip tab each bx end -> {OUT_X1-OUT_X0+2*ZIP_TAB_OUT:.1f}mm total)")
+    print(f"Zip-tie tabs       : 1 trapezoid per bx end wall ({ZIP_TAB_ROOT_W:.0f}->{ZIP_TAB_TIP_W:.0f}mm wide, "
+          f"{ZIP_TAB_OUT:.0f}mm out, {ZIP_TAB_T:.0f}mm thick), d{ZIP_HOLE_D:.0f} tie hole "
+          f"(ties up to ~7.6mm wide); one tie per end, box long-axis vertical on the trunk")
     print(f"Terminal ports     : reach inboard to bx{PORT_X1:.0f} (plug top {PLUG_TOP_DEPTH:.1f} deep -> back ~bx16.7)")
     print(f"Fuse               : v0.2 ATO blade fuse pokes through lid window (holder 7.35 tall fits under lid)")
     print(f"External height    : {Z_LID_TOP:.1f} mm  (lid gap {UNDER_LID_GAP:.2f}mm clears U12 {TRAPPED_MAX:.2f}mm)")
