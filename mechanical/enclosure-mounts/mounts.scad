@@ -4,8 +4,9 @@
 // Two printed parts that bolt to the box's perforated mounting plate:
 //   back_bracket + peg_cap  - carries the sap-flux logic-board enclosure by its
 //                             two moulded zip-tie tabs (peg_cap x2).
-//   battery_tray            - 90-degree L: cups the bottom of the LiFePO4 pack,
-//                             back panel reaches up to the mounting plate.
+//   battery_tray            - open-bottom rim the LiFePO4 pack drops into, with
+//                             two straps up to the plate.  The pack stands on
+//                             the enclosure floor, so the tray carries no load.
 //
 // MOUNTING PLATE GRID (measured): 3.0 mm square holes on a 5.0 mm pitch in both
 // directions (3 mm hole / 2 mm web).  M3 passes a 3 mm square hole easily
@@ -13,8 +14,8 @@
 // 5 mm pitch so all screws land at once; the holes are still slotted so the part
 // can be nudged into phase during install.
 //
-// Both parts stand off the plate on ribs/bosses so screw heads and hardware
-// already protruding from the plate face cannot hold the part off.
+// Both parts stand 4 mm off the plate (bosses / strap pads) so screw heads and
+// hardware already protruding from the plate face cannot hold the part off.
 //
 // Render one part at a time:
 //   openscad -D 'part="back_bracket"' -o back_bracket.stl mounts.scad
@@ -78,32 +79,37 @@ CAP_CB_H  = 2.0;
 // -> 2.1 mm of nut engaged and NOTHING protrudes past the bracket back face.
 
 // ============================= battery tray ================================
+// The pack stands on the enclosure floor, so the tray carries no weight - it
+// only stops the pack sliding and tipping.  That means an OPEN-BOTTOM rim (a
+// lip to drop the pack into) plus two straps up to the plate is enough; there
+// is no floor, no closed-duct back panel and no bridging worth the name.
 BAT_X     = 94.5;   // across the plate
 BAT_Y     = 65.5;   // plate face -> box front
 BAT_Z     = 150.5;  // up
-BAT_CLR   = 1.5;    // total slop added to each footprint dimension
+BAT_CLR   = 2.5;    // total slop added to each footprint dimension
 
-TRAY_WALL = 3.0;
-TRAY_FLR  = 3.0;
-TRAY_LIP  = 30.0;   // cup wall height above the enclosure floor
-BACK_T    = 5.0;    // outer skin that bolts to the plate
-CAV       = 7.0;    // hollow between the two skins = relief for protruding screws
-BACK_Z    = 80.0;   // how far the back panel reaches up the battery
+TRAY_WALL = 2.5;
+RIM_H     = 22.0;   // how far the rim comes up the pack
+RIM_CHAM  = 3.0;    // lead-in chamfer at the rim's top inside edge
+STRAP_W   = 28.0;   // width of each vertical strap up to the plate
 
-TRAY_SCR_X = 25.0;  // +- ; 50 mm = 10 pitches
-TRAY_SCR_Z = [27.0, 47.0, 67.0];   // 20 mm apart = 4 pitches
-RAIL_W     = 20.0;  // vertical contact rail on the back, one per screw column
+TRAY_SCR_X = 25.0;              // +- ; 50 mm = 10 pitches
+TRAY_SCR_Z = [27.0, 47.0];      // 20 mm apart = 4 pitches; lowest grid hole is
+                                // ~24.5 mm above the floor, so 27 is the first
+                                // row that can land.  Append 67.0 for a third.
+TRAY_CB_D  = 6.6;   // counterbore so the screw head clears the pack's back face
+TRAY_CB_H  = 2.6;
 
 // ---- derived: y planes, measured from the mounting-plate face -------------
-Y_RAIL0 = 0;                    Y_RAIL1 = STANDOFF;          // 0 - 4
-Y_SKIN0 = Y_RAIL1;              Y_SKIN1 = Y_SKIN0 + BACK_T;  // 4 - 9
-Y_CAV1  = Y_SKIN1 + CAV;                                     // 9 - 16
-Y_CUPB1 = Y_CAV1 + TRAY_WALL;                                // 16 - 19  (cup back wall)
-CUP_ID_X = BAT_X + BAT_CLR;
-CUP_ID_Y = BAT_Y + BAT_CLR;
-Y_CUP1  = Y_CUPB1 + CUP_ID_Y;                                // 19 - 86
-Y_FRONT = Y_CUP1 + TRAY_WALL;                                // 86 - 89
-TRAY_OD_X = CUP_ID_X + 2*TRAY_WALL;                          // 102
+Y_STRAP1  = STANDOFF;                        // 0 - 4   strap pad (only contact)
+Y_BACK1   = Y_STRAP1 + TRAY_WALL;            // 4 - 6.5 rim back wall
+CUP_ID_X  = BAT_X + BAT_CLR;                 // 97
+CUP_ID_Y  = BAT_Y + BAT_CLR;                 // 68
+Y_FRONT   = Y_BACK1 + CUP_ID_Y + TRAY_WALL;  // 77      outside of the front wall
+TRAY_OD_X = CUP_ID_X + 2*TRAY_WALL;          // 102
+SLOT_L    = M3_CLR + SLOT_TRAV;              // 10 - full slot length
+STRAP_TOP = TRAY_SCR_Z[len(TRAY_SCR_Z)-1] + SLOT_L/2 + 5.0;   // 5 mm above the
+                                             // top slot's END, not its centre
 
 // ===========================================================================
 // helpers
@@ -179,54 +185,56 @@ module peg_cap() {
 // ===========================================================================
 // PART 3 - battery_tray
 // Frame: X across the plate, Y out from the plate face, Z up from the
-//        enclosure floor.  The tray floor rests on the enclosure floor; the
-//        back panel only has to stop the pack tipping, not carry its weight.
-// Print: floor on the bed.  Every wall is vertical -> zero supports.
+//        enclosure floor.
+// The pack stands on the enclosure floor, so this is just a lipped rim to drop
+// it into plus two straps up to the mounting plate.  OPEN BOTTOM - no floor to
+// print, and it drains.  Every surface is a vertical extrusion from the bed.
+// Print: rim's bottom edge on the bed.  No supports, no long bridges.
 // ===========================================================================
+
+// 2D rounded rectangle, centred
+module rr2(w, h, r) { offset(r=r) offset(r=-r) square([w, h], center=true); }
+
 module battery_tray() {
+    yc = (Y_STRAP1 + Y_FRONT) / 2;           // rim centre in y
     difference() {
         union() {
-            // --- floor slab (runs back under the duct so the tray can't rock)
-            translate([-TRAY_OD_X/2, Y_RAIL1, 0])
-                cube([TRAY_OD_X, Y_FRONT - Y_RAIL1, TRAY_FLR]);
-            // --- cup walls
-            translate([-TRAY_OD_X/2, Y_CAV1, 0])
-                difference() {
-                    cube([TRAY_OD_X, Y_FRONT - Y_CAV1, TRAY_LIP]);
-                    translate([TRAY_WALL, TRAY_WALL, TRAY_FLR])
-                        cube([CUP_ID_X, CUP_ID_Y, TRAY_LIP]);
-                }
-            // --- back duct: outer skin + tall cup back wall + side webs.
-            //     Closed box section -> stiff against the pack leaning on it.
-            translate([-TRAY_OD_X/2, Y_SKIN0, 0])
-                cube([TRAY_OD_X, BACK_T, BACK_Z]);                    // outer skin
-            translate([-TRAY_OD_X/2, Y_CAV1, 0])
-                cube([TRAY_OD_X, TRAY_WALL, BACK_Z]);                 // inner skin
-            for (s = [-1, 1])                                          // side webs,
-                translate([s > 0 ? TRAY_OD_X/2 - TRAY_WALL : -TRAY_OD_X/2,
-                           Y_SKIN1, 0])                                // flush with the
-                    cube([TRAY_WALL, CAV, BACK_Z]);                    // cup side walls
-            // --- contact rails: the ONLY thing that touches the mounting plate
+            // --- rim: closed rectangular tube, open top and bottom.  Chamfer
+            //     is differenced HERE, before the straps are added, so it can't
+            //     undercut them.
+            difference() {
+                translate([0, yc, 0]) linear_extrude(RIM_H)
+                    difference() {
+                        rr2(TRAY_OD_X, Y_FRONT - Y_STRAP1, 4);
+                        rr2(CUP_ID_X, CUP_ID_Y, 2);
+                    }
+                // lead-in chamfer at the top inside edge
+                translate([0, yc, RIM_H - RIM_CHAM + EPS])
+                    linear_extrude(RIM_CHAM,
+                                   scale=[(CUP_ID_X + 2*RIM_CHAM) / CUP_ID_X,
+                                          (CUP_ID_Y + 2*RIM_CHAM) / CUP_ID_Y])
+                        rr2(CUP_ID_X, CUP_ID_Y, 2);
+            }
+            // --- straps: the rim's back wall thickened to STANDOFF+WALL and
+            //     carried up to the top screw row.  The 4 mm pad is the ONLY
+            //     thing that touches the plate -> relief for protruding hardware.
             for (s = [-1, 1])
-                translate([s*TRAY_SCR_X - RAIL_W/2, Y_RAIL0, 0])
-                    cube([RAIL_W, STANDOFF, BACK_Z]);
+                translate([s*TRAY_SCR_X - STRAP_W/2, 0, 0])
+                    cube([STRAP_W, Y_BACK1, STRAP_TOP]);
         }
-        // --- grid screws: slotted vertically (the tray's height is fixed by the
-        //     floor, so the slot must absorb the grid's phase)
+        // --- grid screws.  Slotted VERTICALLY: the tray's height is fixed by
+        //     the enclosure floor, so the slot absorbs the grid's phase.
+        //     Counterbored from the pack side so the head clears its back face.
         for (s = [-1, 1], z = TRAY_SCR_Z) {
-            translate([s*TRAY_SCR_X, Y_RAIL0 - 1, z])
-                slot_z(M3_CLR + SLOT_TRAV, M3_CLR, STANDOFF + BACK_T + 2);
-            // driver + head access through the inner skin
-            translate([s*TRAY_SCR_X, Y_CAV1 - 1, z])
-                slot_z(M3_CLR + SLOT_TRAV + 5, 9.0, TRAY_WALL + 2);
+            translate([s*TRAY_SCR_X, -1, z])
+                slot_z(SLOT_L, M3_CLR, Y_BACK1 + 2);
+            translate([s*TRAY_SCR_X, Y_BACK1 - TRAY_CB_H, z])
+                slot_z(SLOT_L, TRAY_CB_D, TRAY_CB_H + 1);
         }
-        // --- finger scallop in the front wall, to lift the pack out
-        translate([0, Y_CUP1 - 1, TRAY_FLR + 12])
-            rotate([-90, 0, 0]) hull() for (s = [-1, 1])
-                translate([s*14, 0, 0]) cylinder(d=12, h=TRAY_WALL + 2);
-        // --- drain holes
-        for (sx = [-1, 1], y = [Y_CUPB1 + 18, Y_CUPB1 + 48])
-            translate([sx*25, y, -1]) cylinder(d=6, h=TRAY_FLR + 2);
+        // --- finger notch, cut DOWN from the front wall's top edge so there is
+        //     nothing to bridge
+        translate([-22, Y_FRONT - TRAY_WALL - 1, RIM_H - 10])
+            cube([44, TRAY_WALL + 2, 21]);
     }
 }
 
@@ -250,7 +258,7 @@ module assembly() {
     // tray frame (Y out, Z up) into the plate frame (Y up, Z out).
     translate([0, -170, 0]) {
         color("SeaGreen") mirror([0, 1, 0]) rotate([90, 0, 0]) battery_tray();
-        %translate([-BAT_X/2, TRAY_FLR, Y_CUPB1]) cube([BAT_X, BAT_Z, BAT_Y]);
+        %translate([-BAT_X/2, 0, Y_BACK1]) cube([BAT_X, BAT_Z, BAT_Y]);
     }
 }
 

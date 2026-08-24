@@ -33,7 +33,7 @@ purpose: its height is fixed by the enclosure floor, so the slot has to absorb
 whatever phase the grid happens to be in at that height.
 
 **Both parts stand 4 mm off the plate face** — the bracket on four bosses, the
-tray on two vertical rails — so screw heads or hardware already protruding from
+tray on its two strap pads — so screw heads or hardware already protruding from
 the plate can't hold either part off.
 
 ## Parts
@@ -61,34 +61,40 @@ corner M3 nut pockets sit, in case a pressed nut sits a hair proud.
 
 ### `battery_tray`
 
-102 × 89 × 80 mm, ~120 cm³ solid. Cups a **94.5 × 65.5 × 150.5 mm** pack
-standing on end.
+102 × 77 × 57 mm, ~33 cm³ — an **open-bottom rim** the pack drops into, plus two
+straps up to the plate. Sized for a **94.5 × 65.5 × 150.5 mm** pack standing on
+end.
 
-- Cup ID 96.0 × 67.0 mm (1.5 mm total slop), 3 mm walls, 30 mm lip.
-- The pack's weight lands on the enclosure floor through the 3 mm tray floor —
-  the back panel only has to stop it tipping.
-- The back is a closed duct: outer skin at 4–9 mm from the plate face, a 7 mm
-  cavity for protruding screw heads, and the cup's back wall at 16–19 mm
-  carried full height. Two side webs close the section, so it's stiff against
-  the pack leaning on it.
-- Screwdriver access holes through the inner skin let you reach the six grid
-  screws from inside the cup.
-- Finger scallop in the front wall to lift the pack out; four Ø6 drain holes.
+The pack stands on the enclosure floor, so the tray carries no weight at all —
+it only stops the pack sliding and tipping. That means no floor to print, no
+closed-duct back panel, and it drains.
 
-Battery top ends up **153.5 mm** above the enclosure floor; total depth from the
-plate face is **89 mm** (interior depth is ~130 mm).
+- Rim ID 97.0 × 68.0 mm (2.5 mm total slop) with a 3 mm lead-in chamfer at the
+  top inside edge, 2.5 mm walls, 22 mm tall.
+- Two 28 mm straps carry the rim's back wall up to the screw rows. Their 4 mm
+  pads are the **only** thing touching the plate, so protruding hardware clears
+  everywhere else.
+- Screws are counterbored from the pack side so the heads clear its back face.
+- Finger notch cut *down* from the front wall's top edge — nothing to bridge.
+
+Two screw rows (z = 27 and 47 above the floor) is the default; `TRAY_SCR_Z`
+takes a third at 67 if you want more restraint, and the strap grows to suit.
+The first row can't go below ~25 because that's where the grid starts.
+
+Battery top ends up **150.5 mm** above the enclosure floor; total depth from the
+plate face is **77 mm** (interior depth is ~130 mm).
 
 ## Hardware
 
 | Qty | Item | For |
 |---|---|---|
-| 4 | M3 × (12 + plate thickness) machine screw + nut + washer | bracket → plate |
-| 6 | M3 × (12 + plate thickness) machine screw + nut + washer | tray → plate |
+| 4 | M3 × (10 + plate thickness) machine screw + nut + washer | bracket → plate |
+| 4 | M3 × (9 + plate thickness) machine screw + nut + washer | tray → plate |
 | 2 | **M3 × 8** pan head | peg caps (do not substitute longer) |
 | 2 | M3 hex nut (DIN934, 5.5 AF) | press into the bracket's back-face pockets |
 
-M3 × 16 is the likely length for the grid screws — confirm once the mounting
-plate thickness is measured.
+Grid screw lengths depend on the plate thickness — M3 × 16 for the bracket and
+M3 × 12 for the tray are the likely picks. Confirm once it's measured.
 
 `M3 × 8` for the caps is not a guess: at 10 mm the tip protrudes 1.5 mm past the
 bracket's back face and holds it off the plate.
@@ -101,7 +107,7 @@ PETG. Three walls, 0.2 mm layers. **No supports needed on any part.**
 |---|---|
 | `back_bracket` | front face (the flat one) on the bed; bosses and nut pockets face up |
 | `peg_cap` | head down on the bed, spigot up |
-| `battery_tray` | floor on the bed; every wall is then vertical |
+| `battery_tray` | rim's bottom edge on the bed; every wall is then vertical |
 
 ## Assembly
 
@@ -110,8 +116,8 @@ PETG. Three walls, 0.2 mm layers. **No supports needed on any part.**
    ±3.3 mm to find the grid.
 3. Lay the box on the bracket, tabs over the two M3 holes. Drop a `peg_cap`
    into each tie hole, run in the M3 × 8, snug only.
-4. Bolt the tray to the plate (6 × M3, driven from inside the cup through the
-   access holes) with its floor resting on the enclosure floor.
+4. Bolt the tray to the plate (4 × M3, driven from inside the rim) with its
+   bottom edge resting on the enclosure floor.
 5. Drop the pack in.
 
 ## Open
