@@ -9,10 +9,11 @@
 use crate::logger::{Logger, LoggerConfig};
 use crate::sim::SimBoard;
 use crate::stats::{RateWindow, SeqTracker, StatsSnapshot};
+use crate::types::SampleData;
 use crate::types::{host_unix_ns, state_name, ProcessedSample};
 use sap_flux_protocol::{
-    encode, Ack, Decoder, ErrorReport, Frame, Hello, Message, SetRtc, Status, FLAG_COMMAND_WINDOW,
-    MAX_ENCODED_LEN,
+    encode, Ack, Decoder, ErrorReport, FieldStatus, Frame, Hello, Message, SetRtc, Status,
+    FLAG_COMMAND_WINDOW, MAX_ENCODED_LEN,
 };
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -177,6 +178,8 @@ pub enum UiEvent {
     AckMsg(Ack),
     /// Error report frame received.
     ErrorMsg(ErrorReport),
+    /// Field-mode status frame received.
+    FieldStatusMsg(FieldStatus),
     /// Decoded and converted sample.
     SampleMsg(Box<ProcessedSample>),
     /// A frame failed to decode (already counted and logged).
@@ -317,10 +320,11 @@ impl Pipeline {
         self.stats.frames_ok += 1;
         // A window sample opens the command window; any frame after it means
         // the board is transmitting again, so the window has passed.
-        self.command_window = matches!(
-            frame.message,
-            Message::Sample(s) if s.flags & FLAG_COMMAND_WINDOW != 0
-        );
+        self.command_window = match frame.message {
+            Message::Sample(s) => s.flags & FLAG_COMMAND_WINDOW != 0,
+            Message::Sample12(s) => s.flags & FLAG_COMMAND_WINDOW != 0,
+            _ => false,
+        };
         if let Some(missing) = self.seq.on_sequence(frame.sequence) {
             self.logger.log_event(
                 ns,
@@ -329,7 +333,10 @@ impl Pipeline {
             );
         }
         // A capture session begins on the first valid Hello or Sample.
-        if matches!(frame.message, Message::Hello(_) | Message::Sample(_)) {
+        if matches!(
+            frame.message,
+            Message::Hello(_) | Message::Sample(_) | Message::Sample12(_) | Message::FieldStatus(_)
+        ) {
             if let Some(dir) = self.logger.ensure_session(ns, now) {
                 out.push(UiEvent::SessionStarted(dir));
             }
@@ -349,9 +356,14 @@ impl Pipeline {
                 );
                 out.push(UiEvent::HelloMsg(h));
             }
-            Message::Sample(s) => {
+            Message::Sample(_) | Message::Sample12(_) => {
+                let data: SampleData = match frame.message {
+                    Message::Sample(s) => s.into(),
+                    Message::Sample12(s) => s.into(),
+                    _ => unreachable!(),
+                };
                 let ps = ProcessedSample::build(
-                    s,
+                    data,
                     frame.sequence,
                     ns,
                     now.duration_since(self.start).as_secs_f64(),
@@ -402,6 +414,43 @@ impl Pipeline {
                 );
                 self.logger.force_flush();
                 out.push(UiEvent::ErrorMsg(e));
+            }
+            Message::FieldStatus(fs) => {
+                self.logger
+                    .log_event(ns, "field_status", &crate::types::field_status_detail(&fs));
+                self.logger.force_flush();
+                out.push(UiEvent::FieldStatusMsg(fs));
+            }
+            Message::WindowInfo(w) => {
+                self.logger.log_event(
+                    ns,
+                    "window_info",
+                    &format!(
+                        "run={} flags={:#06x} channels={} bin_ms={} n_bins={} chunks={} \
+                         start_rtc_ms={} heater_on_offset_ms={} pulse_ms={} sample_hz={} \
+                         frames={}/{} missing data_crc32={:08x}",
+                        w.run_id,
+                        w.window_flags,
+                        w.channels,
+                        w.bin_ms(),
+                        w.n_bins,
+                        w.chunk_count,
+                        w.start_rtc_unix_ms,
+                        w.heater_on_offset_ms,
+                        w.pulse_duration_ms,
+                        w.sample_hz,
+                        w.frames_missing,
+                        w.frames_total,
+                        w.data_crc32
+                    ),
+                );
+            }
+            Message::WindowChunk(c) => {
+                self.logger.log_event(
+                    ns,
+                    "window_chunk",
+                    &format!("run={} chunk={} len={}", c.run_id, c.chunk, c.len),
+                );
             }
             // Host-to-board messages echoed back would be a wiring anomaly;
             // record them but nothing else.

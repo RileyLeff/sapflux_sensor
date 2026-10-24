@@ -549,6 +549,8 @@ fn simulator_full_pulse_cycle_through_pipeline() {
     assert!(ps.sample_valid);
     assert!(ps.readings[0].valid(), "T1 valid");
     assert!(ps.readings[2].valid(), "all simulated channels are healthy");
+    assert_eq!(ps.channel_count(), 12, "simulator streams Sample12");
+    assert!(ps.readings[11].valid(), "probe 2 channels are healthy too");
     let temp = ps.readings[0].temp_c.unwrap();
     assert!(
         (20.0..30.0).contains(&temp),
@@ -794,4 +796,133 @@ fn abort_during_baseline_returns_to_safe_idle() {
         Duration::from_millis(20),
     );
     assert_eq!(last_status(&events).unwrap().state, BoardState::SafeIdle);
+}
+
+fn sample12(seq_hint: u32) -> Message {
+    Message::Sample12(Sample12 {
+        monotonic_us: 1000 * seq_hint as u64,
+        rtc_unix_ms: 1_793_000_000_000 + seq_hint as i64,
+        run_id: 2,
+        flags: FLAG_RTC_VALID | FLAG_PGOOD | FLAG_EXCITATION_ACTIVE,
+        state: BoardState::Recovery,
+        excitation_raw: 26000,
+        v24_raw: 24000,
+        thermistor_raw: [
+            13000, 12900, 2, 13100, 13050, 12950, 12800, 12850, 12700, 13200, 13150, 13250,
+        ],
+    })
+}
+
+/// Column index by header name.
+fn col(header: &str, name: &str) -> usize {
+    header
+        .split(',')
+        .position(|c| c == name)
+        .unwrap_or_else(|| panic!("missing column {name}"))
+}
+
+#[test]
+fn sample12_and_sample_share_samples_csv() {
+    let root = Scratch::new();
+    let mut p = test_pipeline(&root);
+    let mut events = Vec::new();
+    let now = Instant::now();
+    let mut stream = encode_msg(&sample(1), 1);
+    stream.extend_from_slice(&encode_msg(&sample12(2), 2));
+    p.ingest(&stream, now, &mut events);
+    p.finalize(now);
+
+    let samples: Vec<&UiEvent> = events
+        .iter()
+        .filter(|e| matches!(e, UiEvent::SampleMsg(_)))
+        .collect();
+    assert_eq!(samples.len(), 2);
+    let ps12 = match samples[1] {
+        UiEvent::SampleMsg(ps) => ps,
+        _ => unreachable!(),
+    };
+    assert_eq!(ps12.channel_count(), 12);
+    assert_eq!(ps12.sample.thermistor_raw[11], 13250);
+    assert_eq!(ps12.sample.state, BoardState::Recovery);
+    assert!(ps12.readings[6].valid(), "probe 2 T1 converts");
+    assert!(!ps12.readings[2].valid(), "raw 2 is a short");
+    match samples[0] {
+        UiEvent::SampleMsg(ps) => assert_eq!(ps.channel_count(), 6),
+        _ => unreachable!(),
+    }
+
+    let dir = session_dir(&events);
+    let csv = read(&dir, "samples.csv");
+    let lines: Vec<&str> = csv.lines().collect();
+    assert_eq!(lines.len(), 3);
+    let header = lines[0];
+    let n_cols = header.split(',').count();
+    let row6: Vec<&str> = lines[1].split(',').collect();
+    let row12: Vec<&str> = lines[2].split(',').collect();
+    assert_eq!(row6.len(), n_cols);
+    assert_eq!(row12.len(), n_cols);
+    assert_eq!(row6[col(header, "channel_count")], "6");
+    assert_eq!(row12[col(header, "channel_count")], "12");
+    assert_eq!(row6[col(header, "t6_raw")], "12950");
+    assert_eq!(row6[col(header, "p2t1_raw")], "");
+    assert_eq!(row6[col(header, "p2t6_valid")], "");
+    assert_eq!(row12[col(header, "t1_raw")], "13000");
+    assert_eq!(row12[col(header, "p2t1_raw")], "12800");
+    assert_eq!(row12[col(header, "p2t6_raw")], "13250");
+    assert_eq!(row12[col(header, "p2t6_valid")], "1");
+    assert_eq!(row12[col(header, "state_name")], "Recovery");
+}
+
+#[test]
+fn sample12_command_window_flag_opens_window() {
+    let root = Scratch::new();
+    let mut p = test_pipeline(&root);
+    let mut events = Vec::new();
+    let mut msg = sample12(1);
+    if let Message::Sample12(s) = &mut msg {
+        s.flags |= FLAG_COMMAND_WINDOW;
+    }
+    p.ingest(&encode_msg(&msg, 1), Instant::now(), &mut events);
+    assert!(p.take_command_window());
+    assert!(!p.take_command_window());
+}
+
+#[test]
+fn field_status_and_window_frames_are_logged() {
+    let root = Scratch::new();
+    let mut p = test_pipeline(&root);
+    let mut events = Vec::new();
+    let now = Instant::now();
+    let fs = FieldStatus {
+        monotonic_us: 1,
+        rtc_unix_ms: 1_793_000_000_000,
+        next_pulse_unix_s: 1_793_003_600,
+        schedule_flags: FIELD_STATUS_ENABLED | FIELD_STATUS_RTC_VALID,
+        windows_pending: 1,
+        windows_dropped: 0,
+        oldest_pending_run_id: 5,
+        last_run_id: 5,
+        calr_ppb: -100,
+        last_rtc_step_ms: 12,
+        boot_count: 3,
+        v24_raw: 24000,
+        flash_used_kib: 0,
+        schedule_crc: 0x4612,
+    };
+    let mut stream = encode_msg(&Message::FieldStatus(fs), 1);
+    stream.extend_from_slice(&encode_msg(
+        &Message::WindowChunk(WindowChunk::new(5, 0, &[1, 2, 3]).unwrap()),
+        2,
+    ));
+    p.ingest(&stream, now, &mut events);
+    p.finalize(now);
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, UiEvent::FieldStatusMsg(f) if *f == fs)));
+    let dir = session_dir(&events);
+    let ev = read(&dir, "events.csv");
+    assert!(ev.contains("field_status"), "{ev}");
+    assert!(ev.contains("enabled|rtc_valid"), "{ev}");
+    assert!(ev.contains("schedule_crc=4612"), "{ev}");
+    assert!(ev.contains("window_chunk"), "{ev}");
 }

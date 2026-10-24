@@ -90,11 +90,9 @@ pub const EVENT_MODEM_ERROR: u16 = 5;
 /// Event code: window dropped.
 pub const EVENT_WINDOW_DROPPED: u16 = 6;
 
-/// Schedule flag bit 0: only pulse while `now < lease_until`.
-pub const SCHEDULE_FLAG_REQUIRE_LEASE: u8 = 1 << 0;
-/// Board-side mandatory cooldown after a pulse, seconds
+/// Board-side mandatory cooldown after a pulse, ms
 /// (`firmware/sap-flux-core/src/pulse.rs` `COOLDOWN_MS`, production build).
-pub const BOARD_COOLDOWN_S: u32 = 600;
+pub const BOARD_COOLDOWN_MS: u32 = 600_000;
 
 /// Codec errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,153 +160,26 @@ impl Header {
     }
 }
 
-/// Pulse schedule: the 20 `SetSchedule` bytes `enabled`..`bin_ms`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Schedule {
-    /// Pulsing enabled.
-    pub enabled: bool,
-    /// `SCHEDULE_FLAG_*` bits.
-    pub flags: u8,
-    /// Heater on time: 500, 1000 or 1500 ms.
-    pub pulse_duration_ms: u16,
-    /// Pulse period, ≥ 600 s.
-    pub interval_s: u32,
-    /// Pulses start where `(t - phase_s) mod interval_s == 0`.
-    pub phase_s: u32,
-    /// Pre-pulse baseline, 10–300 s.
-    pub baseline_s: u16,
-    /// Post-pulse recovery, 60–600 s.
-    pub recovery_s: u16,
-    /// Frame rate: 10, 20 or 25 Hz.
-    pub sample_hz: u16,
-    /// Uplink bin width: 250, 500 or 1000 ms.
-    pub bin_ms: u16,
+pub use sap_flux_protocol::{Schedule, ScheduleError, SCHEDULE_FLAG_REQUIRE_LEASE, SCHEDULE_LEN};
+
+/// Check a schedule against the board's `SetSchedule` limits, including the
+/// production 600 s cooldown (`baseline_s + recovery_s + 600 < interval_s`).
+pub fn validate_schedule(s: &Schedule) -> Result<(), ScheduleError> {
+    s.validate(BOARD_COOLDOWN_MS)
 }
 
-/// Size of [`Schedule`] on the wire.
-pub const SCHEDULE_LEN: usize = 20;
-
-/// Why a [`Schedule`] is invalid (mirrors the board's `INVALID_PARAMETER`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScheduleError {
-    /// `pulse_duration_ms` not in {500, 1000, 1500}.
-    PulseDuration,
-    /// `interval_s` < 600.
-    Interval,
-    /// `baseline_s` outside 10–300.
-    Baseline,
-    /// `recovery_s` outside 60–600.
-    Recovery,
-    /// `baseline_s + recovery_s + cooldown >= interval_s`.
-    TooTight,
-    /// `sample_hz` not in {10, 20, 25}.
-    SampleHz,
-    /// `bin_ms` not in {250, 500, 1000}.
-    BinMs,
-    /// Undefined `flags` bits set.
-    Flags,
-}
-
-impl core::fmt::Display for ScheduleError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            ScheduleError::PulseDuration => "pulse_duration_ms must be 500, 1000 or 1500",
-            ScheduleError::Interval => "interval_s must be >= 600",
-            ScheduleError::Baseline => "baseline_s must be 10..=300",
-            ScheduleError::Recovery => "recovery_s must be 60..=600",
-            ScheduleError::TooTight => {
-                "baseline_s + recovery_s + 600 s cooldown must be < interval_s"
-            }
-            ScheduleError::SampleHz => "sample_hz must be 10, 20 or 25",
-            ScheduleError::BinMs => "bin_ms must be 250, 500 or 1000",
-            ScheduleError::Flags => "only flags bit 0 (REQUIRE_LEASE) is defined",
-        })
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ScheduleError {}
-
-impl Schedule {
-    /// Factory default of a blank board EEPROM (disabled).
-    pub const FACTORY_DEFAULT: Schedule = Schedule {
-        enabled: false,
-        flags: 0,
-        pulse_duration_ms: 1000,
-        interval_s: 3600,
-        phase_s: 0,
-        baseline_s: 60,
-        recovery_s: 180,
-        sample_hz: 25,
-        bin_ms: 500,
-    };
-
-    /// Check the board's `SetSchedule` limits.
-    pub fn validate(&self) -> Result<(), ScheduleError> {
-        if !matches!(self.pulse_duration_ms, 500 | 1000 | 1500) {
-            return Err(ScheduleError::PulseDuration);
-        }
-        if self.interval_s < 600 {
-            return Err(ScheduleError::Interval);
-        }
-        if !(10..=300).contains(&self.baseline_s) {
-            return Err(ScheduleError::Baseline);
-        }
-        if !(60..=600).contains(&self.recovery_s) {
-            return Err(ScheduleError::Recovery);
-        }
-        let busy = self.baseline_s as u64 + self.recovery_s as u64 + BOARD_COOLDOWN_S as u64;
-        if busy >= self.interval_s as u64 {
-            return Err(ScheduleError::TooTight);
-        }
-        if !matches!(self.sample_hz, 10 | 20 | 25) {
-            return Err(ScheduleError::SampleHz);
-        }
-        if !matches!(self.bin_ms, 250 | 500 | 1000) {
-            return Err(ScheduleError::BinMs);
-        }
-        if self.flags & !SCHEDULE_FLAG_REQUIRE_LEASE != 0 {
-            return Err(ScheduleError::Flags);
-        }
-        Ok(())
-    }
-
-    /// Wire bytes.
-    pub fn to_bytes(&self) -> [u8; SCHEDULE_LEN] {
-        let mut b = [0u8; SCHEDULE_LEN];
-        let mut w = W { buf: &mut b, pos: 0 };
-        w.u8(self.enabled as u8);
-        w.u8(self.flags);
-        w.u16(self.pulse_duration_ms);
-        w.u32(self.interval_s);
-        w.u32(self.phase_s);
-        w.u16(self.baseline_s);
-        w.u16(self.recovery_s);
-        w.u16(self.sample_hz);
-        w.u16(self.bin_ms);
-        b
-    }
-
-    /// Parse wire bytes (no validation; `enabled` is any nonzero byte).
-    pub fn from_bytes(b: &[u8; SCHEDULE_LEN]) -> Schedule {
-        let mut r = R { buf: b, pos: 0 };
-        Schedule {
-            enabled: r.u8() != 0,
-            flags: r.u8(),
-            pulse_duration_ms: r.u16(),
-            interval_s: r.u32(),
-            phase_s: r.u32(),
-            baseline_s: r.u16(),
-            recovery_s: r.u16(),
-            sample_hz: r.u16(),
-            bin_ms: r.u16(),
-        }
-    }
-
-    /// `FieldStatus.schedule_crc` the board reports once it has accepted
-    /// this schedule: low 16 bits of CRC-32 over the 20 bytes.
-    pub fn crc16(&self) -> u16 {
-        (crc32(&self.to_bytes()) & 0xFFFF) as u16
+/// Human-readable reason for a [`ScheduleError`].
+pub fn schedule_error_text(e: ScheduleError) -> &'static str {
+    match e {
+        ScheduleError::Enabled => "enabled must be 0 or 1",
+        ScheduleError::Flags => "only flags bit 0 (REQUIRE_LEASE) is defined",
+        ScheduleError::PulseDuration => "pulse_duration_ms must be 500, 1000 or 1500",
+        ScheduleError::Interval => "interval_s must be >= 600",
+        ScheduleError::Baseline => "baseline_s must be 10..=300",
+        ScheduleError::Recovery => "recovery_s must be 60..=600",
+        ScheduleError::Timing => "baseline_s + recovery_s + 600 s cooldown must be < interval_s",
+        ScheduleError::SampleHz => "sample_hz must be 10, 20 or 25",
+        ScheduleError::BinMs => "bin_ms must be 250, 500 or 1000",
     }
 }
 
