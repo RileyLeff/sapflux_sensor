@@ -30,8 +30,9 @@ pub const CHUNK_LEN: usize = 100;
 const QUEUE: usize = 2;
 /// Sectors scanned between `tick` calls during [`RawLog::mount`].
 const TICK_SECTORS: u32 = 64;
-/// Boot scans before the newest sector is accepted even with a bad CRC
-/// (each failed one excludes that sector; ~0.4 s apiece).
+/// Boot scans for a newest sector whose first block passes its CRC (each
+/// failure excludes that sector; ~0.4 s apiece). Past this the log stays
+/// off. A power cut tears at most one page, so one rescan is the norm.
 const MOUNT_SCANS: usize = 3;
 
 /// Where the ring lives.
@@ -139,6 +140,8 @@ impl<const RUNS: usize> RawLog<RUNS> {
     /// counts if its `seq` matches its ring position (`seq` and the write
     /// head advance together), and the chosen newest sector's whole first
     /// block must pass its CRC; if it does not, the scan repeats without it.
+    /// (`seq` would only break the position match at its u32 rollover,
+    /// ~975 years of logging at 24 pulses a day.)
     pub fn mount<N: Nor>(
         &mut self,
         flash: &mut Flash<N>,
@@ -197,7 +200,13 @@ impl<const RUNS: usize> RawLog<RUNS> {
             if !flash.read(geo.base + sector * SECTOR_BYTES, &mut block) {
                 return false;
             }
-            if verify_block(&block).is_err() && scan + 1 < MOUNT_SCANS {
+            if verify_block(&block).is_err() {
+                if scan + 1 == MOUNT_SCANS {
+                    // No trustworthy head: writing anywhere could erase
+                    // logged runs, so the log stays off this boot.
+                    *self = Self::new();
+                    return false;
+                }
                 rejected[scan] = sector;
                 continue;
             }
@@ -595,6 +604,18 @@ mod tests {
         assert_eq!(fetch(&log, &mut f, 3).unwrap(), c);
         let blk: &[u8] = &f.nor.bytes[(GEO.base + 3 * SECTOR_BYTES) as usize..][..BLOCK_LEN];
         assert_eq!(parse_prefix(blk).unwrap().run_id, 3);
+
+        // Torn pages in every scan's newest sector: no head is trusted, the
+        // log stays off rather than resume from a bad CRC.
+        for sector in 3..6 {
+            torn[8..12].copy_from_slice(&(sector * PAGES_PER_SECTOR | 1 << 31).to_le_bytes());
+            let dst = (GEO.base + sector * SECTOR_BYTES) as usize;
+            f.nor.bytes[dst..][..BLOCK_LEN].copy_from_slice(&torn);
+        }
+        let mut log = RawLog::<16>::new();
+        assert!(!log.mount(&mut f, GEO, || {}));
+        assert!(!log.is_mounted());
+        assert_eq!(log.run_ids().count(), 0);
     }
 
     #[test]
