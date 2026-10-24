@@ -274,6 +274,30 @@ only, so every connection would pay for a TLS handshake.
 
 ## Bench checklist
 
+Before deployment (blocking):
+
+- [ ] Flash `heater_monitor` ≥ 0.2.0. Touch each probe-2 thermistor and confirm
+      P2T1..P2T6 rise in order (map in `heater_monitor.rs` is inferred from
+      `elec/adc.ato`, never read).
+- [ ] TPL5010 soak: run 30+ min with a short schedule; `boot_count` in
+      `sap-flux-field query` must not increase and heaters must still fire.
+- [ ] Field strap (PA6 low): `sap-flux-field query` works over J6, the line
+      is silent between commands, `get-window`/`ack-window` round-trip a real
+      window.
+- [ ] Set the deployment schedule on the bench with `sap-flux-field
+      set-schedule` (a blank EEPROM is disabled); power-cycle and confirm the
+      schedule, boot count and trim persist.
+- [ ] Create the VPS, deploy `server/` (`server/deploy/README.md`), `sapflux
+      keygen`, and make sure the real server config has `[defaults]
+      enabled = true` (the code default is disabled).
+- [ ] Write `firmware/nrf9160-gateway/gateway.local.toml` (VPS IPv4, port
+      47800, device id, key), rebuild with `tools/package.sh`, and check the
+      build log has no "placeholder" warning before flashing.
+- [ ] End to end: after the first check-in `sapflux status` shows the device
+      with the schedule in sync, and the first window arrives complete.
+
+General:
+
 - [ ] Confirm whether PA13/PA14 are LPUART1 or LPUART2 (scope PA14 in UART mode).
 - [ ] Measure board current: streaming vs. RS-485 receiver off vs. Stop.
 - [ ] Identify Feather revision (micro-USB = v1–v3; LIS2DH12 present = v2+).
