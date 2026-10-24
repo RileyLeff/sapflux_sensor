@@ -401,6 +401,33 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
         WindowChunk::new(info.run_id, chunk, &self.data[i][range])
     }
 
+    /// Whether `run_id` is a pending (completed, undelivered) RAM window.
+    pub fn has_pending(&self, run_id: u32) -> bool {
+        run_id != 0 && self.find_pending(run_id).is_some()
+    }
+
+    /// Header and data bytes of a pending window (`run_id` 0 = oldest).
+    pub fn pending_window(&self, run_id: u32) -> Option<(&WindowInfo, &[u8])> {
+        let i = self.find_pending(run_id)?;
+        let info = &self.meta[i].info;
+        Some((info, &self.data[i][..info.n_bins as usize * BIN_BYTES]))
+    }
+
+    /// Free a pending window that now lives elsewhere (persisted to flash),
+    /// without counting it as delivered.
+    pub fn release(&mut self, run_id: u32) -> bool {
+        if run_id == 0 {
+            return false;
+        }
+        match self.find_pending(run_id) {
+            Some(i) => {
+                self.meta[i] = FREE_SLOT;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Free a delivered window. True if it was pending or was already
     /// acknowledged recently (a retried `AckWindow`).
     pub fn ack(&mut self, run_id: u32) -> bool {

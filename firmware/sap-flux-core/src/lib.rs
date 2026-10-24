@@ -8,3 +8,4 @@ pub mod records;
 pub mod schedule;
 pub mod trim;
 pub mod window;
+pub mod winlog;

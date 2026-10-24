@@ -134,8 +134,12 @@ CRC-32 (protocol CRC) over the full data byte string. Bin `k` covers
 `[100·i, 100·i + len)`. `chunk_count = ceil(total_bytes / 100)`.
 
 Default size: (60 + 1 + 180) s × 2 bins/s ≈ 482 bins × 13 × 2 B ≈ 12.5 kB,
-126 chunks. The board keeps the newest 4 undelivered windows in RAM and
-overwrites the oldest (flag the overwrite in `FieldStatus`).
+126 chunks. A finished window is written to one of 256 SPI-flash slots
+(read back and verified, then freed from RAM) and served from flash, so a
+board reset loses no undelivered window. `AckWindow` marks the slot
+delivered. When all 256 slots hold undelivered windows, the next window
+overwrites the oldest (`windows_dropped`). Without a working flash the board
+keeps the newest 4 undelivered windows in RAM, as before.
 
 `FieldStatus` (52 B): `monotonic_us: u64`, `rtc_unix_ms: i64`,
 `next_pulse_unix_s: u32` (0 if disabled), `schedule_flags: u8` (bit 0

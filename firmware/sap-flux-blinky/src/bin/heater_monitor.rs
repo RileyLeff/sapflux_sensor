@@ -25,7 +25,8 @@ use panic_halt as _;
 use sap_flux_blinky::w25q::W25q;
 use sap_flux_core::civil_time::{datetime_to_unix_ms, unix_ms_to_datetime, UtcDateTime};
 use sap_flux_core::flash::{
-    Flash, Nor, Ready, ERASE_TIMEOUT_MS, JEDEC_W25Q256JV, RAW_BASE, RAW_SECTORS,
+    Flash, Nor, Ready, ERASE_TIMEOUT_MS, JEDEC_W25Q256JV, RAW_BASE, RAW_SECTORS, WIN_BASE,
+    WIN_SLOTS,
 };
 use sap_flux_core::pulse::{
     BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State, COOLDOWN_MS,
@@ -35,6 +36,7 @@ use sap_flux_core::records;
 use sap_flux_core::schedule::{Action, Inputs, Planner};
 use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
 use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
+use sap_flux_core::winlog::WindowLog;
 use sap_flux_protocol::raw::RawFrame;
 use sap_flux_protocol::{
     encode, Ack, BoardState, Decoder, ErrorReport, FieldStatus, Hello, Message, Sample12,
@@ -168,6 +170,15 @@ type RawLogStore = RawLog<RAW_RUNS>;
 // All-zero until mounted: .bss.
 static mut RAW_LOG: RawLogStore = RawLogStore::new();
 
+// Completed windows move from RAM to 256 flash slots (upper 8 MiB) and are
+// served from there, so a reset loses nothing undelivered and an outage can
+// last up to 256 windows. GetWindow/AckWindow wait at most this long for a
+// flash operation in flight; past it the board stays silent and the Feather
+// retries (the field link promises replies within 200 ms).
+const WINDOW_READ_WAIT_MS: u64 = 150;
+type WindowLogStore = WindowLog<WIN_SLOTS>;
+static mut WINDOW_LOG: WindowLogStore = WindowLogStore::new();
+
 static RS485_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 // Holds the commands the Feather sends during a heater pulse (not polled).
 static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
@@ -297,6 +308,7 @@ struct Ctx<'d> {
     field: FieldState,
     flash: Flash<W25q<'d>>,
     raw: &'static mut RawLogStore,
+    window_log: &'static mut WindowLogStore,
 }
 
 impl Ctx<'_> {
@@ -538,6 +550,11 @@ async fn main(_spawner: Spawner) {
     let raw = unsafe { &mut *core::ptr::addr_of_mut!(RAW_LOG) };
     // Reads 16 B of each of the 6144 sector headers (~0.4 s at 4 MHz).
     raw.mount(&mut flash, RAW_GEOMETRY, || iwdg.pet());
+    // SAFETY: the only reference to WINDOW_LOG, taken once in main.
+    let window_log = unsafe { &mut *core::ptr::addr_of_mut!(WINDOW_LOG) };
+    // Reads the 256 slot header pages (~0.14 s); undelivered windows are
+    // then served from flash.
+    window_log.mount(&mut flash, WIN_BASE, || iwdg.pet());
     let _led_red = Output::new(p.PB3, Level::High, Speed::Low);
     let _led_green = Output::new(p.PB4, Level::High, Speed::Low);
     let _led_blue = Output::new(p.PB5, Level::High, Speed::Low);
@@ -693,6 +710,7 @@ async fn main(_spawner: Spawner) {
         },
         flash,
         raw,
+        window_log,
     };
 
     excitation.set_high();
@@ -958,8 +976,19 @@ fn raw_frame(frame: &Frame, machine: &Machine) -> RawFrame {
 /// polled until done). Called every ~250 us from the frame wait loop.
 fn service_storage(ctx: &mut Ctx<'_>) {
     let now_ms = Instant::now().as_millis();
-    let allow_erase = !heater_on(ctx);
-    ctx.raw.service(&mut ctx.flash, now_ms, allow_erase);
+    let heater_off = !heater_on(ctx);
+    if !ctx.flash.is_ok() {
+        // Dead chip (timeout or failed read-back): windows stored there are
+        // unreachable, so stop reporting them; new ones stay in RAM.
+        if ctx.window_log.is_mounted() {
+            ctx.window_log.disable();
+        }
+        return;
+    }
+    if !ctx.raw.service(&mut ctx.flash, now_ms, heater_off) && heater_off {
+        ctx.window_log
+            .service(&mut ctx.flash, now_ms, ctx.field.windows);
+    }
 }
 
 /// Wait (bounded) for the flash to finish a program or erase in flight.
@@ -1146,15 +1175,28 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
         }
         Message::GetFieldStatus(_) => CommandResponses::one(field_status_message(ctx)),
         Message::GetWindow(command) => {
+            if ctx.window_log.needs_flash(ctx.field.windows, command.run_id) {
+                // Bench link: no flash reads while the heater is on.
+                if heater_on(ctx) {
+                    return CommandResponses::one(ack_message(
+                        sap_flux_protocol::MSG_GET_WINDOW,
+                        rejection_result(Rejection::WrongState),
+                        command.command_nonce,
+                        command.run_id,
+                    ));
+                }
+                if !flash_idle(ctx, WINDOW_READ_WAIT_MS).await && ctx.flash.is_ok() {
+                    // Still erasing: stay silent, the host retries.
+                    return CommandResponses::none();
+                }
+            }
             let reply = if command.chunk == sap_flux_protocol::CHUNK_HEADER {
-                ctx.field
-                    .windows
-                    .info(command.run_id)
+                ctx.window_log
+                    .info(&mut ctx.flash, ctx.field.windows, command.run_id)
                     .map(Message::WindowInfo)
             } else {
-                ctx.field
-                    .windows
-                    .chunk(command.run_id, command.chunk)
+                ctx.window_log
+                    .chunk(&mut ctx.flash, ctx.field.windows, command.run_id, command.chunk)
                     .map(Message::WindowChunk)
             };
             CommandResponses::one(reply.unwrap_or_else(|| {
@@ -1167,7 +1209,9 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
             }))
         }
         Message::AckWindow(command) => {
-            let result = if ctx.field.windows.ack(command.run_id) {
+            // A flash window's delivered marker is programmed later by
+            // service_storage, so this never waits on the chip.
+            let result = if ctx.window_log.ack(ctx.field.windows, command.run_id) {
                 OK_RESULT
             } else {
                 sap_flux_protocol::ACK_NOT_FOUND
@@ -1673,6 +1717,8 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
     let unix_ms = ctx.unix_ms();
     let planner = &ctx.field.planner;
     let schedule = planner.schedule();
+    let windows = &*ctx.window_log;
+    let ram = &*ctx.field.windows;
     let mut flags = 0;
     if schedule.is_enabled() {
         flags |= FIELD_STATUS_ENABLED;
@@ -1703,15 +1749,15 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
         rtc_unix_ms: unix_ms.unwrap_or(-1),
         next_pulse_unix_s: planner.next_pulse_unix_s(now_ms, unix_ms),
         schedule_flags: flags,
-        windows_pending: ctx.field.windows.windows_pending() as u8,
-        windows_dropped: ctx.field.windows.windows_dropped(),
-        oldest_pending_run_id: ctx.field.windows.oldest_pending_run_id(),
-        last_run_id: ctx.field.windows.last_run_id(),
+        windows_pending: windows.windows_pending(ram).min(u8::MAX as usize) as u8,
+        windows_dropped: windows.windows_dropped(ram),
+        oldest_pending_run_id: windows.oldest_pending_run_id(ram),
+        last_run_id: windows.last_run_id(ram),
         calr_ppb: ctx.field.trim_ppb,
         last_rtc_step_ms: ctx.field.last_rtc_step_ms,
         boot_count: ctx.field.boot_count as u16,
         v24_raw: ctx.field.v24_raw,
-        flash_used_kib: ctx.raw.used_kib(),
+        flash_used_kib: ctx.raw.used_kib() + windows.used_kib(),
         schedule_crc: schedule.crc16(),
     })
 }
