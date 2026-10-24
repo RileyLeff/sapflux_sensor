@@ -24,11 +24,15 @@ use embassy_time::{Duration, Instant, Timer};
 use panic_halt as _;
 use sap_flux_core::civil_time::{datetime_to_unix_ms, unix_ms_to_datetime, UtcDateTime};
 use sap_flux_core::pulse::{
-    BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State,
+    BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State, COOLDOWN_MS,
 };
+use sap_flux_core::records;
+use sap_flux_core::schedule::{Action, Inputs, Planner};
 use sap_flux_protocol::{
-    encode, Ack, BoardState, Decoder, Hello, Message, Sample12, Status, CAP_ADC, CAP_HEATER_CONTROL,
-    CAP_RTC, CAP_V24_MONITOR, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
+    encode, Ack, BoardState, Decoder, FieldStatus, Hello, Message, Sample12, Schedule, Status,
+    CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
+    FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
+    FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
     FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN,
 };
 use static_cell::StaticCell;
@@ -46,6 +50,10 @@ const ADS_MUX_AIN0_GND: u16 = 0x4000;
 const ADS_MUX_AIN1_GND: u16 = 0x5000;
 const RTC_MAGIC: u32 = 0x5346_5031;
 const RTC_MAGIC_INVERSE: u32 = !RTC_MAGIC;
+// TAMP backup registers (5 on STM32G0B1). 0/1 hold the RTC-valid magic and
+// share the RTC's backup domain, which also validates the others.
+const BKP_LEASE_UNTIL: usize = 2;
+const EEPROM_PAGE_LEN: usize = records::PAGE_LEN as usize;
 #[cfg(not(feature = "dev-short-cooldown"))]
 const FIRMWARE_VERSION: u32 = 0x00_01_02;
 // Patch 32 is intentionally conspicuous in the monitor: this is the
@@ -148,26 +156,71 @@ enum Ingress {
 }
 
 struct CommandResponses {
-    messages: [Option<Message>; 3],
+    messages: [Option<Message>; 4],
 }
 
 impl CommandResponses {
     fn none() -> Self {
         Self {
-            messages: [None, None, None],
+            messages: [None, None, None, None],
+        }
+    }
+
+    fn one(message: Message) -> Self {
+        Self {
+            messages: [Some(message), None, None, None],
         }
     }
 
     fn ack_and_status(ack: Message, status: Message) -> Self {
         Self {
-            messages: [Some(ack), Some(status), None],
+            messages: [Some(ack), Some(status), None, None],
         }
     }
 
-    fn query(ack: Message, hello: Message, status: Message) -> Self {
+    fn query(ack: Message, hello: Message, status: Message, field: Option<Message>) -> Self {
         Self {
-            messages: [Some(ack), Some(hello), Some(status)],
+            messages: [Some(ack), Some(hello), Some(status), field],
         }
+    }
+}
+
+/// Field-mode state: autonomous schedule and bookkeeping for FieldStatus.
+struct FieldState {
+    /// PA6 strapped low at boot (LPUART field link).
+    field_mode: bool,
+    planner: Planner,
+    /// What the EEPROM schedule record holds (None if unknown/unreadable).
+    schedule_in_eeprom: Option<Schedule>,
+    boot_count: u32,
+    v24_raw: i16,
+}
+
+/// Everything command handling and the scheduler act on.
+struct Ctx<'d> {
+    rtc: Rtc,
+    rtc_provider: RtcTimeProvider,
+    rtc_valid: bool,
+    board_id: u64,
+    machine: Machine,
+    hardware_pulse: HardwarePulse<'d>,
+    i2c: BoardI2c<'d>,
+    eeprom_wp: Output<'d>,
+    fault_code: u8,
+    field: FieldState,
+}
+
+impl Ctx<'_> {
+    fn unix_ms(&self) -> Option<i64> {
+        rtc_now_ms(&self.rtc_provider, self.rtc_valid)
+    }
+
+    fn status(&self) -> Message {
+        status_message(&self.machine, &self.rtc_provider, self.rtc_valid, self.fault_code)
+    }
+
+    fn ack(&self, command_type: u8, result: u8, command_nonce: u64) -> Message {
+        ack_message(command_type, result, command_nonce, self.machine.run_id())
     }
 }
 
@@ -444,7 +497,7 @@ async fn main(_spawner: Spawner) {
 
     let mut v24_monitor = p.PB1;
     let mut internal_adc = Adc::new(p.ADC1);
-    let (mut rtc, rtc_provider) = Rtc::new(p.RTC, RtcConfig::default());
+    let (rtc, rtc_provider) = Rtc::new(p.RTC, RtcConfig::default());
     enable_backup_domain_access().await;
     let mut rtc_valid = read_rtc_magic();
     // Migrate clocks set by the previous one-word marker, but do not accept a
@@ -455,22 +508,59 @@ async fn main(_spawner: Spawner) {
     }
     let board_id = board_id();
     let lockout_read = read_lockout(&mut i2c);
-    let mut fault_code = if lockout_read.is_err() {
+    let fault_code = if lockout_read.is_err() {
         FAULT_PERSISTENCE
     } else {
         0
     };
-    let mut machine = Machine::boot(Instant::now().as_millis(), lockout_read.unwrap_or(true));
+    let machine = Machine::boot(Instant::now().as_millis(), lockout_read.unwrap_or(true));
+
+    // Stored schedule: a blank, corrupt, unreadable or out-of-limits record
+    // falls back to the factory default, which is disabled.
+    let schedule_in_eeprom = eeprom_read::<{ records::SCHEDULE_RECORD_LEN }>(
+        &mut i2c,
+        records::SCHEDULE_ADDR,
+    )
+    .and_then(|r| records::decode_schedule(&r));
+    let schedule = schedule_in_eeprom
+        .filter(|s| s.validate(COOLDOWN_MS as u32).is_ok())
+        .unwrap_or(Schedule::FACTORY_DEFAULT);
+    let boot_count = eeprom_read::<{ records::WORD_RECORD_LEN }>(&mut i2c, records::BOOT_COUNT_ADDR)
+        .and_then(|r| records::decode_boot_count(&r))
+        .unwrap_or(0)
+        .wrapping_add(1);
+    let _ = eeprom_write_verified(
+        &mut i2c,
+        &mut eeprom_wp,
+        records::BOOT_COUNT_ADDR,
+        &records::encode_boot_count(boot_count),
+    )
+    .await;
+    let lease_until = if rtc_valid { read_bkp(BKP_LEASE_UNTIL) } else { 0 };
+
+    let mut ctx = Ctx {
+        rtc,
+        rtc_provider,
+        rtc_valid,
+        board_id,
+        machine,
+        hardware_pulse,
+        i2c,
+        eeprom_wp,
+        fault_code,
+        field: FieldState {
+            field_mode: ttl_uart_enabled,
+            planner: Planner::new(schedule, lease_until, boot_count),
+            schedule_in_eeprom,
+            boot_count,
+            v24_raw: 0,
+        },
+    };
 
     excitation.set_high();
     Timer::after_millis(5).await;
     broadcast_message(&mut rs485, &mut ttl_uart, hello_message(board_id)).await;
-    broadcast_message(
-        &mut rs485,
-        &mut ttl_uart,
-        status_message(&machine, &rtc_provider, rtc_valid, fault_code),
-    )
-    .await;
+    broadcast_message(&mut rs485, &mut ttl_uart, ctx.status()).await;
 
     let mut watchdog_bootstrapped = false;
     let mut watchdog_serviced = false;
@@ -480,35 +570,29 @@ async fn main(_spawner: Spawner) {
 
     loop {
         iwdg.pet();
-        service_pulse_state(
-            &mut machine,
-            &mut hardware_pulse,
-            &mut i2c,
-            &mut eeprom_wp,
-            &mut fault_code,
-        )
-        .await;
+        service_pulse_state(&mut ctx).await;
         let cycle_index = frame_counter % FRAMES_PER_CYCLE;
         frame_counter = frame_counter.wrapping_add(1);
         excitation.set_high();
 
         let frame = acquire_frame(
-            &mut i2c,
+            &mut ctx.i2c,
             &mut internal_adc,
             &mut v24_monitor,
             &mut mux,
-            &rtc_provider,
-            rtc_valid,
+            &ctx.rtc_provider,
+            ctx.rtc_valid,
             pgood.is_high(),
-            hardware_pulse.is_running(),
+            ctx.hardware_pulse.is_running(),
         )
         .await;
-        machine.update_health(Health {
-            rtc_valid,
+        ctx.machine.update_health(Health {
+            rtc_valid: ctx.rtc_valid,
             pgood: frame.flags & FLAG_PGOOD != 0,
             adc_valid: frame.heater_health_valid,
             measured_at_ms: Instant::now().as_millis(),
         });
+        ctx.field.v24_raw = frame.v24_raw;
 
         // TPL5010 does not emit WAKE at the beginning of its first cycle.
         // Reaching this point proves the control loop completed an acquisition
@@ -520,22 +604,19 @@ async fn main(_spawner: Spawner) {
             watchdog_serviced = watchdog_wake.is_high();
         }
 
+        run_scheduler(&mut ctx).await;
+
         if cycle_index != 0 {
             let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
             let extra = if command_window { FLAG_COMMAND_WINDOW } else { 0 };
             broadcast_message(
                 &mut rs485,
                 &mut ttl_uart,
-                sample12_message(&frame, &machine, extra),
+                sample12_message(&frame, &ctx.machine, extra),
             )
             .await;
             if cycle_index == STATUS_FRAME_IN_CYCLE {
-                broadcast_message(
-                    &mut rs485,
-                    &mut ttl_uart,
-                    status_message(&machine, &rtc_provider, rtc_valid, fault_code),
-                )
-                .await;
+                broadcast_message(&mut rs485, &mut ttl_uart, ctx.status()).await;
             }
         }
         if ttl_uart.is_some() && Instant::now() >= next_uart_hello_at {
@@ -552,19 +633,7 @@ async fn main(_spawner: Spawner) {
         let frame_deadline = next_frame_at;
         loop {
             while let Some(message) = rs485.poll_message() {
-                let responses = handle_command(
-                    message,
-                    &mut rtc,
-                    &rtc_provider,
-                    &mut rtc_valid,
-                    board_id,
-                    &mut machine,
-                    &mut hardware_pulse,
-                    &mut i2c,
-                    &mut eeprom_wp,
-                    &mut fault_code,
-                )
-                .await;
+                let responses = handle_command(message, &mut ctx).await;
                 send_responses(Ingress::Rs485, responses, &mut rs485, &mut ttl_uart).await;
             }
 
@@ -573,30 +642,11 @@ async fn main(_spawner: Spawner) {
                 let Some(message) = message else {
                     break;
                 };
-                let responses = handle_command(
-                    message,
-                    &mut rtc,
-                    &rtc_provider,
-                    &mut rtc_valid,
-                    board_id,
-                    &mut machine,
-                    &mut hardware_pulse,
-                    &mut i2c,
-                    &mut eeprom_wp,
-                    &mut fault_code,
-                )
-                .await;
+                let responses = handle_command(message, &mut ctx).await;
                 send_responses(Ingress::TtlUart, responses, &mut rs485, &mut ttl_uart).await;
             }
 
-            service_pulse_state(
-                &mut machine,
-                &mut hardware_pulse,
-                &mut i2c,
-                &mut eeprom_wp,
-                &mut fault_code,
-            )
-            .await;
+            service_pulse_state(&mut ctx).await;
 
             if watchdog_wake.is_high() {
                 if !watchdog_serviced {
@@ -763,60 +813,40 @@ async fn read_ads_single(i2c: &mut BoardI2c<'_>, mux_bits: u16) -> Option<i16> {
     Some(i16::from_be_bytes(read))
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn handle_command(
-    message: Message,
-    rtc: &mut Rtc,
-    rtc_provider: &RtcTimeProvider,
-    rtc_valid: &mut bool,
-    board_id: u64,
-    machine: &mut Machine,
-    hardware_pulse: &mut HardwarePulse<'_>,
-    i2c: &mut BoardI2c<'_>,
-    eeprom_wp: &mut Output<'_>,
-    fault_code: &mut u8,
-) -> CommandResponses {
+async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses {
+    let now_ms = Instant::now().as_millis();
     match message {
         Message::Query(command) => CommandResponses::query(
-            ack_message(
-                sap_flux_protocol::MSG_QUERY,
-                OK_RESULT,
-                command.command_nonce,
-                machine.run_id(),
-            ),
-            hello_message(board_id),
-            status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+            ctx.ack(sap_flux_protocol::MSG_QUERY, OK_RESULT, command.command_nonce),
+            hello_message(ctx.board_id),
+            ctx.status(),
+            ctx.field.field_mode.then(|| field_status_message(ctx)),
         ),
         Message::SetRtc(command) => {
             // A sync can wait up to one second for a whole-second boundary.
             // Only SafeIdle may pause command processing for that long.
-            let mut result = if machine.state() == State::SafeIdle {
-                set_rtc(rtc, command.unix_ms).await
+            let mut result = if ctx.machine.state() == State::SafeIdle {
+                set_rtc(&mut ctx.rtc, command.unix_ms).await
             } else {
                 rejection_result(Rejection::WrongState)
             };
             if result == OK_RESULT {
                 write_rtc_magic();
-                *rtc_valid = read_rtc_magic();
-                if !*rtc_valid {
+                ctx.rtc_valid = read_rtc_magic();
+                if !ctx.rtc_valid {
                     result = BACKUP_WRITE_FAILED_RESULT;
                 }
             }
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_SET_RTC,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_SET_RTC, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::StartBaseline(command) => {
-            let result = if *fault_code != 0 {
+            let result = if ctx.fault_code != 0 {
                 PERSISTENCE_FAILED_RESULT
             } else {
-                machine
+                ctx.machine
                     .start_baseline(
                         BaselineRequest {
                             run_id: command.run_id,
@@ -825,129 +855,188 @@ async fn handle_command(
                             sample_hz: command.requested_sample_hz,
                             require_rtc: true,
                         },
-                        Instant::now().as_millis(),
+                        now_ms,
                     )
                     .map(|_| OK_RESULT)
                     .unwrap_or_else(rejection_result)
             };
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_START_BASELINE,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_START_BASELINE, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::ArmPulse(command) => {
             let result = PulseDuration::from_ms(command.pulse_duration_ms)
                 .ok_or(Rejection::InvalidParameter)
-                .and_then(|duration| {
-                    machine.arm(command.run_id, duration, Instant::now().as_millis())
-                })
+                .and_then(|duration| ctx.machine.arm(command.run_id, duration, now_ms))
                 .map(|_| OK_RESULT)
                 .unwrap_or_else(rejection_result);
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_ARM_PULSE,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_ARM_PULSE, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::FirePulse(command) => {
-            let result = match machine.request_fire(
-                command.run_id,
-                command.command_nonce,
-                Instant::now().as_millis(),
-            ) {
-                Ok(Effect::PersistLockout) => {
-                    if persist_lockout(i2c, eeprom_wp, command.run_id, command.command_nonce).await
-                    {
-                        match machine.confirm_lockout_persisted(Instant::now().as_millis()) {
-                            Ok(Effect::StartHardwarePulse(duration)) => {
-                                hardware_pulse.start(duration);
-                                OK_RESULT
-                            }
-                            Ok(_) => INVALID_PARAMETER_RESULT,
-                            Err(rejection) => rejection_result(rejection),
-                        }
-                    } else {
-                        hardware_pulse.force_off();
-                        machine.persistence_failed();
-                        *fault_code = FAULT_PERSISTENCE;
-                        PERSISTENCE_FAILED_RESULT
-                    }
-                }
-                Ok(_) => INVALID_PARAMETER_RESULT,
-                Err(rejection) => rejection_result(rejection),
-            };
+            let result = fire_sequence(ctx, command.run_id, command.command_nonce).await;
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_FIRE_PULSE,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_FIRE_PULSE, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::Abort(command) => {
-            let result = if machine.run_id() != command.run_id {
+            let result = if ctx.machine.run_id() != command.run_id {
                 rejection_result(Rejection::WrongRun)
             } else {
-                hardware_pulse.force_off();
-                machine.abort(Instant::now().as_millis());
+                ctx.hardware_pulse.force_off();
+                ctx.machine.abort(now_ms);
                 OK_RESULT
             };
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_ABORT,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_ABORT, result, command.command_nonce),
+                ctx.status(),
             )
         }
-        Message::Hello(_)
-        | Message::Sample(_)
-        | Message::Status(_)
-        | Message::Ack(_)
-        | Message::Error(_) => CommandResponses::none(),
+        Message::SetSchedule(command) => {
+            let result = set_schedule(ctx, command.schedule, command.lease_until_unix_s).await;
+            CommandResponses::ack_and_status(
+                ctx.ack(sap_flux_protocol::MSG_SET_SCHEDULE, result, command.command_nonce),
+                field_status_message(ctx),
+            )
+        }
+        Message::GetFieldStatus(_) => CommandResponses::one(field_status_message(ctx)),
+        // Board-to-host messages and anything this firmware does not
+        // implement are ignored, exactly like unknown bytes.
         _ => CommandResponses::none(),
     }
 }
 
-async fn service_pulse_state(
-    machine: &mut Machine,
-    hardware_pulse: &mut HardwarePulse<'_>,
-    i2c: &mut BoardI2c<'_>,
-    eeprom_wp: &mut Output<'_>,
-    fault_code: &mut u8,
-) {
+/// Validate, persist (only when it changed) and apply a schedule.
+///
+/// A schedule that cannot be persisted is not applied, except that a
+/// disable always takes effect in RAM: the heater must be stoppable even
+/// with a broken EEPROM. Both cases still report PERSISTENCE_FAILED.
+async fn set_schedule(ctx: &mut Ctx<'_>, schedule: Schedule, lease_until_unix_s: u32) -> u8 {
+    if schedule.validate(COOLDOWN_MS as u32).is_err() {
+        return INVALID_PARAMETER_RESULT;
+    }
+    let persisted = ctx.field.schedule_in_eeprom == Some(schedule)
+        || eeprom_write_verified(
+            &mut ctx.i2c,
+            &mut ctx.eeprom_wp,
+            records::SCHEDULE_ADDR,
+            &records::encode_schedule(&schedule),
+        )
+        .await;
+    if persisted {
+        ctx.field.schedule_in_eeprom = Some(schedule);
+    } else {
+        ctx.field.schedule_in_eeprom = None;
+    }
+    if persisted || !schedule.is_enabled() {
+        ctx.field
+            .planner
+            .set_schedule(schedule, Instant::now().as_millis());
+        ctx.field.planner.set_lease(lease_until_unix_s);
+        write_bkp(BKP_LEASE_UNTIL, lease_until_unix_s);
+    }
+    if persisted {
+        OK_RESULT
+    } else {
+        PERSISTENCE_FAILED_RESULT
+    }
+}
+
+/// Persist the lockout, then start the hardware one-pulse: the only path to
+/// the heater, shared by host FirePulse and the scheduler.
+async fn fire_sequence(ctx: &mut Ctx<'_>, run_id: u32, nonce: u64) -> u8 {
+    match ctx
+        .machine
+        .request_fire(run_id, nonce, Instant::now().as_millis())
+    {
+        Ok(Effect::PersistLockout) => {
+            if persist_lockout(&mut ctx.i2c, &mut ctx.eeprom_wp, run_id, nonce).await {
+                match ctx
+                    .machine
+                    .confirm_lockout_persisted(Instant::now().as_millis())
+                {
+                    Ok(Effect::StartHardwarePulse(duration)) => {
+                        ctx.hardware_pulse.start(duration);
+                        OK_RESULT
+                    }
+                    Ok(_) => INVALID_PARAMETER_RESULT,
+                    Err(rejection) => rejection_result(rejection),
+                }
+            } else {
+                ctx.hardware_pulse.force_off();
+                ctx.machine.persistence_failed();
+                ctx.fault_code = FAULT_PERSISTENCE;
+                PERSISTENCE_FAILED_RESULT
+            }
+        }
+        Ok(_) => INVALID_PARAMETER_RESULT,
+        Err(rejection) => rejection_result(rejection),
+    }
+}
+
+/// Execute the planner's actions for this frame through the same machine
+/// calls the host commands use. Up to three actions per frame so arm and
+/// fire land in the same frame.
+async fn run_scheduler(ctx: &mut Ctx<'_>) {
+    for _ in 0..3 {
+        let now_ms = Instant::now().as_millis();
+        let action = ctx.field.planner.poll(Inputs {
+            now_ms,
+            unix_ms: ctx.unix_ms(),
+            state: ctx.machine.state(),
+            machine_run_id: ctx.machine.run_id(),
+            hold: ctx.fault_code != 0,
+        });
+        match action {
+            Action::None => return,
+            Action::StartBaseline(request) => {
+                if ctx.machine.start_baseline(request, now_ms).is_err() {
+                    ctx.field.planner.start_rejected();
+                    return;
+                }
+            }
+            Action::Arm { run_id, duration } => {
+                if ctx.machine.arm(run_id, duration, now_ms).is_err() {
+                    return;
+                }
+            }
+            Action::Fire { run_id, nonce } => {
+                if fire_sequence(ctx, run_id, nonce).await != OK_RESULT {
+                    return;
+                }
+            }
+            Action::Abort { .. } => {
+                ctx.hardware_pulse.force_off();
+                ctx.machine.abort(now_ms);
+            }
+        }
+    }
+}
+
+async fn service_pulse_state(ctx: &mut Ctx<'_>) {
     let now_ms = Instant::now().as_millis();
-    if machine.state() == State::Pulsing && !hardware_pulse.is_running() {
-        hardware_pulse.force_off();
-        if machine.pulse_finished(now_ms).is_err() {
-            *fault_code = FAULT_PULSE_OVERRUN;
+    if ctx.machine.state() == State::Pulsing && !ctx.hardware_pulse.is_running() {
+        ctx.hardware_pulse.force_off();
+        if ctx.machine.pulse_finished(now_ms).is_err() {
+            ctx.fault_code = FAULT_PULSE_OVERRUN;
         }
     }
 
-    match machine.tick(now_ms) {
+    match ctx.machine.tick(now_ms) {
         Effect::ForceHeaterOff => {
-            hardware_pulse.force_off();
-            if machine.state() == State::Fault {
-                *fault_code = FAULT_PULSE_OVERRUN;
+            ctx.hardware_pulse.force_off();
+            if ctx.machine.state() == State::Fault {
+                ctx.fault_code = FAULT_PULSE_OVERRUN;
             }
         }
         Effect::ClearLockout => {
-            hardware_pulse.force_off();
-            if !clear_lockout(i2c, eeprom_wp).await {
-                *fault_code = FAULT_PERSISTENCE;
+            ctx.hardware_pulse.force_off();
+            if !clear_lockout(&mut ctx.i2c, &mut ctx.eeprom_wp).await {
+                ctx.fault_code = FAULT_PERSISTENCE;
             }
         }
         Effect::None | Effect::PersistLockout | Effect::StartHardwarePulse(_) => {}
@@ -1011,6 +1100,47 @@ async fn eeprom_wait_ready(i2c: &mut BoardI2c<'_>) -> bool {
         Timer::after_millis(5).await;
     }
     false
+}
+
+fn eeprom_read<const N: usize>(i2c: &mut BoardI2c<'_>, addr: u16) -> Option<[u8; N]> {
+    let mut out = [0_u8; N];
+    i2c.blocking_write_read(EEPROM_ADDR, &addr.to_be_bytes(), &mut out)
+        .ok()?;
+    Some(out)
+}
+
+/// Write `data` within one EEPROM page and read it back. Never used for the
+/// lockout record, which keeps its own dedicated path.
+async fn eeprom_write_verified(
+    i2c: &mut BoardI2c<'_>,
+    wp: &mut Output<'_>,
+    addr: u16,
+    data: &[u8],
+) -> bool {
+    let page = EEPROM_PAGE_LEN as u16;
+    if data.is_empty()
+        || data.len() > EEPROM_PAGE_LEN
+        || addr / page != (addr + data.len() as u16 - 1) / page
+        || addr + data.len() as u16 > LOCKOUT_ADDR
+    {
+        return false;
+    }
+    let mut write = [0_u8; 2 + EEPROM_PAGE_LEN];
+    write[..2].copy_from_slice(&addr.to_be_bytes());
+    write[2..2 + data.len()].copy_from_slice(data);
+
+    wp.set_low();
+    Timer::after_millis(1).await;
+    let wrote = i2c.blocking_write(EEPROM_ADDR, &write[..2 + data.len()]).is_ok()
+        && eeprom_wait_ready(i2c).await;
+    wp.set_high();
+    if !wrote {
+        return false;
+    }
+    let mut verify = [0_u8; EEPROM_PAGE_LEN];
+    i2c.blocking_write_read(EEPROM_ADDR, &addr.to_be_bytes(), &mut verify[..data.len()])
+        .is_ok()
+        && verify[..data.len()] == *data
 }
 
 fn rejection_result(rejection: Rejection) -> u8 {
@@ -1116,6 +1246,59 @@ fn read_legacy_rtc_magic() -> bool {
 fn write_rtc_magic() {
     pac::TAMP.bkpr(0).write(|w| w.set_bkp(RTC_MAGIC));
     pac::TAMP.bkpr(1).write(|w| w.set_bkp(RTC_MAGIC_INVERSE));
+}
+
+fn read_bkp(index: usize) -> u32 {
+    pac::TAMP.bkpr(index).read().bkp()
+}
+
+fn write_bkp(index: usize, value: u32) {
+    pac::TAMP.bkpr(index).write(|w| w.set_bkp(value));
+}
+
+fn field_status_message(ctx: &Ctx<'_>) -> Message {
+    let now_ms = Instant::now().as_millis();
+    let unix_ms = ctx.unix_ms();
+    let planner = &ctx.field.planner;
+    let schedule = planner.schedule();
+    let mut flags = 0;
+    if schedule.is_enabled() {
+        flags |= FIELD_STATUS_ENABLED;
+    }
+    if schedule.requires_lease() {
+        flags |= FIELD_STATUS_REQUIRE_LEASE;
+    }
+    if planner.lease_valid(unix_ms) {
+        flags |= FIELD_STATUS_LEASE_VALID;
+    }
+    if unix_ms.is_some() {
+        flags |= FIELD_STATUS_RTC_VALID;
+    }
+    // Heater inhibited: persisted lockout/cooldown, a pulse in progress, or
+    // a latched fault.
+    if matches!(
+        ctx.machine.state(),
+        State::Pulsing | State::Recovery | State::Cooldown | State::Fault
+    ) || ctx.fault_code != 0
+    {
+        flags |= FIELD_STATUS_HEATER_LOCKOUT;
+    }
+    Message::FieldStatus(FieldStatus {
+        monotonic_us: Instant::now().as_micros(),
+        rtc_unix_ms: unix_ms.unwrap_or(-1),
+        next_pulse_unix_s: planner.next_pulse_unix_s(now_ms, unix_ms),
+        schedule_flags: flags,
+        windows_pending: 0,
+        windows_dropped: 0,
+        oldest_pending_run_id: 0,
+        last_run_id: 0,
+        calr_ppb: 0,
+        last_rtc_step_ms: 0,
+        boot_count: ctx.field.boot_count as u16,
+        v24_raw: ctx.field.v24_raw,
+        flash_used_kib: 0,
+        schedule_crc: schedule.crc16(),
+    })
 }
 
 fn rtc_calendar_plausible(provider: &RtcTimeProvider) -> bool {
