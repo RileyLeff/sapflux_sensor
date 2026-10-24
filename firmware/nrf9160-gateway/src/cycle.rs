@@ -59,6 +59,8 @@ const Q_ACK: &[u8] = &[proto::MSG_ACK];
 const Q_ACK_FIELD_STATUS: &[u8] = &[proto::MSG_ACK, proto::MSG_FIELD_STATUS];
 const Q_WINDOW_INFO: &[u8] = &[proto::MSG_WINDOW_INFO];
 const Q_WINDOW_CHUNK: &[u8] = &[proto::MSG_WINDOW_CHUNK];
+/// Consecutive verify failures before a window is abandoned on the board.
+const BAD_WINDOW_LIMIT: u8 = 3;
 /// SetRtc: the board waits up to 1 s for the next second boundary before
 /// it acknowledges, so its Ack can take ~1.1 s (spec: 200 ms).
 const SET_RTC_TIMEOUTS_MS: [u64; 4] = [2000, 2000, 2000, 2000];
@@ -78,6 +80,10 @@ pub struct Gateway {
     server_schedule: Option<Schedule>,
     pub batt_mv: u16,
     window_buf: &'static mut [u8; WINDOW_BUF_LEN],
+    /// Window whose header or data_crc32 failed to verify, and in how many
+    /// consecutive fetches; abandoned at BAD_WINDOW_LIMIT so it can't block
+    /// the windows queued behind it.
+    bad_window: Option<(u32, u8)>,
 }
 
 /// Latest raw board frames, forwarded in CheckIn.
@@ -154,6 +160,7 @@ impl Gateway {
             server_schedule: None,
             batt_mv: 0,
             window_buf,
+            bad_window: None,
         }
     }
 
@@ -554,8 +561,12 @@ impl Gateway {
             remaining -= 1;
             wdog::alive();
             let Some((info, len)) = self.fetch_window(board).await else {
+                if self.abandon_bad_window(board).await {
+                    continue;
+                }
                 return;
             };
+            self.bad_window = None;
             let run_id = info.run_id;
             info!("window {}: {} B fetched, uploading", run_id, len);
             let data = &self.window_buf[..len];
@@ -595,6 +606,51 @@ impl Gateway {
         }
     }
 
+    fn note_bad_window(&mut self, run_id: u32) {
+        self.bad_window = match self.bad_window {
+            Some((id, n)) if id == run_id => Some((id, n.saturating_add(1))),
+            _ => Some((run_id, 1)),
+        };
+    }
+
+    /// Free a window that failed verification BAD_WINDOW_LIMIT times in a
+    /// row so the next one can be fetched. Returns true if one was freed.
+    async fn abandon_bad_window(&mut self, board: &mut BoardLink<'_>) -> bool {
+        let Some((run_id, n)) = self.bad_window else {
+            return false;
+        };
+        if n < BAD_WINDOW_LIMIT {
+            return false;
+        }
+        let nonce = board.next_nonce();
+        let r = board
+            .transact(
+                Expect::new(Q_ACK),
+                Message::AckWindow(AckWindow {
+                    command_nonce: nonce,
+                    run_id,
+                }),
+            )
+            .await;
+        match r {
+            Ok(_) | Err(LinkError::Rejected(proto::ACK_NOT_FOUND)) => {
+                event!(
+                    self.events,
+                    events::EVENT_WINDOW_DROPPED,
+                    "window {} abandoned after {} failed verifications",
+                    run_id,
+                    n
+                );
+                self.bad_window = None;
+                true
+            }
+            Err(e) => {
+                crate::board::log_err("AckWindow (abandon)", e);
+                false
+            }
+        }
+    }
+
     /// Fetch the oldest pending window into `window_buf`: the raw
     /// WindowInfo frame (102 B) followed by the data. Returns the header
     /// and total length.
@@ -626,6 +682,7 @@ impl Gateway {
         let total = header.len() + data_len;
         if !info.is_consistent() || header.len() != proto::WINDOW_INFO_FRAME_LEN || total > WINDOW_BUF_LEN
         {
+            self.note_bad_window(info.run_id);
             event!(
                 self.events,
                 events::EVENT_GATEWAY_BOARD_ERROR,
@@ -685,6 +742,7 @@ impl Gateway {
             }
         }
         if !info.verify_data(&self.window_buf[base..base + data_len]) {
+            self.note_bad_window(info.run_id);
             event!(
                 self.events,
                 events::EVENT_GATEWAY_BOARD_ERROR,
