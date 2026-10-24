@@ -1,0 +1,573 @@
+[
+ {
+  "session": "session_20260710_232911",
+  "simulated": false,
+  "firmware": null,
+  "board": null,
+  "start": "2026-07-10T23:29:11",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [],
+  "rows": 2
+ },
+ {
+  "session": "session_20260710_233040",
+  "simulated": true,
+  "firmware": "0.1.0",
+  "board": "51D000000000CAFE",
+  "start": "2026-07-10T23:30:40",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": []
+ },
+ {
+  "session": "session_20260710_233150",
+  "simulated": true,
+  "firmware": "0.1.0",
+  "board": "51D000000000CAFE",
+  "start": "2026-07-10T23:31:50",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": []
+ },
+ {
+  "session": "session_20260710_233529",
+  "simulated": true,
+  "firmware": "0.1.0",
+  "board": "51D000000000CAFE",
+  "start": "2026-07-10T23:35:29",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": []
+ },
+ {
+  "session": "session_20260710_233551",
+  "simulated": false,
+  "firmware": "0.0.1",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-10T23:35:51",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [],
+  "rows": 24838,
+  "duration_s": 10.896289,
+  "median_period_ms": 20.11
+ },
+ {
+  "session": "session_20260710_234522",
+  "simulated": false,
+  "firmware": "0.0.1",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-10T23:45:22",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [
+   {
+    "start_index": 0,
+    "end_index": 9857,
+    "duration_s": 206.121138
+   }
+  ],
+  "rows": 9857,
+  "duration_s": 206.121138,
+  "median_period_ms": 20.113
+ },
+ {
+  "session": "session_20260711_001647",
+  "simulated": false,
+  "firmware": "0.1.0",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:16:47",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [
+   {
+    "start_index": 609,
+    "end_index": 14808,
+    "duration_s": 297.23239
+   }
+  ],
+  "rows": 14808,
+  "duration_s": 310.662567,
+  "median_period_ms": 20.084
+ },
+ {
+  "session": "session_20260711_002159",
+  "simulated": false,
+  "firmware": "0.1.0",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:21:59",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [
+   {
+    "run_id": 1783743736,
+    "onset_index": 4552,
+    "heater_s": 0.48505200000000004,
+    "pre_s": 95.35928,
+    "post_s": 376.014523,
+    "v24_raw_on": 3013.0,
+    "excitation_raw": 24936.0,
+    "channels": {
+     "t1": {
+      "alive": true,
+      "noise_mK": 15.142216147492341,
+      "noise_counts": 4.193432330030122,
+      "peak_rise_C": 0.044634182310051784,
+      "t_peak_s": 17.264436,
+      "baseline_C": 17.631518754541684,
+      "drift_mK_per_min": 5.410722175916345
+     },
+     "t2": {
+      "alive": true,
+      "noise_mK": 9.446401335303108,
+      "noise_counts": 3.145074247522592,
+      "peak_rise_C": 0.0312880322317568,
+      "t_peak_s": 163.22058,
+      "baseline_C": 17.337363620715795,
+      "drift_mK_per_min": -0.7861327542089048
+     },
+     "t3": {
+      "alive": false
+     },
+     "t4": {
+      "alive": true,
+      "noise_mK": 12.509450374611259,
+      "noise_counts": 5.241790412537653,
+      "peak_rise_C": 0.04417892368646292,
+      "t_peak_s": 60.894759,
+      "baseline_C": 17.776900591410328,
+      "drift_mK_per_min": 6.223937218860728
+     },
+     "t5": {
+      "alive": true,
+      "noise_mK": 12.899336153620997,
+      "noise_counts": 5.241790412537653,
+      "peak_rise_C": 0.04156996246539535,
+      "t_peak_s": 2.499505,
+      "baseline_C": 17.549584620725692,
+      "drift_mK_per_min": -0.9358442022642249
+     },
+     "t6": {
+      "alive": true,
+      "noise_mK": 20.76674514293693,
+      "noise_counts": 6.290148495045184,
+      "peak_rise_C": 0.04990563770182632,
+      "t_peak_s": 13.074794,
+      "baseline_C": 17.666888579189685,
+      "drift_mK_per_min": -1.6805228901087066
+     }
+    }
+   }
+  ],
+  "idle": [],
+  "rows": 23961,
+  "duration_s": -433.777384,
+  "median_period_ms": 20.093
+ },
+ {
+  "session": "session_20260711_003122",
+  "simulated": false,
+  "firmware": "0.1.0",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:31:22",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [
+   {
+    "start_index": 0,
+    "end_index": 8296,
+    "duration_s": 173.668426
+   },
+   {
+    "start_index": 8296,
+    "end_index": 29591,
+    "duration_s": 445.839384
+   }
+  ],
+  "rows": 31939,
+  "duration_s": 16.746065,
+  "median_period_ms": 20.084
+ },
+ {
+  "session": "session_20260711_004238",
+  "simulated": false,
+  "firmware": "0.1.30",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:42:38",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [
+   {
+    "start_index": 0,
+    "end_index": 9714,
+    "duration_s": 203.393876
+   }
+  ],
+  "rows": 17104,
+  "duration_s": 4.6417,
+  "median_period_ms": 20.081
+ },
+ {
+  "session": "session_20260711_004845",
+  "simulated": false,
+  "firmware": "0.1.30",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:48:45",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [],
+  "rows": 1992,
+  "duration_s": 42.222625,
+  "median_period_ms": 20.074
+ },
+ {
+  "session": "session_20260711_005046",
+  "simulated": false,
+  "firmware": "0.1.30",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:50:46",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [],
+  "idle": [
+   {
+    "start_index": 0,
+    "end_index": 11038,
+    "duration_s": 231.014135
+   }
+  ],
+  "rows": 11038,
+  "duration_s": 231.014135,
+  "median_period_ms": 20.077
+ },
+ {
+  "session": "session_20260711_005525",
+  "simulated": false,
+  "firmware": "0.1.30",
+  "board": "CBAEE52284F74617",
+  "start": "2026-07-11T00:55:25",
+  "channels": {
+   "T1": "downstream head",
+   "T2": "downstream middle",
+   "T3": "downstream tip",
+   "T4": "upstream head",
+   "T5": "upstream middle",
+   "T6": "upstream tip"
+  },
+  "known_broken": [
+   "T3"
+  ],
+  "pulses": [
+   {
+    "run_id": 1783745735,
+    "onset_index": 1419,
+    "heater_s": 0.48474,
+    "pre_s": 29.722333,
+    "post_s": 406.460847,
+    "v24_raw_on": 2982.0,
+    "excitation_raw": 24958.0,
+    "channels": {
+     "t1": {
+      "alive": true,
+      "noise_mK": 13.875610481395238,
+      "noise_counts": 4.193432330030122,
+      "peak_rise_C": 0.6212031616054716,
+      "t_peak_s": 33.122513,
+      "baseline_C": 17.62793336863842,
+      "drift_mK_per_min": -4.284321457607691
+     },
+     "t2": {
+      "alive": true,
+      "noise_mK": 9.235364349470045,
+      "noise_counts": 3.145074247522592,
+      "peak_rise_C": 0.82458925085961,
+      "t_peak_s": 31.13,
+      "baseline_C": 17.305454070990578,
+      "drift_mK_per_min": 4.961116993113552
+     },
+     "t3": {
+      "alive": false
+     },
+     "t4": {
+      "alive": true,
+      "noise_mK": 11.658820780026844,
+      "noise_counts": 4.193432330030122,
+      "peak_rise_C": 0.5766536631908572,
+      "t_peak_s": 37.448915,
+      "baseline_C": 17.779619068450817,
+      "drift_mK_per_min": -6.667649750339007
+     },
+     "t5": {
+      "alive": true,
+      "noise_mK": 11.88580219024108,
+      "noise_counts": 4.193432330030122,
+      "peak_rise_C": 0.6815515807546788,
+      "t_peak_s": 40.951912,
+      "baseline_C": 17.503024457300377,
+      "drift_mK_per_min": 2.7516675925617977
+     },
+     "t6": {
+      "alive": true,
+      "noise_mK": 17.693926990942817,
+      "noise_counts": 5.241790412537653,
+      "peak_rise_C": 0.5696446199804406,
+      "t_peak_s": 37.288301,
+      "baseline_C": 17.58407773298046,
+      "drift_mK_per_min": 3.2557940438706168
+     }
+    }
+   }
+  ],
+  "idle": [],
+  "rows": 20835,
+  "duration_s": 436.18318,
+  "median_period_ms": 20.082
+ },
+ {
+  "session": "session_20260824_203902",
+  "simulated": false,
+  "firmware": "0.1.31",
+  "board": "D15C55B4116E105E",
+  "start": "2026-08-24T20:39:02",
+  "channels": {
+   "T1": "downstream tip",
+   "T2": "downstream middle",
+   "T3": "downstream head",
+   "T4": "upstream tip",
+   "T5": "upstream middle",
+   "T6": "upstream head"
+  },
+  "known_broken": [
+   "T1"
+  ],
+  "pulses": [
+   {
+    "run_id": 1787618451,
+    "onset_index": 7922,
+    "heater_s": 0.987038,
+    "pre_s": 155.905887,
+    "post_s": 1591.359998,
+    "v24_raw_on": 2990.6530612244896,
+    "excitation_raw": 24912.0,
+    "channels": {
+     "t1": {
+      "alive": false
+     },
+     "t2": {
+      "alive": true,
+      "noise_mK": 6.505670362917631,
+      "noise_counts": 1.0483580825075305,
+      "peak_rise_C": 1.2876514139467723,
+      "t_peak_s": 43.722595,
+      "baseline_C": 20.01713558195321,
+      "drift_mK_per_min": -63.977051286908555
+     },
+     "t3": {
+      "alive": true,
+      "noise_mK": 6.183383053706292,
+      "noise_counts": 1.0483580825075305,
+      "peak_rise_C": 1.1534063916498596,
+      "t_peak_s": 39.133618,
+      "baseline_C": 19.210982904007732,
+      "drift_mK_per_min": -31.678124296082906
+     },
+     "t4": {
+      "alive": true,
+      "noise_mK": 6.160194997382147,
+      "noise_counts": 1.0483580825075305,
+      "peak_rise_C": 1.0292384131225063,
+      "t_peak_s": 36.17412,
+      "baseline_C": 20.356725254774844,
+      "drift_mK_per_min": -72.08832579872728
+     },
+     "t5": {
+      "alive": true,
+      "noise_mK": 6.072448143977524,
+      "noise_counts": 1.0483580825075305,
+      "peak_rise_C": 1.480215797797456,
+      "t_peak_s": 35.026804,
+      "baseline_C": 19.74006253025506,
+      "drift_mK_per_min": -57.42112686850341
+     },
+     "t6": {
+      "alive": true,
+      "noise_mK": 5.602417407805456,
+      "noise_counts": 1.0483580825075305,
+      "peak_rise_C": 1.2862917266306155,
+      "t_peak_s": 35.066966,
+      "baseline_C": 19.140033892985098,
+      "drift_mK_per_min": -29.32148983484905
+     }
+    }
+   }
+  ],
+  "idle": [
+   {
+    "start_index": 22254,
+    "end_index": 83948,
+    "duration_s": 1291.349681
+   }
+  ],
+  "rows": 83948,
+  "duration_s": 1757.520442,
+  "median_period_ms": 20.08
+ },
+ {
+  "session": "session_20260824_212832",
+  "simulated": false,
+  "firmware": "0.1.31",
+  "board": "D15C55B4116E105E",
+  "start": "2026-08-24T21:28:32",
+  "channels": {
+   "T1": "downstream tip",
+   "T2": "downstream middle",
+   "T3": "downstream head",
+   "T4": "upstream tip",
+   "T5": "upstream middle",
+   "T6": "upstream head"
+  },
+  "known_broken": [
+   "T1"
+  ],
+  "pulses": [],
+  "idle": [
+   {
+    "start_index": 0,
+    "end_index": 199432,
+    "duration_s": 4174.626883
+   },
+   {
+    "start_index": 201974,
+    "end_index": 241687,
+    "duration_s": 831.045267
+   },
+   {
+    "start_index": 241687,
+    "end_index": 261900,
+    "duration_s": 423.062603
+   }
+  ],
+  "rows": 261900,
+  "duration_s": 1304.539755,
+  "median_period_ms": 20.08
+ }
+]
