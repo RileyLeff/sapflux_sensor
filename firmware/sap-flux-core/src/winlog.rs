@@ -262,9 +262,19 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
                 None
             };
         }
+        // The oldest copy, as `WINDOW_OLDEST` would pick, so a repeated id
+        // resolves to one window for header, chunks and ack alike.
         (0..SLOTS)
             .filter(|&i| self.entries[i].state == state && self.entries[i].run_id == run_id)
-            .max_by_key(|&i| self.entries[i].seq)
+            .min_by_key(|&i| self.entries[i].seq)
+    }
+
+    /// Run ids of every stored window, delivered ones included.
+    pub fn run_ids(&self) -> impl Iterator<Item = u32> + Clone + '_ {
+        self.entries
+            .iter()
+            .filter(|e| e.state != SlotState::Empty)
+            .map(|e| e.run_id)
     }
 
     // ----- What the board reports: RAM windows (not yet persisted) plus
@@ -309,11 +319,10 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
         ram: &WindowStore<S, B>,
         run_id: u32,
     ) -> bool {
-        let in_ram = if run_id == WINDOW_OLDEST {
-            self.oldest_flash().is_none() && ram.windows_pending() > 0
-        } else {
-            ram.has_pending(run_id)
-        };
+        // Flash windows are the older ones, so a flash copy of `run_id`
+        // wins over a RAM window that reuses the id.
+        let in_ram =
+            run_id == WINDOW_OLDEST && self.oldest_flash().is_none() && ram.windows_pending() > 0;
         !in_ram && self.find_flash(run_id, SlotState::Pending).is_some()
     }
 
@@ -377,13 +386,13 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
         if run_id == WINDOW_OLDEST {
             return false;
         }
-        if ram.has_pending(run_id) {
-            return ram.ack(run_id);
-        }
         if let Some(slot) = self.find_flash(run_id, SlotState::Pending) {
             self.entries[slot].state = SlotState::Delivered;
             self.entries[slot].marker_owed = true;
             return true;
+        }
+        if ram.has_pending(run_id) {
+            return ram.ack(run_id);
         }
         self.find_flash(run_id, SlotState::Delivered).is_some() || ram.ack(run_id)
     }
@@ -738,6 +747,35 @@ mod tests {
         log3.mount(&mut f, BASE, || {});
         assert_eq!(log3.windows_pending(&ram), 0);
         assert!(log3.ack(&mut ram, 42));
+    }
+
+    #[test]
+    fn a_reused_run_id_resolves_to_one_window_oldest_first() {
+        let mut f = chip();
+        let mut ram = Ram::new();
+        let mut log = Log::new();
+        log.mount(&mut f, BASE, || {});
+        // Three windows share id 41: two in flash, the newest in RAM.
+        let mut windows = Vec::new();
+        for bins in [40, 30, 20] {
+            record(&mut ram, 41, bins);
+            windows.push(snapshot(&ram, 41));
+            if bins != 20 {
+                persist_all(&mut log, &mut f, &mut ram);
+            }
+        }
+        for w in &windows {
+            // The oldest header and the chunks fetched by id agree, and the
+            // ack retires that same window.
+            assert_eq!(log.oldest_pending_run_id(&ram), 41);
+            assert_eq!(
+                download(&log, &mut f, &ram, WINDOW_OLDEST).as_ref(),
+                Some(w)
+            );
+            assert_eq!(download(&log, &mut f, &ram, 41).as_ref(), Some(w));
+            assert!(log.ack(&mut ram, 41));
+        }
+        assert_eq!(log.windows_pending(&ram), 0);
     }
 
     #[test]

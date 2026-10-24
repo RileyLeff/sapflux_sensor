@@ -217,6 +217,11 @@ impl<const RUNS: usize> RawLog<RUNS> {
         self.mounted
     }
 
+    /// Run ids with blocks in the ring.
+    pub fn run_ids(&self) -> impl Iterator<Item = u32> + Clone + '_ {
+        self.runs[..self.run_count].iter().map(|r| r.run_id)
+    }
+
     /// Flash holding logged frames, KiB.
     pub fn used_kib(&self) -> u32 {
         self.used_sectors * (SECTOR_BYTES / 1024)

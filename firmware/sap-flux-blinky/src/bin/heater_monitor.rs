@@ -33,7 +33,7 @@ use sap_flux_core::pulse::{
 };
 use sap_flux_core::rawlog::{Geometry, RawLog, CHUNK_LEN};
 use sap_flux_core::records;
-use sap_flux_core::schedule::{Action, Inputs, Planner};
+use sap_flux_core::schedule::{next_boot_count, Action, Inputs, Planner};
 use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
 use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_core::winlog::WindowLog;
@@ -667,10 +667,13 @@ async fn main(_spawner: Spawner) {
     let schedule = schedule_in_eeprom
         .filter(|s| s.validate(COOLDOWN_MS as u32).is_ok())
         .unwrap_or(Schedule::FACTORY_DEFAULT);
-    let boot_count = eeprom_read::<{ records::WORD_RECORD_LEN }>(&mut i2c, records::BOOT_COUNT_ADDR)
-        .and_then(|r| records::decode_boot_count(&r))
-        .unwrap_or(0)
-        .wrapping_add(1);
+    // Run ids carry the boot count, so it also skips any boot whose runs
+    // are still in flash (the EEPROM record may be lost or stale).
+    let boot_count = next_boot_count(
+        eeprom_read::<{ records::WORD_RECORD_LEN }>(&mut i2c, records::BOOT_COUNT_ADDR)
+            .and_then(|r| records::decode_boot_count(&r)),
+        window_log.run_ids().chain(raw.run_ids()),
+    );
     let _ = eeprom_write_verified(
         &mut i2c,
         &mut eeprom_wp,

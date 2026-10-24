@@ -120,6 +120,22 @@ pub fn next_aligned(x: i64, phase: u32, interval: u32) -> i64 {
     }
 }
 
+/// This boot's counter: one past `stored` (`None` if the EEPROM record was
+/// unreadable), then past any boot whose scheduled runs are still in
+/// `retained` (run ids found in flash), so a lost or stale counter never
+/// reuses the id of a window or raw run the host has not seen. Each step
+/// passes one retained boot, so this ends within `retained.count() + 1`.
+pub fn next_boot_count(stored: Option<u32>, retained: impl Iterator<Item = u32> + Clone) -> u32 {
+    let mut boot = stored.unwrap_or(0).wrapping_add(1);
+    while retained
+        .clone()
+        .any(|id| id & SCHEDULED_RUN_FLAG != 0 && (id >> 16) & 0x7fff == boot & 0x7fff)
+    {
+        boot = boot.wrapping_add(1);
+    }
+    boot
+}
+
 /// Fire nonce used for a scheduled run (distinct per run).
 pub const fn scheduled_fire_nonce(run_id: u32) -> u64 {
     0x5346_5343_0000_0000 | run_id as u64
@@ -359,6 +375,22 @@ impl Planner {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn boot_count_skips_boots_still_in_flash() {
+        let run = |boot: u32, seq: u32| SCHEDULED_RUN_FLAG | boot << 16 | seq;
+        assert_eq!(next_boot_count(Some(41), [].into_iter()), 42);
+        // Unreadable counter: boots 1-3 left windows behind.
+        let ids = [run(1, 0), run(2, 5), run(3, 1), 7];
+        assert_eq!(next_boot_count(None, ids.into_iter()), 4);
+        // Host-chosen (unflagged) ids never block a boot.
+        assert_eq!(next_boot_count(Some(6), [7u32 << 16].into_iter()), 7);
+        // Compared in the 15-bit field the run id carries.
+        assert_eq!(
+            next_boot_count(Some(0x8000), [run(1, 0)].into_iter()),
+            0x8002
+        );
+    }
+
     extern crate std;
     use super::*;
     use crate::pulse::{Effect, Health, Machine, COOLDOWN_MS};
