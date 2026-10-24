@@ -144,9 +144,9 @@ keeps the newest 4 undelivered windows in RAM, as before.
 `FieldStatus` (52 B): `monotonic_us: u64`, `rtc_unix_ms: i64`,
 `next_pulse_unix_s: u32` (0 if disabled), `schedule_flags: u8` (bit 0
 enabled, bit 1 require-lease, bit 2 lease-valid, bit 3 RTC-valid, bit 4
-heater-lockout, bit 5 flash-ok), `windows_pending: u8`, `windows_dropped:
-u16`, `oldest_pending_run_id: u32`, `last_run_id: u32`, `calr_ppb: i32`
-(current RTC trim, parts per billion, positive = slowed), `last_rtc_step_ms:
+heater-lockout, bit 5 flash-ok, bit 6 EEPROM fault: schedule held),
+`windows_pending: u8`, `windows_dropped: u16`, `oldest_pending_run_id:
+u32`, `last_run_id: u32`, `calr_ppb: i32` (current RTC trim, parts per billion, positive = slowed), `last_rtc_step_ms:
 i32` (last `SetRtc` correction, new − old), `boot_count: u16`,
 `v24_raw: i16`, `flash_used_kib: u32`, `schedule_crc: u16`, `reserved: u16`.
 

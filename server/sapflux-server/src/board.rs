@@ -20,13 +20,14 @@ const WINDOW_FLAG_NAMES: [&str; 5] = [
     "HEATER_FAULT",
     "TRUNCATED",
 ];
-const SCHEDULE_FLAG_NAMES: [&str; 6] = [
+const SCHEDULE_FLAG_NAMES: [&str; 7] = [
     "enabled",
     "require_lease",
     "lease_valid",
     "rtc_valid",
     "heater_lockout",
     "flash_ok",
+    "eeprom_fault",
 ];
 const STATE_NAMES: [&str; 7] = [
     "SafeIdle", "Baseline", "Armed", "Pulsing", "Recovery", "Cooldown", "Fault",

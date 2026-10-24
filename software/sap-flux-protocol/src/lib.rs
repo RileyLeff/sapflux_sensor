@@ -193,6 +193,9 @@ pub const FIELD_STATUS_RTC_VALID: u8 = 1 << 3;
 pub const FIELD_STATUS_HEATER_LOCKOUT: u8 = 1 << 4;
 /// `FieldStatus.schedule_flags` bit: SPI flash is healthy.
 pub const FIELD_STATUS_FLASH_OK: u8 = 1 << 5;
+/// `FieldStatus.schedule_flags` bit: the EEPROM (heater lockout record)
+/// could not be read or written, so the schedule is held.
+pub const FIELD_STATUS_EEPROM_FAULT: u8 = 1 << 6;
 
 // Every message must fit in one frame; the largest is RawChunk (112 B).
 const _: () = assert!(MIN_FRAME_LEN + 112 <= MAX_FRAME_LEN);

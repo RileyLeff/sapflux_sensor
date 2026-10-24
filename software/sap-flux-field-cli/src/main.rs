@@ -7,7 +7,8 @@ use sap_flux_field_cli::serial::{candidate_ports, SerialTransport, DEFAULT_BAUD}
 use sap_flux_field_cli::window::{self, Window};
 use sap_flux_protocol::field::ScheduleError;
 use sap_flux_protocol::{
-    Ack, FieldStatus, Schedule, SetSchedule, FIELD_STATUS_ENABLED, FIELD_STATUS_FLASH_OK,
+    Ack, FieldStatus, Schedule, SetSchedule, FIELD_STATUS_EEPROM_FAULT, FIELD_STATUS_ENABLED,
+    FIELD_STATUS_FLASH_OK,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
     FIELD_STATUS_RTC_VALID, SCHEDULE_FLAG_REQUIRE_LEASE,
 };
@@ -289,6 +290,7 @@ fn field_flag_names(flags: u8) -> String {
         (FIELD_STATUS_RTC_VALID, "rtc_valid"),
         (FIELD_STATUS_HEATER_LOCKOUT, "heater_lockout"),
         (FIELD_STATUS_FLASH_OK, "flash_ok"),
+        (FIELD_STATUS_EEPROM_FAULT, "eeprom_fault"),
     ];
     let set: Vec<&str> = names
         .iter()

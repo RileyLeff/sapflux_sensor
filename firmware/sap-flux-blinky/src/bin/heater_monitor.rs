@@ -41,7 +41,7 @@ use sap_flux_protocol::raw::RawFrame;
 use sap_flux_protocol::{
     encode, Ack, BoardState, Decoder, ErrorReport, FieldStatus, Hello, Message, Sample12,
     Schedule, Status, CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
-    FIELD_STATUS_FLASH_OK,
+    FIELD_STATUS_EEPROM_FAULT, FIELD_STATUS_FLASH_OK,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
     FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
     FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN, RawChunk,
@@ -128,6 +128,9 @@ const INVALID_ADC: i16 = i16::MIN;
 const TTL_TX_ENABLE_US: u64 = 200;
 const PA14: usize = 14;
 const FAULT_PERSISTENCE: u8 = 1;
+// Boot lockout read: 3 attempts, 10 ms apart (> the CAT24C32's 5 ms tWR).
+const LOCKOUT_READ_ATTEMPTS: u32 = 3;
+const LOCKOUT_READ_RETRY_MS: u64 = 10;
 const FAULT_PULSE_OVERRUN: u8 = 2;
 // Internal watchdog (LSI, about +/-7 %). The longest deliberate stall is a
 // SetRtc wait for the next whole second (<= 1 s) plus EEPROM writes; a
@@ -646,7 +649,7 @@ async fn main(_spawner: Spawner) {
         rtc_valid = read_rtc_magic();
     }
     let board_id = board_id();
-    let lockout_read = read_lockout(&mut i2c);
+    let lockout_read = read_lockout_with_retries(&mut i2c, &mut || iwdg.pet()).await;
     let fault_code = if lockout_read.is_err() {
         FAULT_PERSISTENCE
     } else {
@@ -1410,6 +1413,27 @@ async fn service_pulse_state(ctx: &mut Ctx<'_>) {
     }
 }
 
+/// Boot read of the lockout record, retried so one I2C glitch (or an EEPROM
+/// still finishing a write cycle from before the reset, tWR <= 5 ms) does
+/// not hold the schedule until the next power cycle. A read that still
+/// fails keeps the fail-safe: heater locked out, FAULT_PERSISTENCE,
+/// FieldStatus EEPROM fault.
+async fn read_lockout_with_retries(
+    i2c: &mut BoardI2c<'_>,
+    pet: &mut impl FnMut(),
+) -> Result<bool, embassy_stm32::i2c::Error> {
+    let mut result = read_lockout(i2c);
+    for _ in 1..LOCKOUT_READ_ATTEMPTS {
+        if result.is_ok() {
+            break;
+        }
+        pet();
+        Timer::after_millis(LOCKOUT_READ_RETRY_MS).await;
+        result = read_lockout(i2c);
+    }
+    result
+}
+
 fn read_lockout(i2c: &mut BoardI2c<'_>) -> Result<bool, embassy_stm32::i2c::Error> {
     let address = [(LOCKOUT_ADDR >> 8) as u8, LOCKOUT_ADDR as u8];
     let mut record = [0_u8; 16];
@@ -1734,6 +1758,11 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
     }
     if ctx.flash.is_ok() {
         flags |= FIELD_STATUS_FLASH_OK;
+    }
+    // The planner holds the schedule while fault_code != 0; an EEPROM
+    // fault is the one the field can see and act on (power-cycle, replace).
+    if ctx.fault_code == FAULT_PERSISTENCE {
+        flags |= FIELD_STATUS_EEPROM_FAULT;
     }
     // Heater inhibited: persisted lockout/cooldown, a pulse in progress, or
     // a latched fault.
