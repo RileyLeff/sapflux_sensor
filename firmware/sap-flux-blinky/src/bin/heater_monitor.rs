@@ -26,7 +26,7 @@ use sap_flux_core::pulse::{
     BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State,
 };
 use sap_flux_protocol::{
-    encode, Ack, BoardState, Decoder, Hello, Message, Sample, Status, CAP_ADC, CAP_HEATER_CONTROL,
+    encode, Ack, BoardState, Decoder, Hello, Message, Sample12, Status, CAP_ADC, CAP_HEATER_CONTROL,
     CAP_RTC, CAP_V24_MONITOR, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
     FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN,
 };
@@ -51,9 +51,46 @@ const FIRMWARE_VERSION: u32 = 0x00_01_02;
 // supervised bench build with a 30-second persistent cooldown.
 #[cfg(feature = "dev-short-cooldown")]
 const FIRMWARE_VERSION: u32 = 0x00_01_20;
-const SAMPLE_PERIOD: Duration = Duration::from_millis(20);
-const COMMAND_FRAME_PERIOD: Duration = Duration::from_millis(60);
-const COMMAND_WINDOW_EVERY_SAMPLES: u32 = 50;
+// One frame = 12 thermistors + excitation at 25 Hz. Budget (Python, 400 kHz
+// I2C, 32.768 kHz ticks): 12 x 1.88 ms + 1.67 ms = 24.3 ms acquisition, plus
+// a 5.7 ms Sample12 and, once per second, a 3.6 ms Status on RS-485.
+const FRAME_PERIOD: Duration = Duration::from_millis(40);
+// RS-485 bench streaming cycle (25 frames = 1 s): the last frame of the cycle
+// carries FLAG_COMMAND_WINDOW and nothing follows it; the first frame of the
+// next cycle sends nothing, so the bus stays quiet ~45 ms for one host
+// command. Status rides on a mid-cycle frame so it never closes the window.
+const FRAMES_PER_CYCLE: u32 = 25;
+const STATUS_FRAME_IN_CYCLE: u32 = 12;
+
+/// The 12 window/Sample12 thermistor channels (probe 1 T1..T6, then probe 2
+/// T1..T6) as (mux bank, 74HC4067 channel).
+///
+/// Probe 1 is the bench-verified J2 block A wiring (J2 p3..p8 = therm_1..6 →
+/// mux A Y1, Y0, Y3, Y2, Y5, Y4). Probe 2 assumes an identical cable on J2
+/// block B (p21 GND, p22 EXC, p23..p28 = therm_17..22), which elec/adc.ato
+/// routes to mux B (PA10) Y1, Y0, Y3, Y2, Y5, Y4.
+/// NEEDS BENCH CONFIRMATION: probe 2 has never been read on hardware. Touch
+/// each probe-2 thermistor and check that P2T1..P2T6 respond in order.
+const THERMISTOR_MUX_MAP: [(MuxBank, u8); 12] = [
+    (MuxBank::A, 1),
+    (MuxBank::A, 0),
+    (MuxBank::A, 3),
+    (MuxBank::A, 2),
+    (MuxBank::A, 5),
+    (MuxBank::A, 4),
+    (MuxBank::B, 1),
+    (MuxBank::B, 0),
+    (MuxBank::B, 3),
+    (MuxBank::B, 2),
+    (MuxBank::B, 5),
+    (MuxBank::B, 4),
+];
+// Read order (indices into THERMISTOR_MUX_MAP): matched-depth pairs (T1/T4,
+// T2/T5, T3/T6) are read back to back to minimize pair skew, as before; the
+// excitation read sits after the first three probe-1 channels, near the
+// frame's midpoint, and stamps the frame time.
+const READ_ORDER_BEFORE_EXCITATION: [usize; 3] = [0, 3, 1];
+const READ_ORDER_AFTER_EXCITATION: [usize; 9] = [4, 2, 5, 6, 9, 7, 10, 8, 11];
 // 32.768 kHz ticks: a wait of n ticks lasts at least n-1 ticks (30.5 us each).
 // 200 us -> 7 ticks -> >= 183 us; 1350 us -> 45 ticks -> >= 1343 us, above the
 // ADS1115 860 SPS worst case of 1279 us (1/860 s + 10 % oscillator).
@@ -61,7 +98,6 @@ const MUX_SETTLE_US: u64 = 200;
 const ADS_CONVERSION_US: u64 = 1_350;
 const MIN_EXCITATION_RAW: i16 = 100;
 const INVALID_ADC: i16 = i16::MIN;
-const STATUS_PERIOD: Duration = Duration::from_secs(1);
 const UART_HELLO_PERIOD: Duration = Duration::from_secs(30);
 const FAULT_PERSISTENCE: u8 = 1;
 const FAULT_PULSE_OVERRUN: u8 = 2;
@@ -251,11 +287,35 @@ impl<'d> HardwarePulse<'d> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MuxBank {
+    A,
+    B,
+}
+
+/// One acquired frame.
+#[derive(Clone, Copy)]
+struct Frame {
+    monotonic_us: u64,
+    rtc_unix_ms: i64,
+    thermistor_raw: [i16; 12],
+    excitation_raw: i16,
+    v24_raw: i16,
+    flags: u16,
+    heater_health_valid: bool,
+}
+
 impl MuxPins<'_> {
-    fn enable_bank_a(&mut self) {
-        self.en_a.set_low();
+    /// Enable exactly one mux (active-low ~E); the others float off the
+    /// shared Z → AIN0 node.
+    fn enable_bank(&mut self, bank: MuxBank) {
+        self.en_a.set_high();
         self.en_b.set_high();
         self.en_c.set_high();
+        match bank {
+            MuxBank::A => self.en_a.set_low(),
+            MuxBank::B => self.en_b.set_low(),
+        }
     }
 
     fn select(&mut self, channel: u8) {
@@ -309,7 +369,7 @@ async fn main(_spawner: Spawner) {
     let _led_blue = Output::new(p.PB5, Level::High, Speed::Low);
 
     hardware_pulse.force_off();
-    mux.enable_bank_a();
+    mux.enable_bank(MuxBank::A);
 
     // J4 pin 5 / PA6 is a boot-only mode strap. Open selects normal SWD on
     // J6; grounding it before reset repurposes J6 PA13/PA14 as LPUART2.
@@ -407,12 +467,11 @@ async fn main(_spawner: Spawner) {
 
     let mut watchdog_bootstrapped = false;
     let mut watchdog_serviced = false;
-    let mut sample_counter = 0_u32;
-    let mut next_status_at = Instant::now() + STATUS_PERIOD;
+    let mut frame_counter = 0_u32;
+    let mut next_frame_at = Instant::now();
     let mut next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
 
     loop {
-        let frame_started = Instant::now();
         service_pulse_state(
             &mut machine,
             &mut hardware_pulse,
@@ -421,13 +480,11 @@ async fn main(_spawner: Spawner) {
             &mut fault_code,
         )
         .await;
-        let command_window =
-            sample_counter % COMMAND_WINDOW_EVERY_SAMPLES == COMMAND_WINDOW_EVERY_SAMPLES - 1;
-        sample_counter = sample_counter.wrapping_add(1);
-        mux.enable_bank_a();
+        let cycle_index = frame_counter % FRAMES_PER_CYCLE;
+        frame_counter = frame_counter.wrapping_add(1);
         excitation.set_high();
 
-        let (sample, heater_health_valid) = acquire_sample(
+        let frame = acquire_frame(
             &mut i2c,
             &mut internal_adc,
             &mut v24_monitor,
@@ -435,15 +492,13 @@ async fn main(_spawner: Spawner) {
             &rtc_provider,
             rtc_valid,
             pgood.is_high(),
-            command_window,
-            &machine,
             hardware_pulse.is_running(),
         )
         .await;
         machine.update_health(Health {
             rtc_valid,
-            pgood: sample.flags & FLAG_PGOOD != 0,
-            adc_valid: heater_health_valid,
+            pgood: frame.flags & FLAG_PGOOD != 0,
+            adc_valid: frame.heater_health_valid,
             measured_at_ms: Instant::now().as_millis(),
         });
 
@@ -456,27 +511,37 @@ async fn main(_spawner: Spawner) {
             watchdog_bootstrapped = true;
             watchdog_serviced = watchdog_wake.is_high();
         }
-        broadcast_message(&mut rs485, &mut ttl_uart, Message::Sample(sample)).await;
-        if Instant::now() >= next_status_at {
-            next_status_at = Instant::now() + STATUS_PERIOD;
+
+        if cycle_index != 0 {
+            let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
+            let extra = if command_window { FLAG_COMMAND_WINDOW } else { 0 };
             broadcast_message(
                 &mut rs485,
                 &mut ttl_uart,
-                status_message(&machine, &rtc_provider, rtc_valid, fault_code),
+                sample12_message(&frame, &machine, extra),
             )
             .await;
+            if cycle_index == STATUS_FRAME_IN_CYCLE {
+                broadcast_message(
+                    &mut rs485,
+                    &mut ttl_uart,
+                    status_message(&machine, &rtc_provider, rtc_valid, fault_code),
+                )
+                .await;
+            }
         }
         if ttl_uart.is_some() && Instant::now() >= next_uart_hello_at {
             next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
             broadcast_message(&mut rs485, &mut ttl_uart, hello_message(board_id)).await;
         }
 
-        let frame_deadline = frame_started
-            + if command_window {
-                COMMAND_FRAME_PERIOD
-            } else {
-                SAMPLE_PERIOD
-            };
+        // Fixed-rate frames; after an overrun, restart the grid from now
+        // (missed frames are simply absent; every frame carries its own time).
+        next_frame_at += FRAME_PERIOD;
+        if next_frame_at < Instant::now() {
+            next_frame_at = Instant::now();
+        }
+        let frame_deadline = next_frame_at;
         loop {
             while let Some(message) = rs485.poll_message() {
                 let responses = handle_command(
@@ -581,7 +646,7 @@ async fn send_responses(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn acquire_sample(
+async fn acquire_frame(
     i2c: &mut BoardI2c<'_>,
     internal_adc: &mut BoardAdc<'_>,
     v24_monitor: &mut V24MonitorPin<'_>,
@@ -589,21 +654,16 @@ async fn acquire_sample(
     rtc_provider: &RtcTimeProvider,
     rtc_valid: bool,
     pgood: bool,
-    command_window: bool,
-    machine: &Machine,
     heater_active: bool,
-) -> (Sample, bool) {
-    let mut thermistor_raw = [INVALID_ADC; 6];
+) -> Frame {
+    let mut thermistor_raw = [INVALID_ADC; 12];
     let mut adc_error = false;
 
-    // Interleave matched-depth channels to minimize pair timing skew.
-    for (index, channel) in [(0, 1), (3, 2), (1, 0)] {
-        thermistor_raw[index] = read_mux_channel(i2c, mux, channel)
-            .await
-            .unwrap_or_else(|| {
-                adc_error = true;
-                INVALID_ADC
-            });
+    for index in READ_ORDER_BEFORE_EXCITATION {
+        thermistor_raw[index] = read_thermistor(i2c, mux, index).await.unwrap_or_else(|| {
+            adc_error = true;
+            INVALID_ADC
+        });
     }
 
     let monotonic_us = Instant::now().as_micros();
@@ -614,13 +674,11 @@ async fn acquire_sample(
             INVALID_ADC
         });
 
-    for (index, channel) in [(4, 5), (2, 3), (5, 4)] {
-        thermistor_raw[index] = read_mux_channel(i2c, mux, channel)
-            .await
-            .unwrap_or_else(|| {
-                adc_error = true;
-                INVALID_ADC
-            });
+    for index in READ_ORDER_AFTER_EXCITATION {
+        thermistor_raw[index] = read_thermistor(i2c, mux, index).await.unwrap_or_else(|| {
+            adc_error = true;
+            INVALID_ADC
+        });
     }
 
     let v24_raw = internal_adc
@@ -638,9 +696,6 @@ async fn acquire_sample(
     if adc_error {
         flags |= FLAG_ADC_ERROR;
     }
-    if command_window {
-        flags |= FLAG_COMMAND_WINDOW;
-    }
     if heater_active {
         flags |= FLAG_HEATER_ACTIVE;
     }
@@ -654,26 +709,33 @@ async fn acquire_sample(
         && excitation_raw >= MIN_EXCITATION_RAW
         && (1_000..=4_000).contains(&v24_raw);
 
-    (
-        Sample {
-            monotonic_us,
-            rtc_unix_ms,
-            run_id: machine.run_id(),
-            flags,
-            excitation_raw,
-            thermistor_raw,
-            v24_raw,
-            state: board_state(machine.state()),
-        },
+    Frame {
+        monotonic_us,
+        rtc_unix_ms,
+        thermistor_raw,
+        excitation_raw,
+        v24_raw,
+        flags,
         heater_health_valid,
-    )
+    }
 }
 
-async fn read_mux_channel(
-    i2c: &mut BoardI2c<'_>,
-    mux: &mut MuxPins<'_>,
-    channel: u8,
-) -> Option<i16> {
+fn sample12_message(frame: &Frame, machine: &Machine, extra_flags: u16) -> Message {
+    Message::Sample12(Sample12 {
+        monotonic_us: frame.monotonic_us,
+        rtc_unix_ms: frame.rtc_unix_ms,
+        run_id: machine.run_id(),
+        flags: frame.flags | extra_flags,
+        state: board_state(machine.state()),
+        excitation_raw: frame.excitation_raw,
+        v24_raw: frame.v24_raw,
+        thermistor_raw: frame.thermistor_raw,
+    })
+}
+
+async fn read_thermistor(i2c: &mut BoardI2c<'_>, mux: &mut MuxPins<'_>, index: usize) -> Option<i16> {
+    let (bank, channel) = THERMISTOR_MUX_MAP[index];
+    mux.enable_bank(bank);
     mux.select(channel);
     Timer::after_micros(MUX_SETTLE_US).await;
     read_ads_single(i2c, ADS_MUX_AIN0_GND).await
