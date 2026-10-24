@@ -74,12 +74,14 @@ impl<'d> Rs485<'d> {
 }
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     let mut config = embassy_stm32::Config::default();
     config.rcc.ls = embassy_stm32::rcc::LsConfig::default_lse();
     let p = embassy_stm32::init(config);
 
     let mut heater_gate = Output::new(p.PA8, Level::Low, Speed::Low);
+    let watchdog_done = Output::new(p.PA5, Level::Low, Speed::Low);
+    spawner.spawn(watchdog_keepalive(watchdog_done).unwrap());
     let mut excitation = Output::new(p.PC6, Level::Low, Speed::Low);
     let mut mux_en_a = Output::new(p.PA9, Level::High, Speed::Low);
     let mut mux_en_b = Output::new(p.PA10, Level::High, Speed::Low);
@@ -90,6 +92,9 @@ async fn main(_spawner: Spawner) {
     let mut mux_s3 = Output::new(p.PD3, Level::Low, Speed::Low);
     let mut eeprom_wp = Output::new(p.PA12, Level::High, Speed::Low);
     let mut flash_cs = Output::new(p.PB12, Level::High, Speed::VeryHigh);
+    let mut led_red = Output::new(p.PB3, Level::High, Speed::Low);
+    let mut led_green = Output::new(p.PB4, Level::High, Speed::Low);
+    let mut led_blue = Output::new(p.PB5, Level::High, Speed::Low);
     let pgood = Input::new(p.PC7, Pull::None);
     let mut v24_monitor = p.PB1;
     let mut adc1 = Adc::new(p.ADC1);
@@ -105,6 +110,9 @@ async fn main(_spawner: Spawner) {
     mux_s3.set_low();
     eeprom_wp.set_high();
     flash_cs.set_high();
+    led_red.set_high();
+    led_green.set_high();
+    led_blue.set_high();
 
     let mut uart_config = UartConfig::default();
     uart_config.baudrate = 115_200;
@@ -145,6 +153,19 @@ async fn main(_spawner: Spawner) {
             &mut mux_en_c,
         )
         .await;
+        run_mux_smoke_test(
+            &mut rs485,
+            &mut i2c,
+            &mut excitation,
+            &mut mux_en_a,
+            &mut mux_en_b,
+            &mut mux_en_c,
+            &mut mux_s0,
+            &mut mux_s1,
+            &mut mux_s2,
+            &mut mux_s3,
+        )
+        .await;
         run_therm1_known_resistor_probe(
             &mut rs485,
             &mut i2c,
@@ -173,10 +194,23 @@ async fn main(_spawner: Spawner) {
         mux_s3.set_low();
         eeprom_wp.set_high();
         flash_cs.set_high();
+        led_red.set_high();
+        led_green.set_high();
+        led_blue.set_high();
 
         rs485
             .line("board-test complete; send any byte to run again")
             .await;
+    }
+}
+
+#[embassy_executor::task]
+async fn watchdog_keepalive(mut done: Output<'static>) {
+    loop {
+        done.set_high();
+        Timer::after_millis(1).await;
+        done.set_low();
+        Timer::after_secs(1).await;
     }
 }
 
@@ -307,6 +341,86 @@ async fn run_ads1115_test(
         && mv_abs(ain2_mv) <= 100
         && mv_abs(ain3_mv) <= 100;
     report_bool(rs485, "  ADS1115 excitation/GND channels", pass).await;
+}
+
+async fn run_mux_smoke_test(
+    rs485: &mut Rs485<'_>,
+    i2c: &mut BoardI2c<'_>,
+    excitation: &mut Output<'_>,
+    mux_en_a: &mut Output<'_>,
+    mux_en_b: &mut Output<'_>,
+    mux_en_c: &mut Output<'_>,
+    mux_s0: &mut Output<'_>,
+    mux_s1: &mut Output<'_>,
+    mux_s2: &mut Output<'_>,
+    mux_s3: &mut Output<'_>,
+) {
+    rs485
+        .line("Analog mux smoke test: each mux at Y0 and Y15")
+        .await;
+
+    excitation.set_low();
+    mux_en_a.set_high();
+    mux_en_b.set_high();
+    mux_en_c.set_high();
+
+    mux_s0.set_low();
+    mux_s1.set_low();
+    mux_s2.set_low();
+    mux_s3.set_low();
+    Timer::after_millis(2).await;
+
+    mux_en_a.set_low();
+    Timer::after_millis(2).await;
+    let a_y0 = ads1115_read_mv(i2c, ADS_MUX_AIN0_GND).await.ok();
+    mux_en_a.set_high();
+
+    mux_en_b.set_low();
+    Timer::after_millis(2).await;
+    let b_y0 = ads1115_read_mv(i2c, ADS_MUX_AIN0_GND).await.ok();
+    mux_en_b.set_high();
+
+    mux_en_c.set_low();
+    Timer::after_millis(2).await;
+    let c_y0 = ads1115_read_mv(i2c, ADS_MUX_AIN0_GND).await.ok();
+    mux_en_c.set_high();
+
+    mux_s0.set_high();
+    mux_s1.set_high();
+    mux_s2.set_high();
+    mux_s3.set_high();
+    Timer::after_millis(2).await;
+
+    mux_en_a.set_low();
+    Timer::after_millis(2).await;
+    let a_y15 = ads1115_read_mv(i2c, ADS_MUX_AIN0_GND).await.ok();
+    mux_en_a.set_high();
+
+    mux_en_b.set_low();
+    Timer::after_millis(2).await;
+    let b_y15 = ads1115_read_mv(i2c, ADS_MUX_AIN0_GND).await.ok();
+    mux_en_b.set_high();
+
+    mux_en_c.set_low();
+    Timer::after_millis(2).await;
+    let c_y15 = ads1115_read_mv(i2c, ADS_MUX_AIN0_GND).await.ok();
+    mux_en_c.set_high();
+
+    restore_analog_safe(
+        excitation, mux_en_a, mux_en_b, mux_en_c, mux_s0, mux_s1, mux_s2, mux_s3,
+    );
+
+    report_mux_mv(rs485, "  mux A Y0", a_y0).await;
+    report_mux_mv(rs485, "  mux B Y0", b_y0).await;
+    report_mux_mv(rs485, "  mux C Y0", c_y0).await;
+    report_mux_mv(rs485, "  mux A Y15", a_y15).await;
+    report_mux_mv(rs485, "  mux B Y15", b_y15).await;
+    report_mux_mv(rs485, "  mux C Y15", c_y15).await;
+
+    let readable = [a_y0, b_y0, c_y0, a_y15, b_y15, c_y15]
+        .iter()
+        .all(Option::is_some);
+    report_bool(rs485, "  all mux selections readable", readable).await;
 }
 
 async fn run_therm1_known_resistor_probe(
@@ -655,6 +769,17 @@ async fn report_ads_mv(rs485: &mut Rs485<'_>, label: &str, mv: i32) {
         abs % 1000
     );
     rs485.line(&line).await;
+}
+
+async fn report_mux_mv(rs485: &mut Rs485<'_>, label: &str, mv: Option<i32>) {
+    match mv {
+        Some(mv) => report_ads_mv(rs485, label, mv).await,
+        None => {
+            let mut line: String<96> = String::new();
+            let _ = write!(&mut line, "{label}: read failed");
+            rs485.line(&line).await;
+        }
+    }
 }
 
 fn restore_analog_safe(
