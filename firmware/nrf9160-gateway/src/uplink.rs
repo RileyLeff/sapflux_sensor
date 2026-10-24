@@ -203,9 +203,11 @@ impl Uplink {
     }
 
     /// Upload one window (`data` = WindowInfo frame + window data) as
-    /// `WindowPart`s until the server reports `complete`. Parts are sent
-    /// back to back with ~30 ms pacing while acks are drained; missing
-    /// parts are resent for up to `rounds` rounds.
+    /// `WindowPart`s until the server reports `complete`. The server answers
+    /// each part with a WindowAck (bitmap LSB-first: part `i` is bit `i % 8`
+    /// of byte `i / 8`). Parts are sent back to back with ~30 ms pacing
+    /// while acks are drained; missing parts are resent for up to `rounds`
+    /// rounds.
     pub async fn upload_window(
         &mut self,
         board_id: u64,
@@ -268,6 +270,11 @@ impl Uplink {
                 return Ok(());
             }
             let missing = (0..part_count).filter(|&i| !is_have(&have, i)).count();
+            if missing == 0 {
+                // Every part stored but not complete: the server rejected
+                // the reassembled window and cleared it; resend all.
+                have = [0; 32];
+            }
             info!(
                 "uplink: window {} round {}: {} of {} parts missing",
                 run_id,
@@ -292,9 +299,10 @@ impl Uplink {
         loop {
             match self.recv(quiet).await {
                 Ok(Reply::WindowAck(a)) if a.board_id == board_id && a.run_id == run_id => {
-                    for (h, r) in have.iter_mut().zip(a.received_bitmap.iter()) {
-                        *h |= *r;
-                    }
+                    // The server's bitmap is cumulative, and it clears it
+                    // when reassembly fails verification, so the latest ack
+                    // replaces (not ORs into) what we know.
+                    *have = a.received_bitmap;
                     if a.complete {
                         return Some(true);
                     }
