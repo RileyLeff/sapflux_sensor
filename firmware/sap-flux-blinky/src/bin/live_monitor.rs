@@ -475,6 +475,8 @@ async fn handle_command(
         | Message::Status(_)
         | Message::Ack(_)
         | Message::Error(_) => {}
+        // Field-mode messages are only implemented by heater_monitor.
+        _ => {}
     }
 }
 
