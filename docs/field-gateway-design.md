@@ -67,7 +67,7 @@ from a lease the gateway renews.**
   lockout, cooldown, TPL5010 and the SCR latch. The scheduler adds one more
   input: `auto_enabled_until` (RTC time).
 - The server holds `{enabled, interval, offset, pulse_ms, baseline_s,
-  recovery_s}` per board. Every uplink returns the current config. The
+  recovery_s}` for the board. Every uplink returns the current config. The
   gateway forwards it and, if `enabled`, renews the lease (for example
   `now + 6 h`).
 - If you turn it off on the server, it stops at the next uplink. If the
@@ -75,9 +75,8 @@ from a lease the gateway renews.**
   when the lease runs out. Losing comms fails safe.
 - Data keeps logging to the board's 32 MB flash whether or not the gateway
   is up.
-- Stagger the two boards (for example :00 and :15) so the two 14.4 W heaters
-  never overlap on the 24 V supply and neither pulse lands in the other's
-  measurement window.
+- Both probes fire together, because their heaters are in parallel on J3.
+  That is about 1.1 A and 27 W from the 24 V supply while the pulse is on.
 
 The simpler alternative is to have the gateway send StartBaseline/Arm/Fire
 using the existing protocol. That needs no new board firmware, but the
@@ -168,9 +167,10 @@ first field pulses.
 | 1-minute idle summaries | flash + hourly uplink | 30 B/min | 50 Hz idle doesn't fit, even lossless |
 | raw window by run ID | uplink, on request | about 46 kB | for flagged pulses or spot checks |
 
-- **Flash:** 32 MiB per board holds lossless windows plus idle summaries for
-  about 29 days at 24 pulses/day and about 15 days at 48 pulses/day.
-- **Uplink, both boards:** about 3.5–4 MB/month by default.
+- **Flash:** with two probes on one board, a lossless window is about 92 kB.
+  The 32 MiB flash then holds about 15 days at 24 pulses/day and about
+  7.5 days at 48 pulses/day, including idle summaries.
+- **Uplink, two probes:** about 3.5–4 MB/month by default.
 - **Decimation:** uniform averaging down to 2 Hz is safe; 1 Hz is borderline.
   With uneven bins, the fit must weight each bin by its width, or τ moves
   35–63σ.
@@ -228,7 +228,7 @@ only, so every connection would pay for a TLS handshake.
   it). The real sleep is the latch: set a PCF85063A alarm (I2C 0x51), drive
   P0.31 low, and the board drops to under 3 µA until the alarm turns it back
   on. Every wake is therefore a cold boot plus a full LTE-M attach.
-- Each wake: attach, sync time, pull records from both boards, upload,
+- Each wake: attach, sync time, pull records from the board, upload,
   receive config, set the next alarm, latch off. Plus an immediate small
   alert on any board fault the next time it is awake.
 - Drains to cut while awake:
