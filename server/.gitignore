@@ -1,0 +1,5 @@
+/target
+# Real configs hold device keys. Only config.example.toml is committed.
+config.toml
+*.local.toml
+/data

@@ -1,0 +1,15 @@
+[package]
+name = "sapflux-uplink"
+description = "no_std codec for the sap-flux gateway <-> server UDP datagrams (HMAC-SHA256/64)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+std = []
+
+[dependencies]
+hmac = { version = "0.12.1", default-features = false }
+sha2 = { version = "0.10.9", default-features = false }
+sap-flux-protocol = { path = "../../software/sap-flux-protocol" }
