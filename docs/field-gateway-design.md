@@ -6,17 +6,22 @@ two sap-flux boards, each with an East30-style probe, reporting over LTE-M.
 ## Topology
 
 ```
-probe A ──25 m── board A ─┐ J6 TTL UART           ┌─ Hetzner VPS (public IP, UDP ingest)
-                          ├── nRF9160 Feather ──LTE-M──┤
-probe B ──25 m── board B ─┘ J6 TTL UART           └──tailnet── acacia (long-term store)
+probe A ──┐ J2 (thermistors)                          ┌─ Hetzner VPS (public IP, UDP ingest)
+          ├── board ── J6 TTL UART ── nRF9160 Feather ──LTE-M──┤
+probe B ──┘ J3 (heaters in parallel)                  └──tailnet── acacia (long-term store)
 ```
 
-Proposed: both boards and one Feather share one enclosure. The nRF9160 has
-four SERIAL instances with fully remappable pins. UARTE0 stays on the USB
-console, and UARTE1 and UARTE2 each serve one board, so the two boards need
-one SIM, one modem and one battery. If the boards end up in separate boxes
-more than a couple of metres apart, use one Feather per board instead. TTL
-UART is not for long cables.
+One box holds one board, two probes and one Feather.
+
+- **Heaters:** both probes' heaters connect in parallel on J3. The heater
+  stage was sized for up to 8 heaters, with an SS56 flyback diode. One
+  FirePulse therefore heats both probes at the same moment.
+- **ADC load:** two probes means 12 thermistors on the single ADS1115.
+  Including mux settling and I2C time, one frame takes about 20.3 ms, so
+  50 Hz is at the limit. Run 25 Hz; the decimation study shows 2 Hz is
+  already enough for the fit.
+- **Channel map:** which J2/mux inputs probe B lands on depends on the cable.
+  The firmware currently reads only mux A Y0–Y5.
 
 ## Board ↔ gateway link
 
@@ -90,15 +95,41 @@ What accuracy is needed:
 - **Absolute time:** about ±1 s is plenty to line up the two sensors and to
   match meteorological data.
 
-Current state:
+Current state: the board has one crystal, the 32.768 kHz LSE (FC-135,
+±20 ppm, 12.5 pF CL). It drives only the RTC. There is no high-speed
+crystal, so the CPU and every timer run from HSI16. Measured on the Aug 24
+captures (`rtc_unix_ms` vs `monotonic_us`, and vs the Mac's NTP-disciplined
+receive time):
 
-- `monotonic_us` comes from TIM2 clocked by **HSI16**, which is
-  −0.75…+0.5 % at 30 °C plus up to ±1 % drift over 0–85 °C (DS13560
-  table 44). Left uncorrected, that is a percent-level error in the
-  velocity estimate.
-- The RTC runs from the LSE crystal (±20 ppm, about 1.7 s/day, plus about
-  −14 ppm at ±20 °C from 25 °C because of the tuning-fork curve). A CR2032
-  on VBAT through the BAT54C keeps it running through 24 V outages.
+| clock | measured | spec |
+|---|---|---|
+| sample timebase (TIM2 on HSI16) vs LSE | −279 and −433 ppm (two sessions) | −0.75…+0.5 % at 30 °C, plus ±1 % over 0–85 °C |
+| RTC (LSE) vs NTP | +11 and +31 ppm fast, about 1–2.7 s/day | ±20 ppm |
+
+- **Sample timebase:** at room temperature it is only about 0.04% off, but it
+  moved by 150 ppm between sessions. In the field, temperature can push it
+  toward 1%.
+- **Fast RTC:** this fits a load-capacitance mismatch. Two 18 pF caps plus
+  about 2 pF stray give about 11 pF of load against the crystal's 12.5 pF
+  spec, and an under-loaded crystal runs fast. The two sessions were only
+  about 25 min each, so re-measure over a day.
+- The CR2032 on VBAT (through the BAT54C) keeps the RTC running through
+  24 V outages.
+
+Firmware fixes:
+
+1. **Clock the timebase from the crystal.** embassy-stm32 0.6 has
+   `time-driver-lptim1`. Select LSE as the LPTIM1 kernel clock and set
+   `tick-hz-32_768`. Sample scheduling and `monotonic_us` then become
+   crystal-locked (30.5 µs ticks), and this is also embassy's low-power
+   (Stop-mode) time driver. Needs a prototype; not yet built.
+2. **Trim the RTC.** Use RTC_CALR smooth calibration (0.95 ppm steps,
+   ±487 ppm range) from the measured offset, and keep refining it from the
+   gateway's sync history. That takes it from about 20 ppm to about 1–2 ppm
+   at constant temperature. The remaining error is the crystal's
+   −0.034 ppm/°C² temperature curve, about −14 ppm at 25 ± 20 °C. The board
+   could compensate for that from its own temperature reading.
+3. **Next board revision:** use 22 pF load caps.
 - Each Sample already carries both `monotonic_us` and `rtc_unix_ms`. The RTC
   subsecond counter has 3.9 ms resolution, so a regression over one 240 s
   window recovers the HSI/LSE ratio to well under 1 ppm. **Keep
@@ -143,6 +174,17 @@ first field pulses.
 - **Decimation:** uniform averaging down to 2 Hz is safe; 1 Hz is borderline.
   With uneven bins, the fit must weight each bin by its width, or τ moves
   35–63σ.
+- **Velocity-only results** (V as i16, a quality byte, a header, 2 probes ×
+  3 pairs) take about 30 B per pulse, roughly 22 kB/month at 24 pulses/day.
+  That is the smallest form of the answer, but you can never reprocess it:
+  the method (HRM, Tmax, or a Marshall fit), the probe spacing, the wound
+  correction and the heat-capacity assumptions are all fixed into the
+  number. Send it as the headline, and keep the spline and raw data as the
+  archive.
+- Per-channel view: `pulse_representations.png`, produced by
+  `analysis/pulse_representations.py`. Within its fit window the model is
+  about 12–14 mK RMS from the noise-free reference, about 2× the raw noise.
+  The 2 Hz bins and the 12-knot spline are both under 1 mK.
 - **Model alone isn't enough:** the Marshall model's residual is about 2.3×
   the noise. Keep the model parameters as the result, and keep the spline
   and raw data as the archive.
