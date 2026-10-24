@@ -28,7 +28,7 @@ STM32G0. If the LSE does not start, the driver falls back to the LSI (time then
 runs about 2.3 % slow); the heater pulse width is timed by TIM1 on HSI16 either
 way.
 
-## Heater monitor (firmware 0.2.0)
+## Heater monitor (firmware 0.3.0)
 
 `heater_monitor` samples both probes (12 thermistors + excitation) every 40 ms
 and implements `docs/field-protocol.md` §1 on top of protocol v1.
@@ -64,11 +64,32 @@ heater state machine as host commands; there is no safety bypass. With the
 RTC invalid, a run starts one interval after boot or after the schedule
 change, and its window is flagged `TIME_INVALID`.
 
-Each run records one window: 500 ms bins of 13 channels plus v24. The board
-keeps 4 windows of up to 1000 bins (104 000 B of RAM). Longer windows are
-flagged `TRUNCATED`. When all 4 slots hold undelivered windows, a new run
-overwrites the oldest and `windows_dropped` counts it. Windows are served with
-`GetWindow` / `AckWindow`, and RAM windows are lost on reset.
+Each run records one window: 500 ms bins of 13 channels plus v24, in RAM
+(4 windows of up to 1000 bins, 104 000 B; longer windows are flagged
+`TRUNCATED`). A finished window is then written to the next of 256 W25Q256
+slots (32 KiB each, upper 8 MiB), read back against RAM, and only then freed
+from RAM, so a reset loses no undelivered window. `GetWindow` serves RAM
+windows directly and flash windows after waiting at most 150 ms for the chip;
+`AckWindow` marks the slot delivered (marker byte programmed shortly after).
+256 slots hold 10.7 days of undelivered windows at 24 pulses/day (5.3 at 48);
+past that a new window overwrites the oldest and `windows_dropped` counts it.
+A dead chip (FieldStatus `flash_ok` clear) falls back to the 4 RAM windows.
+
+### Flash (W25Q256JV on SPI2)
+
+At boot the JEDEC ID must read `EF 40 19`; otherwise `flash_ok` is clear and
+the bench link sends an `Error` with fault code `0x0100` (detail = ID bytes
+2..3). Every frame from Baseline through Recovery (scheduled or
+host-commanded) is appended to a raw ring in the lower 24 MiB: 256-byte
+blocks of up to 12 delta-coded frames with run id, sequence number and
+CRC-32, each run starting on a fresh 4 KiB sector. A default 241 s window is
+about 503 blocks (128 KiB with alignment), so the ring keeps about 191 runs:
+8.0 days at 24 pulses/day, 4.0 at 48. Boot scans the 6144 sector headers and
+256 slot headers in about 0.4 s. Erases run ahead of the write head and never
+while the heater is on; a block that cannot be queued is dropped rather than
+delaying anything. `FieldStatus.flash_used_kib` is the raw ring plus the
+window slots in use. `sap-flux-field get-raw --run <id>` downloads a run
+(`GetRaw`), checks every block CRC and writes `raw_<id>.csv` and `.bin`.
 
 ### Time
 
@@ -94,6 +115,10 @@ Each record is magic + payload + CRC-32, all within one page.
 
 The IWDG (4 s timeout) runs alongside the TPL5010 external watchdog.
 
+The lockout record is read at boot up to 3 times, 10 ms apart. If it still
+cannot be read (or a later lockout write fails), the heater stays locked
+out, the schedule is held, and FieldStatus shows `eeprom_fault` (bit 6).
+
 ### Bench checks before field use
 
 1. Probe 2 order: touch each probe-2 thermistor and confirm that P2T1..P2T6
@@ -108,6 +133,19 @@ The IWDG (4 s timeout) runs alongside the TPL5010 external watchdog.
 4. Power-cycle and confirm that the schedule, the boot count (+1) and the
    trim persist.
 5. Bench strap: confirm `sap-flux-monitor` still streams Sample12.
+6. Flash: `sap-flux-field status` shows `flash_ok` and a nonzero
+   `flash_used_kib` after one run (with the bench strap, no `Error`
+   0x0100 at boot).
+7. Raw log: after a run, `sap-flux-field get-raw --run <last_run_id>`
+   reports every block CRC verified; check that the CSV has ~25 rows per
+   second from Baseline to the end of Recovery, with no gaps around the
+   pulse.
+8. Windows survive a reset: let a run finish, wait a few seconds, reset the
+   board, and confirm that `status` still shows it pending and `get-window`
+   reconstructs it (data_crc32 verified). `ack-window`, reset again, and
+   confirm it stays delivered (`windows_pending` drops).
+9. EEPROM fault (spare board, EEPROM not fitted): confirm `status` shows
+   `eeprom_fault|heater_lockout` right after boot and that no run starts.
 
 Build the field firmware:
 
@@ -116,7 +154,7 @@ cargo build --release --bin heater_monitor
 ```
 
 The supervised bench build retains the intentionally short 30-second
-persistent cooldown and advertises firmware version 0.2.32:
+persistent cooldown and advertises firmware version 0.3.32:
 
 ```sh
 cargo build --release --bin heater_monitor --features dev-short-cooldown
