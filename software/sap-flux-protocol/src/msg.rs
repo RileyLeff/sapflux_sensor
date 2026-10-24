@@ -293,7 +293,8 @@ pub struct GetFieldStatus {
 /// Layout: `command_nonce: u64`, `run_id: u32`, `chunk: u32`. Chunk `i`
 /// is bytes `[100·i, 100·i + len)` of the run's [`raw`](crate::raw) block
 /// stream. Reply: `RawChunk`; an unknown run, or a chunk past the end of
-/// the run, gets `Ack` with [`ACK_NOT_FOUND`](crate::ACK_NOT_FOUND).
+/// the run, gets `Ack` with [`ACK_NOT_FOUND`](crate::ACK_NOT_FOUND), and a
+/// chunk the flash is too busy to read gets [`ACK_BUSY`](crate::ACK_BUSY).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GetRaw {
     /// Host-chosen nonce echoed in a NOT_FOUND Ack.

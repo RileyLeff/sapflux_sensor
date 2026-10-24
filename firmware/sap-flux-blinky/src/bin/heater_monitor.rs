@@ -1039,7 +1039,16 @@ async fn get_raw(ctx: &mut Ctx<'_>, run_id: u32, chunk: u32, nonce: u64) -> Mess
         RAW_READ_WAIT_IDLE_MS
     };
     if !flash_idle(ctx, wait_ms).await {
-        return not_found();
+        // A dead chip ends the stream; an erase in flight only delays it.
+        if !ctx.flash.is_ok() {
+            return not_found();
+        }
+        return ack_message(
+            sap_flux_protocol::MSG_GET_RAW,
+            sap_flux_protocol::ACK_BUSY,
+            nonce,
+            run_id,
+        );
     }
     let mut data = [0_u8; CHUNK_LEN];
     match ctx.raw.read_chunk(&mut ctx.flash, run_id, chunk, &mut data) {

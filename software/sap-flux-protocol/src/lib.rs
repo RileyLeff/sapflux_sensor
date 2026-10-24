@@ -152,6 +152,9 @@ pub const ACK_OK: u8 = 0x00;
 pub const ACK_INVALID_PARAMETER: u8 = 0x02;
 /// Ack result: `GetWindow` named an unknown run or chunk.
 pub const ACK_NOT_FOUND: u8 = 0x04;
+/// Ack result: storage is busy (e.g. a flash erase in flight); retry the
+/// same request shortly. Never means the data is gone.
+pub const ACK_BUSY: u8 = 0x05;
 
 /// `GetWindow.run_id` meaning "oldest undelivered window".
 pub const WINDOW_OLDEST: u32 = 0;

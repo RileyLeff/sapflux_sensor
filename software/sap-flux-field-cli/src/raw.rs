@@ -42,15 +42,23 @@ impl From<LinkError> for RawDownloadError {
     }
 }
 
+/// Retries of one chunk the board answers BUSY (a flash erase is at most
+/// 400 ms; 50 ms apart this allows 10 s).
+const BUSY_RETRIES: u32 = 200;
+const BUSY_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
+
 /// Fetch every chunk of `run_id` until a short chunk or NOT_FOUND, then
-/// verify the blocks. `progress` gets the bytes received so far.
+/// verify the blocks. A BUSY chunk is retried, never taken as the end.
+/// `progress` gets the bytes received so far.
 pub fn download<T: Transport>(
     link: &mut Link<T>,
     run_id: u32,
     mut progress: impl FnMut(usize),
 ) -> Result<RawRun, RawDownloadError> {
     let mut bytes = Vec::new();
-    for chunk in 0u32.. {
+    let mut busy = 0;
+    let mut chunk = 0u32;
+    loop {
         match link.raw_chunk(run_id, chunk) {
             Ok(c) => {
                 bytes.extend_from_slice(c.bytes());
@@ -58,6 +66,12 @@ pub fn download<T: Transport>(
                 if c.bytes().len() < WINDOW_CHUNK_DATA_LEN {
                     break;
                 }
+                chunk += 1;
+                busy = 0;
+            }
+            Err(LinkError::Busy) if busy < BUSY_RETRIES => {
+                busy += 1;
+                std::thread::sleep(BUSY_DELAY);
             }
             Err(LinkError::NotFound) if chunk > 0 => break,
             Err(e) => return Err(e.into()),

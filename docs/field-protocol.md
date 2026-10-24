@@ -88,8 +88,9 @@ delivered and frees it. Reply `Ack`.
 the raw 25 Hz frame log in flash (bench retrieval; the gateway does not use
 it). Reply `RawChunk` with bytes `[100·chunk, 100·chunk + len)` of the run's
 block stream; an unknown or overwritten run, a chunk past the end, or a
-flash fault gets `Ack` `NOT_FOUND`. The host reads chunks 0, 1, … until
-`len < 100` or `NOT_FOUND`. On RS-485 a `GetRaw` while the heater is on
+flash fault gets `Ack` `NOT_FOUND`; flash too busy to read in time (an
+erase in flight) gets `Ack` `BUSY` (0x05), and the host retries that chunk.
+The host reads chunks 0, 1, … until `len < 100` or `NOT_FOUND`. On RS-485 a `GetRaw` while the heater is on
 gets `Ack` `WRONG_STATE` (0x10).
 
 ### New board → host messages

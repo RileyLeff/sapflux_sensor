@@ -9,7 +9,7 @@
 
 use sap_flux_protocol::{
     encode, Ack, AckWindow, Decoder, FieldStatus, GetFieldStatus, GetRaw, GetWindow, Hello,
-    Message, Query, RawChunk, SetRtc, SetSchedule, Status, WindowChunk, WindowInfo, ACK_NOT_FOUND,
+    Message, Query, RawChunk, SetRtc, SetSchedule, Status, WindowChunk, WindowInfo, ACK_BUSY, ACK_NOT_FOUND,
     CHUNK_HEADER, MAX_ENCODED_LEN, MSG_ACK_WINDOW, MSG_GET_RAW, MSG_GET_WINDOW, MSG_SET_RTC,
     MSG_SET_SCHEDULE,
 };
@@ -76,6 +76,8 @@ pub enum LinkError {
     },
     /// The board answered `Ack` with `NOT_FOUND` (unknown run or chunk).
     NotFound,
+    /// The board answered `Ack` with `BUSY` (storage busy, retry).
+    Busy,
     /// The board's reply was inconsistent with the request.
     Protocol(String),
 }
@@ -88,6 +90,7 @@ impl fmt::Display for LinkError {
                 write!(f, "{command}: no reply after {attempts} attempt(s)")
             }
             LinkError::NotFound => write!(f, "board replied NOT_FOUND (unknown run or chunk)"),
+            LinkError::Busy => write!(f, "board replied BUSY (storage busy)"),
             LinkError::Protocol(s) => write!(f, "protocol error: {s}"),
         }
     }
@@ -595,6 +598,8 @@ fn judge_reply(
             if a.command_type == command_type && a.command_nonce == nonce {
                 return if a.result == ACK_NOT_FOUND {
                     Progress::Fail(LinkError::NotFound)
+                } else if a.result == ACK_BUSY {
+                    Progress::Fail(LinkError::Busy)
                 } else {
                     Progress::Fail(LinkError::Protocol(format!(
                         "command {command_type:#04x} rejected with result {:#04x}",

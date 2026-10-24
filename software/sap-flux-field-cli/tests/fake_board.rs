@@ -33,6 +33,8 @@ struct FakeBoard {
     windows: BTreeMap<u32, (WindowInfo, Vec<u8>)>,
     /// Raw block streams by run id.
     raw_logs: BTreeMap<u32, Vec<u8>>,
+    /// GetRaw of this chunk answers BUSY this many times first.
+    raw_busy: Option<(u32, u32)>,
 }
 
 impl FakeBoard {
@@ -50,6 +52,7 @@ impl FakeBoard {
             rtc_offset_ms: 1234,
             windows: BTreeMap::new(),
             raw_logs: BTreeMap::new(),
+            raw_busy: None,
         }
     }
 
@@ -182,6 +185,12 @@ impl FakeBoard {
                 let Some(stream) = self.raw_logs.get(&g.run_id) else {
                     return self.ack(MSG_GET_RAW, ACK_NOT_FOUND, g.command_nonce, g.run_id);
                 };
+                if let Some((chunk, n)) = self.raw_busy {
+                    if g.chunk == chunk && n > 0 {
+                        self.raw_busy = (n > 1).then_some((chunk, n - 1));
+                        return self.ack(MSG_GET_RAW, ACK_BUSY, g.command_nonce, g.run_id);
+                    }
+                }
                 let start = (g.chunk as usize * 100).min(stream.len());
                 let bytes = &stream[start..(start + 100).min(stream.len())];
                 if bytes.is_empty() {
@@ -632,6 +641,13 @@ fn raw_log_download_verifies_blocks_and_writes_csv() {
     assert_eq!(row[2], "1793000003080");
     assert_eq!(row[5 + 3], ""); // failed read
     assert_eq!(row[5 + 4], (12_000 + 400 + 77 % 9).to_string());
+
+    // BUSY at chunk 64 (6400 B = 25 whole blocks, which would verify if
+    // taken as the end) is retried, not a truncated download.
+    l.transport_mut().raw_busy = Some((64, 3));
+    let run = rawdl::download(&mut l, 0x8001_0002, |_| {}).unwrap();
+    assert_eq!(run.frames(), frames);
+    assert_eq!(l.transport_mut().raw_busy, None);
 
     // Unknown run: NOT_FOUND, terminal.
     assert!(matches!(
