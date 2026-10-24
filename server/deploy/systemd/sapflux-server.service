@@ -1,0 +1,31 @@
+[Unit]
+Description=sap-flux UDP ingest server (gateway datagrams + admin API)
+Documentation=file:///usr/local/share/doc/sapflux/README.md
+Wants=network-online.target
+After=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=sapflux
+Group=sapflux
+Environment=RUST_LOG=info
+ExecStart=/usr/local/lib/sapflux/sapflux-server --config /etc/sapflux/server.toml
+Restart=always
+RestartSec=5
+# Hardening: the server only needs its data dir and to read its config.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/var/lib/sapflux
+
+[Install]
+WantedBy=multi-user.target

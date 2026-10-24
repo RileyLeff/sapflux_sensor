@@ -1,0 +1,14 @@
+[Unit]
+Description=Replicate sap-flux database and window files to acacia over Tailscale
+Wants=network-online.target
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+User=sapflux
+Group=sapflux
+EnvironmentFile=-/etc/sapflux/replicate.env
+ExecStart=/usr/local/lib/sapflux/replicate.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=20min
