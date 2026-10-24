@@ -1,0 +1,14 @@
+[package]
+name = "sap-flux-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+dev-short-cooldown = []
+
+[lints.rust]
+unsafe_code = "forbid"
