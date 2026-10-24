@@ -52,6 +52,12 @@ pub struct BaselineRequest {
     pub baseline_duration_ms: u32,
     pub recovery_duration_ms: u32,
     pub sample_hz: u16,
+    /// Require a valid RTC to arm and fire this run. Host-commanded runs
+    /// always set this. Autonomous scheduled runs clear it only while the
+    /// RTC is invalid (the field protocol's `TIME_INVALID` mode); every other
+    /// health check (PGOOD, ADC, staleness) and every lockout/cooldown rule
+    /// still applies.
+    pub require_rtc: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -97,6 +103,7 @@ pub struct Machine {
     pulse_deadline_ms: u64,
     lockout_pending: bool,
     fire_nonce: Option<u64>,
+    require_rtc: bool,
     health: Health,
 }
 
@@ -121,6 +128,7 @@ impl Machine {
             pulse_deadline_ms: 0,
             lockout_pending: false,
             fire_nonce: None,
+            require_rtc: true,
             health: Health::default(),
         }
     }
@@ -166,6 +174,7 @@ impl Machine {
         self.run_id = request.run_id;
         self.baseline_ready_at_ms = now_ms.saturating_add(request.baseline_duration_ms as u64);
         self.recovery_duration_ms = request.recovery_duration_ms;
+        self.require_rtc = request.require_rtc;
         self.fire_nonce = None;
         self.lockout_pending = false;
         self.state = State::Baseline;
@@ -289,7 +298,7 @@ impl Machine {
     }
 
     fn require_healthy(&self, now_ms: u64) -> Result<(), Rejection> {
-        if !self.health.rtc_valid {
+        if self.require_rtc && !self.health.rtc_valid {
             return Err(Rejection::RtcInvalid);
         }
         if !self.health.pgood {
@@ -326,6 +335,7 @@ mod tests {
                     baseline_duration_ms: 60_000,
                     recovery_duration_ms: 180_000,
                     sample_hz: 50,
+                    require_rtc: true,
                 },
                 now,
             )
@@ -423,6 +433,7 @@ mod tests {
                     baseline_duration_ms: 60_000,
                     recovery_duration_ms: 60_000,
                     sample_hz: 50,
+                    require_rtc: true,
                 },
                 0,
             )
@@ -444,6 +455,67 @@ mod tests {
             assert_eq!(machine.tick(cooldown_end), Effect::ClearLockout);
         }
         assert_eq!(machine.state(), State::SafeIdle);
+    }
+
+    #[test]
+    fn rtc_is_required_unless_the_run_opts_out() {
+        let request = BaselineRequest {
+            run_id: 7,
+            baseline_duration_ms: 60_000,
+            recovery_duration_ms: 180_000,
+            sample_hz: 25,
+            require_rtc: true,
+        };
+        let no_rtc = Health {
+            rtc_valid: false,
+            ..healthy(60_000)
+        };
+
+        let mut machine = Machine::boot(0, false);
+        machine.start_baseline(request, 0).unwrap();
+        machine.update_health(no_rtc);
+        assert_eq!(
+            machine.arm(7, PulseDuration::Ms1000, 60_000),
+            Err(Rejection::RtcInvalid)
+        );
+
+        let mut machine = Machine::boot(0, false);
+        machine
+            .start_baseline(
+                BaselineRequest {
+                    require_rtc: false,
+                    ..request
+                },
+                0,
+            )
+            .unwrap();
+        machine.update_health(Health {
+            adc_valid: false,
+            ..no_rtc
+        });
+        // Opting out of the RTC never relaxes the other health checks.
+        assert_eq!(
+            machine.arm(7, PulseDuration::Ms1000, 60_000),
+            Err(Rejection::AdcUnhealthy)
+        );
+        machine.update_health(no_rtc);
+        assert_eq!(
+            machine.arm(7, PulseDuration::Ms1000, 60_000),
+            Ok(Effect::None)
+        );
+        assert_eq!(
+            machine.request_fire(7, 1, 60_000),
+            Ok(Effect::PersistLockout)
+        );
+
+        // The next run starts strict again.
+        let mut machine = Machine::boot(0, false);
+        machine.start_baseline(request, 0).unwrap();
+        machine.update_health(no_rtc);
+        assert_eq!(
+            machine.arm(7, PulseDuration::Ms1000, 60_000),
+            Err(Rejection::RtcInvalid)
+        );
     }
 
     #[test]

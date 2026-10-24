@@ -772,6 +772,9 @@ dependencies = [
 [[package]]
 name = "sap-flux-core"
 version = "0.1.0"
+dependencies = [
+ "sap-flux-protocol",
+]
 
 [[package]]
 name = "sap-flux-protocol"

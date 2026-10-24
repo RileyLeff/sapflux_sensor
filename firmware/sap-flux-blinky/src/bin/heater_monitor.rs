@@ -752,6 +752,7 @@ async fn handle_command(
                             baseline_duration_ms: command.baseline_duration_ms,
                             recovery_duration_ms: command.recovery_duration_ms,
                             sample_hz: command.requested_sample_hz,
+                            require_rtc: true,
                         },
                         Instant::now().as_millis(),
                     )
