@@ -572,6 +572,11 @@ impl Gateway {
                 .await
             {
                 Ok(_) => info!("window {}: delivered and freed", run_id),
+                // Already freed (e.g. a re-ack after a board reset): the
+                // server has it, so carry on with the next window.
+                Err(LinkError::Rejected(proto::ACK_NOT_FOUND)) => {
+                    info!("window {}: already freed on the board", run_id)
+                }
                 Err(e) => {
                     // The server has it; the board resends it next time
                     // and the server deduplicates.
