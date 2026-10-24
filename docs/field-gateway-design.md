@@ -124,6 +124,29 @@ Plan:
 4. GNSS on the nRF9160 can't run while LTE is active and costs tens of mA
    for 30 s or more per fix. Not needed for ±1 s.
 
+## Data tiers
+
+Measured on the Aug 24 soaked-4×4 run in
+`analysis/outputs/compression_20261024/`. It is one pulse, so recheck on the
+first field pulses.
+
+| tier | where | size per pulse | notes |
+|---|---|---:|---|
+| lossless 50 Hz window (60 s + 180 s) | board flash, always | about 46 kB | mean-of-8 predictor + Rice, about 4.5× over packed 18 B records |
+| parameters + 3-number baseline + 12-knot log-time spline per channel | uplink, every pulse | about 380 B | every fitted parameter within 1σ, 0.7 mK RMS |
+| 1-minute idle summaries | flash + hourly uplink | 30 B/min | 50 Hz idle doesn't fit, even lossless |
+| raw window by run ID | uplink, on request | about 46 kB | for flagged pulses or spot checks |
+
+- **Flash:** 32 MiB per board holds lossless windows plus idle summaries for
+  about 29 days at 24 pulses/day and about 15 days at 48 pulses/day.
+- **Uplink, both boards:** about 3.5–4 MB/month by default.
+- **Decimation:** uniform averaging down to 2 Hz is safe; 1 Hz is borderline.
+  With uneven bins, the fit must weight each bin by its width, or τ moves
+  35–63σ.
+- **Model alone isn't enough:** the Marshall model's residual is about 2.3×
+  the noise. Keep the model parameters as the result, and keep the spline
+  and raw data as the archive.
+
 ## Server
 
 The Feather on Hologram can't reach tailnet addresses (100.x), so it needs
