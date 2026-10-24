@@ -24,3 +24,7 @@ target/
 # Datasheets (downloaded from LCSC, ~18MB PDFs + extracted text)
 datasheets/
 spice/*.dat
+
+# Scratch material (papers, slide exports)
+tmp/
+__pycache__/
