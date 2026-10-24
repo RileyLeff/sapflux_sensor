@@ -1,0 +1,12 @@
+[package]
+name = "sap-flux-protocol"
+version = "0.1.0"
+edition = "2021"
+description = "no_std wire protocol for the sap-flux instrument: COBS-framed, CRC-32 checked messages shared between STM32 firmware and host tools"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Intentionally empty: this crate is no_std and dependency-free so it can be
+# consumed directly by Embassy firmware and host-side tools alike.
+
+[dev-dependencies]
