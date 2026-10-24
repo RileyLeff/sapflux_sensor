@@ -93,7 +93,8 @@ impl TrimLearner {
             self.restart(new_unix_s);
             return None;
         }
-        self.steps_ms = (self.steps_ms as i64 + step_ms).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+        self.steps_ms =
+            (self.steps_ms as i64 + step_ms).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
         let elapsed_s = new_unix_s - self.anchor_unix_s;
         if elapsed_s < MIN_LEARN_ELAPSED_S {
             return None;
@@ -187,6 +188,9 @@ mod tests {
         assert_eq!(l.on_correction(true, T + 25_200, -50_000, 0), None);
         let mut l = TrimLearner::default();
         l.on_correction(true, T, 0, 190_000);
-        assert_eq!(l.on_correction(true, T + 21_600, -8_640, 190_000), Some(200_000));
+        assert_eq!(
+            l.on_correction(true, T + 21_600, -8_640, 190_000),
+            Some(200_000)
+        );
     }
 }

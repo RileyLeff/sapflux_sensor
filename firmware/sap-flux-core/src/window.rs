@@ -189,7 +189,8 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
     }
 
     pub fn oldest_pending_run_id(&self) -> u32 {
-        self.oldest_pending().map_or(0, |i| self.meta[i].info.run_id)
+        self.oldest_pending()
+            .map_or(0, |i| self.meta[i].info.run_id)
     }
 
     fn oldest_pending(&self) -> Option<usize> {
@@ -494,7 +495,10 @@ mod tests {
             }
             store.push(t, &frame(value(i)), 2000);
         }
-        store.finish(p.start_us + secs * 1_000_000, p.start_rtc_ms + secs as i64 * 1000);
+        store.finish(
+            p.start_us + secs * 1_000_000,
+            p.start_rtc_ms + secs as i64 * 1000,
+        );
     }
 
     #[test]

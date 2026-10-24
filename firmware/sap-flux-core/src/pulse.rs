@@ -283,7 +283,12 @@ impl Machine {
 
     pub fn tick(&mut self, now_ms: u64) -> Effect {
         match self.state {
-            State::Pulsing if now_ms > self.pulse_deadline_ms.saturating_add(self.overrun_tolerance_ms()) => {
+            State::Pulsing
+                if now_ms
+                    > self
+                        .pulse_deadline_ms
+                        .saturating_add(self.overrun_tolerance_ms()) =>
+            {
                 self.state = State::Fault;
                 Effect::ForceHeaterOff
             }

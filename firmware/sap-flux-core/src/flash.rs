@@ -166,7 +166,13 @@ pub const fn ring_page_addr(base: u32, sectors: u32, page: u32) -> u32 {
 
 /// Read `buf.len()` bytes starting at byte `offset` of a ring of `sectors`
 /// sectors at `base`, wrapping at the ring end.
-pub fn ring_read<N: Nor>(flash: &mut Flash<N>, base: u32, sectors: u32, offset: u32, buf: &mut [u8]) -> bool {
+pub fn ring_read<N: Nor>(
+    flash: &mut Flash<N>,
+    base: u32,
+    sectors: u32,
+    offset: u32,
+    buf: &mut [u8],
+) -> bool {
     let ring = sectors * SECTOR_BYTES;
     let offset = offset % ring;
     let first = ((ring - offset) as usize).min(buf.len());

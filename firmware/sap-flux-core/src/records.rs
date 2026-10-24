@@ -40,7 +40,8 @@ fn seal<const N: usize>(magic: u32, payload: &[u8]) -> [u8; N] {
 
 fn open<const N: usize>(magic: u32, record: &[u8; N]) -> Option<&[u8]> {
     let stored = u32::from_le_bytes(record[N - 4..].try_into().ok()?);
-    if u32::from_le_bytes(record[..4].try_into().ok()?) != magic || crc32(&record[..N - 4]) != stored
+    if u32::from_le_bytes(record[..4].try_into().ok()?) != magic
+        || crc32(&record[..N - 4]) != stored
     {
         return None;
     }

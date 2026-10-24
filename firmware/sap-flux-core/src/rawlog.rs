@@ -19,7 +19,10 @@
 //! heater is on. A block that finds the queue full is dropped and counted.
 
 use crate::flash::{Flash, Nor, Ready, PAGES_PER_SECTOR, PAGE_BYTES, SECTOR_BYTES};
-use sap_flux_protocol::raw::{block_run_id, parse_prefix, seal_block, BlockBuilder, RawFrame, BLOCK_LEN, PREFIX_LEN};
+use sap_flux_protocol::raw::{
+    block_run_id, parse_prefix, seal_block, verify_block, BlockBuilder, RawFrame, BLOCK_LEN,
+    PREFIX_LEN,
+};
 
 /// Bytes per `RawChunk`.
 pub const CHUNK_LEN: usize = 100;
@@ -27,6 +30,9 @@ pub const CHUNK_LEN: usize = 100;
 const QUEUE: usize = 2;
 /// Sectors scanned between `tick` calls during [`RawLog::mount`].
 const TICK_SECTORS: u32 = 64;
+/// Boot scans before the newest sector is accepted even with a bad CRC
+/// (each failed one excludes that sector; ~0.4 s apiece).
+const MOUNT_SCANS: usize = 3;
 
 /// Where the ring lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,49 +133,81 @@ impl<const RUNS: usize> RawLog<RUNS> {
     /// Scan the sector headers and resume after the newest sector. Calls
     /// `tick` every 64 sectors (watchdog). Returns `false` (log stays off)
     /// if the chip fails.
-    pub fn mount<N: Nor>(&mut self, flash: &mut Flash<N>, geo: Geometry, mut tick: impl FnMut()) -> bool {
+    ///
+    /// The prefix carries no CRC, and a program torn by power loss leaves
+    /// unprogrammed bits at 1, which can inflate `seq`. So a prefix only
+    /// counts if its `seq` matches its ring position (`seq` and the write
+    /// head advance together), and the chosen newest sector's whole first
+    /// block must pass its CRC; if it does not, the scan repeats without it.
+    pub fn mount<N: Nor>(
+        &mut self,
+        flash: &mut Flash<N>,
+        geo: Geometry,
+        mut tick: impl FnMut(),
+    ) -> bool {
         *self = Self::new();
         assert!(geo.base % SECTOR_BYTES == 0 && geo.sectors >= geo.ahead_sectors + 2);
         self.geo = geo;
         if flash.poll(0) != Ready::Ready {
             return false;
         }
-        let mut newest: Option<(u32, u32)> = None; // (seq, sector)
-        let mut oldest: Option<(u32, u32)> = None;
-        let mut used = 0;
-        let mut prefix = [0u8; PREFIX_LEN];
-        for sector in 0..geo.sectors {
-            if sector % TICK_SECTORS == 0 {
-                tick();
+        let ring = self.ring_pages();
+        let mut rejected = [u32::MAX; MOUNT_SCANS];
+        for scan in 0..MOUNT_SCANS {
+            self.run_count = 0;
+            let mut newest: Option<(u32, u32)> = None; // (seq, sector)
+            let mut oldest: Option<(u32, u32)> = None;
+            let mut used = 0;
+            let mut prefix = [0u8; PREFIX_LEN];
+            for sector in 0..geo.sectors {
+                if sector % TICK_SECTORS == 0 {
+                    tick();
+                }
+                if rejected.contains(&sector) {
+                    continue;
+                }
+                if !flash.read(geo.base + sector * SECTOR_BYTES, &mut prefix) {
+                    return false;
+                }
+                let Some(p) = parse_prefix(&prefix) else {
+                    continue;
+                };
+                if p.seq % ring != sector * PAGES_PER_SECTOR {
+                    continue;
+                }
+                used += 1;
+                if newest.is_none_or(|(s, _)| p.seq > s) {
+                    newest = Some((p.seq, sector));
+                }
+                if oldest.is_none_or(|(s, _)| p.seq < s) {
+                    oldest = Some((p.seq, sector));
+                }
+                if p.block_in_run == 0 {
+                    self.insert_run(RunEntry {
+                        run_id: p.run_id,
+                        start_seq: p.seq,
+                        start_page: sector * PAGES_PER_SECTOR,
+                    });
+                }
             }
-            if !flash.read(geo.base + sector * SECTOR_BYTES, &mut prefix) {
+            let (Some((seq, sector)), Some((_, old))) = (newest, oldest) else {
+                break;
+            };
+            let mut block = [0u8; BLOCK_LEN];
+            if !flash.read(geo.base + sector * SECTOR_BYTES, &mut block) {
                 return false;
             }
-            let Some(p) = parse_prefix(&prefix) else {
+            if verify_block(&block).is_err() && scan + 1 < MOUNT_SCANS {
+                rejected[scan] = sector;
                 continue;
-            };
-            used += 1;
-            if newest.is_none_or(|(s, _)| p.seq > s) {
-                newest = Some((p.seq, sector));
             }
-            if oldest.is_none_or(|(s, _)| p.seq < s) {
-                oldest = Some((p.seq, sector));
-            }
-            if p.block_in_run == 0 {
-                self.insert_run(RunEntry {
-                    run_id: p.run_id,
-                    start_seq: p.seq,
-                    start_page: sector * PAGES_PER_SECTOR,
-                });
-            }
-        }
-        if let (Some((seq, sector)), Some((_, old))) = (newest, oldest) {
             // Resume on the next sector; `seq` advances one per page so a
             // run's block k always sits at start_seq + k.
             self.head = (sector + 1) % geo.sectors * PAGES_PER_SECTOR;
             self.next_seq = seq.wrapping_add(PAGES_PER_SECTOR);
             self.used_sectors = used;
             self.oldest_sector = old;
+            break;
         }
         self.mounted = true;
         true
@@ -231,7 +269,12 @@ impl<const RUNS: usize> RawLog<RUNS> {
     /// Do at most one flash operation: program the oldest queued block, or
     /// (if `allow_erase`) erase the next sector ahead of the head. Returns
     /// whether an operation was started.
-    pub fn service<N: Nor>(&mut self, flash: &mut Flash<N>, now_ms: u64, allow_erase: bool) -> bool {
+    pub fn service<N: Nor>(
+        &mut self,
+        flash: &mut Flash<N>,
+        now_ms: u64,
+        allow_erase: bool,
+    ) -> bool {
         if !self.mounted || flash.poll(now_ms) != Ready::Ready {
             return false;
         }
@@ -277,7 +320,10 @@ impl<const RUNS: usize> RawLog<RUNS> {
             }
         }
         let ahead = self.geo.ahead_sectors * PAGES_PER_SECTOR;
-        if allow_erase && self.ready < ahead && self.ready + PAGES_PER_SECTOR <= ring - PAGES_PER_SECTOR {
+        if allow_erase
+            && self.ready < ahead
+            && self.ready + PAGES_PER_SECTOR <= ring - PAGES_PER_SECTOR
+        {
             let sector = (self.head + self.ready) % ring / PAGES_PER_SECTOR;
             if !flash.erase_sector(now_ms, self.geo.base + sector * SECTOR_BYTES) {
                 return false;
@@ -312,7 +358,12 @@ impl<const RUNS: usize> RawLog<RUNS> {
             self.run_count += 1;
             return;
         }
-        let Some((i, oldest)) = self.runs.iter().enumerate().min_by_key(|(_, e)| e.start_seq) else {
+        let Some((i, oldest)) = self
+            .runs
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, e)| e.start_seq)
+        else {
             return;
         };
         if entry.start_seq > oldest.start_seq {
@@ -362,7 +413,9 @@ impl<const RUNS: usize> RawLog<RUNS> {
                 return None;
             }
             let ok = parse_prefix(&prefix).is_some_and(|p| {
-                p.run_id == run_id && p.block_in_run == block && p.seq == run.start_seq.wrapping_add(block)
+                p.run_id == run_id
+                    && p.block_in_run == block
+                    && p.seq == run.start_seq.wrapping_add(block)
             });
             if !ok {
                 break;
@@ -417,7 +470,13 @@ mod tests {
     }
 
     /// Log `n` frames of `run_id`, servicing the chip after every frame.
-    fn log_run(log: &mut RawLog<16>, f: &mut Flash<MemNor>, run_id: u32, from: u64, n: u64) -> Vec<RawFrame> {
+    fn log_run(
+        log: &mut RawLog<16>,
+        f: &mut Flash<MemNor>,
+        run_id: u32,
+        from: u64,
+        n: u64,
+    ) -> Vec<RawFrame> {
         let frames: Vec<RawFrame> = (from..from + n).map(frame).collect();
         for fr in &frames {
             log.push(run_id, fr);
@@ -466,7 +525,9 @@ mod tests {
         assert_eq!(log.dropped_frames(), 0);
         // Nothing outside the ring was touched.
         assert!(f.nor.bytes[..GEO.base as usize].iter().all(|&x| x == 0xFF));
-        assert!(f.nor.bytes[(GEO.base + 8 * SECTOR_BYTES) as usize..].iter().all(|&x| x == 0xFF));
+        assert!(f.nor.bytes[(GEO.base + 8 * SECTOR_BYTES) as usize..]
+            .iter()
+            .all(|&x| x == 0xFF));
 
         // A reused id is a new run; the newest one is served.
         let c = log_run(&mut log, &mut f, 7, 200, 13);
@@ -489,6 +550,40 @@ mod tests {
         assert_eq!(fetch(&log, &mut f, 1).unwrap(), a);
         assert_eq!(fetch(&log, &mut f, 2).unwrap(), b);
         // Writing resumes on the next sector without touching old data.
+        let c = log_run(&mut log, &mut f, 3, 300, 5);
+        assert_eq!(fetch(&log, &mut f, 1).unwrap(), a);
+        assert_eq!(fetch(&log, &mut f, 2).unwrap(), b);
+        assert_eq!(fetch(&log, &mut f, 3).unwrap(), c);
+        let blk: &[u8] = &f.nor.bytes[(GEO.base + 3 * SECTOR_BYTES) as usize..][..BLOCK_LEN];
+        assert_eq!(parse_prefix(blk).unwrap().run_id, 3);
+    }
+
+    #[test]
+    fn mount_ignores_torn_prefixes_with_inflated_seq() {
+        let mut f = chip();
+        let mut log = RawLog::<16>::new();
+        log.mount(&mut f, GEO, || {});
+        let a = log_run(&mut log, &mut f, 1, 0, 250); // sectors 0-1
+        let b = log_run(&mut log, &mut f, 2, 250, 12); // sector 2
+                                                       // Torn programs into sectors 3 and 5: run 2's block with seq bits
+                                                       // left at 1. Sector 3's seq still matches its position (+2^31 is a
+                                                       // multiple of the ring), so only its CRC gives it away; sector 5's
+                                                       // does not match its position at all.
+        let src = (GEO.base + 2 * SECTOR_BYTES) as usize;
+        let mut torn: [u8; BLOCK_LEN] = f.nor.bytes[src..][..BLOCK_LEN].try_into().unwrap();
+        torn[8..12].copy_from_slice(&(3 * PAGES_PER_SECTOR | 1 << 31).to_le_bytes());
+        let dst = (GEO.base + 3 * SECTOR_BYTES) as usize;
+        f.nor.bytes[dst..][..BLOCK_LEN].copy_from_slice(&torn);
+        torn[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
+        let dst = (GEO.base + 5 * SECTOR_BYTES) as usize;
+        f.nor.bytes[dst..][..BLOCK_LEN].copy_from_slice(&torn);
+
+        let mut log = RawLog::<16>::new();
+        let mut ticks = 0;
+        assert!(log.mount(&mut f, GEO, || ticks += 1));
+        assert_eq!(ticks, 2, "one rescan without sector 3");
+        assert_eq!(log.used_kib(), 12);
+        // Writing resumes on sector 3 (erasing the torn page), after run 2.
         let c = log_run(&mut log, &mut f, 3, 300, 5);
         assert_eq!(fetch(&log, &mut f, 1).unwrap(), a);
         assert_eq!(fetch(&log, &mut f, 2).unwrap(), b);
@@ -521,7 +616,10 @@ mod tests {
         log2.mount(&mut f, GEO, || {});
         assert_eq!(log2.used_kib(), 6 * 4);
         for r in 14..20 {
-            assert_eq!(fetch(&log2, &mut f, 100 + r).as_ref(), Some(&runs[r as usize]));
+            assert_eq!(
+                fetch(&log2, &mut f, 100 + r).as_ref(),
+                Some(&runs[r as usize])
+            );
         }
         let more = log_run(&mut log2, &mut f, 500, 0, 20);
         assert_eq!(fetch(&log2, &mut f, 500).unwrap(), more);
@@ -534,7 +632,7 @@ mod tests {
         let mut log = RawLog::<16>::new();
         log.mount(&mut f, GEO, || {});
         drain(&mut log, &mut f, true); // erase ahead
-        // 60 frames without servicing: 5 blocks complete, 2 fit the queue.
+                                       // 60 frames without servicing: 5 blocks complete, 2 fit the queue.
         for i in 0..61 {
             log.push(9, &frame(i));
         }
@@ -566,8 +664,14 @@ mod tests {
         }
         log.end_run();
         drain(&mut log, &mut f, true);
-        assert_eq!(fetch(&log, &mut f, 11).unwrap(), (0..24).map(frame).collect::<Vec<_>>());
-        assert_eq!(fetch(&log, &mut f, 12).unwrap(), (212..230).map(frame).collect::<Vec<_>>());
+        assert_eq!(
+            fetch(&log, &mut f, 11).unwrap(),
+            (0..24).map(frame).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            fetch(&log, &mut f, 12).unwrap(),
+            (212..230).map(frame).collect::<Vec<_>>()
+        );
     }
 
     #[test]

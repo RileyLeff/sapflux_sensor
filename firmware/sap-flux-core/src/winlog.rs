@@ -32,7 +32,10 @@ use crate::flash::{Flash, Nor, Ready, PAGE_BYTES, SECTOR_BYTES, WIN_SLOT_BYTES};
 use crate::window::WindowStore;
 use sap_flux_protocol::crc::crc32;
 use sap_flux_protocol::field::chunk_range;
-use sap_flux_protocol::{decode_frame, encode_frame, Message, WindowChunk, WindowInfo, WINDOW_INFO_FRAME_LEN, WINDOW_OLDEST};
+use sap_flux_protocol::{
+    decode_frame, encode_frame, Message, WindowChunk, WindowInfo, WINDOW_INFO_FRAME_LEN,
+    WINDOW_OLDEST,
+};
 
 const MAGIC: u32 = 0x4E57_4653; // "SFWN"
 const VERSION: u8 = 1;
@@ -127,7 +130,10 @@ fn header_page(seq: u32, info: &WindowInfo) -> [u8; PAGE_BYTES as usize] {
 /// `(seq, info, delivered)` of a valid header page.
 fn parse_header(page: &[u8; PAGE_BYTES as usize]) -> Option<(u32, WindowInfo, bool)> {
     let word = |i: usize| u32::from_le_bytes([page[i], page[i + 1], page[i + 2], page[i + 3]]);
-    if word(0) != MAGIC || page[4] != VERSION || crc32(&page[..HEADER_CRC_OFFSET]) != word(HEADER_CRC_OFFSET) {
+    if word(0) != MAGIC
+        || page[4] != VERSION
+        || crc32(&page[..HEADER_CRC_OFFSET]) != word(HEADER_CRC_OFFSET)
+    {
         return None;
     }
     let frame = decode_frame(&page[INFO_OFFSET..INFO_OFFSET + WINDOW_INFO_FRAME_LEN]).ok()?;
@@ -162,7 +168,12 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
 
     /// Read every slot header at `base`. Returns `false` (store stays off,
     /// windows stay in RAM) if the chip fails.
-    pub fn mount<N: Nor>(&mut self, flash: &mut Flash<N>, base: u32, mut tick: impl FnMut()) -> bool {
+    pub fn mount<N: Nor>(
+        &mut self,
+        flash: &mut Flash<N>,
+        base: u32,
+        mut tick: impl FnMut(),
+    ) -> bool {
         *self = Self::new();
         self.base = base;
         if flash.poll(0) != Ready::Ready {
@@ -181,7 +192,11 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
                 continue;
             };
             self.entries[slot] = Entry {
-                state: if delivered { SlotState::Delivered } else { SlotState::Pending },
+                state: if delivered {
+                    SlotState::Delivered
+                } else {
+                    SlotState::Pending
+                },
                 marker_owed: false,
                 run_id: info.run_id,
                 seq,
@@ -213,7 +228,11 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
 
     /// Flash taken by stored windows (delivered ones included), KiB.
     pub fn used_kib(&self) -> u32 {
-        let used = self.entries.iter().filter(|e| e.state != SlotState::Empty).count() as u32;
+        let used = self
+            .entries
+            .iter()
+            .filter(|e| e.state != SlotState::Empty)
+            .count() as u32;
         used * (WIN_SLOT_BYTES / 1024)
     }
 
@@ -223,7 +242,10 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
     }
 
     fn flash_pending(&self) -> usize {
-        self.entries.iter().filter(|e| e.state == SlotState::Pending).count()
+        self.entries
+            .iter()
+            .filter(|e| e.state == SlotState::Pending)
+            .count()
     }
 
     fn oldest_flash(&self) -> Option<usize> {
@@ -234,7 +256,11 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
 
     fn find_flash(&self, run_id: u32, state: SlotState) -> Option<usize> {
         if run_id == WINDOW_OLDEST {
-            return if state == SlotState::Pending { self.oldest_flash() } else { None };
+            return if state == SlotState::Pending {
+                self.oldest_flash()
+            } else {
+                None
+            };
         }
         (0..SLOTS)
             .filter(|&i| self.entries[i].state == state && self.entries[i].run_id == run_id)
@@ -244,7 +270,10 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
     // ----- What the board reports: RAM windows (not yet persisted) plus
     // ----- flash windows. Flash windows are always the older ones.
 
-    pub fn windows_pending<const S: usize, const B: usize>(&self, ram: &WindowStore<S, B>) -> usize {
+    pub fn windows_pending<const S: usize, const B: usize>(
+        &self,
+        ram: &WindowStore<S, B>,
+    ) -> usize {
         self.flash_pending() + ram.windows_pending()
     }
 
@@ -252,7 +281,10 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
         self.dropped.saturating_add(ram.windows_dropped())
     }
 
-    pub fn oldest_pending_run_id<const S: usize, const B: usize>(&self, ram: &WindowStore<S, B>) -> u32 {
+    pub fn oldest_pending_run_id<const S: usize, const B: usize>(
+        &self,
+        ram: &WindowStore<S, B>,
+    ) -> u32 {
         match self.oldest_flash() {
             Some(i) => self.entries[i].run_id,
             None => ram.oldest_pending_run_id(),
@@ -272,7 +304,11 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
 
     /// Whether answering for `run_id` needs a flash read (it is not a RAM
     /// window but a stored one).
-    pub fn needs_flash<const S: usize, const B: usize>(&self, ram: &WindowStore<S, B>, run_id: u32) -> bool {
+    pub fn needs_flash<const S: usize, const B: usize>(
+        &self,
+        ram: &WindowStore<S, B>,
+        run_id: u32,
+    ) -> bool {
         let in_ram = if run_id == WINDOW_OLDEST {
             self.oldest_flash().is_none() && ram.windows_pending() > 0
         } else {
@@ -302,7 +338,9 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
             return None;
         }
         parse_header(&page)
-            .filter(|(seq, info, _)| *seq == self.entries[slot].seq && info.run_id == self.entries[slot].run_id)
+            .filter(|(seq, info, _)| {
+                *seq == self.entries[slot].seq && info.run_id == self.entries[slot].run_id
+            })
             .map(|(_, info, _)| info)
     }
 
@@ -331,7 +369,11 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
     /// `AckWindow`: free a delivered window. True if it was pending (RAM or
     /// flash) or was already acknowledged. The flash marker is programmed
     /// later by [`Self::service`].
-    pub fn ack<const S: usize, const B: usize>(&mut self, ram: &mut WindowStore<S, B>, run_id: u32) -> bool {
+    pub fn ack<const S: usize, const B: usize>(
+        &mut self,
+        ram: &mut WindowStore<S, B>,
+        run_id: u32,
+    ) -> bool {
         if run_id == WINDOW_OLDEST {
             return false;
         }
@@ -393,7 +435,11 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
                 let ok = flash.erase_sector(now_ms, addr + self.step * SECTOR_BYTES);
                 self.step += 1;
                 if self.step == SLOT_SECTORS {
-                    self.stage = if data_pages == 0 { Stage::Header } else { Stage::Program };
+                    self.stage = if data_pages == 0 {
+                        Stage::Header
+                    } else {
+                        Stage::Program
+                    };
                     self.step = 0;
                 }
                 ok
@@ -401,7 +447,8 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
             Stage::Program => {
                 let start = (self.step * PAGE_BYTES) as usize;
                 let end = (start + PAGE_BYTES as usize).min(data.len());
-                let ok = flash.program(now_ms, addr + DATA_OFFSET + start as u32, &data[start..end]);
+                let ok =
+                    flash.program(now_ms, addr + DATA_OFFSET + start as u32, &data[start..end]);
                 self.step += 1;
                 if self.step == data_pages {
                     self.stage = Stage::Header;
@@ -431,7 +478,8 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
                 let end = (start + PAGE_BYTES as usize).min(data.len());
                 let mut page = [0u8; PAGE_BYTES as usize];
                 let page = &mut page[..end - start];
-                if !flash.read(addr + DATA_OFFSET + start as u32, page) || page != &data[start..end] {
+                if !flash.read(addr + DATA_OFFSET + start as u32, page) || page != &data[start..end]
+                {
                     self.stage = Stage::Kill;
                     return false;
                 }
@@ -497,7 +545,10 @@ mod tests {
     type Log = WindowLog<SLOTS>;
 
     fn chip() -> Flash<MemNor> {
-        Flash::new(MemNor::with_len(((SLOTS + 2) as u32 * WIN_SLOT_BYTES) as usize), true)
+        Flash::new(
+            MemNor::with_len(((SLOTS + 2) as u32 * WIN_SLOT_BYTES) as usize),
+            true,
+        )
     }
 
     /// Record and finish a 10 s window of `run_id` in RAM.
@@ -520,10 +571,18 @@ mod tests {
             }
             ram.push(start + i * 40_000, &v, 2400);
         }
-        ram.finish(start + bins * 250_000, 1_793_000_000_000 + bins as i64 * 250);
+        ram.finish(
+            start + bins * 250_000,
+            1_793_000_000_000 + bins as i64 * 250,
+        );
     }
 
-    fn download(log: &Log, f: &mut Flash<MemNor>, ram: &Ram, run_id: u32) -> Option<(WindowInfo, Vec<u8>)> {
+    fn download(
+        log: &Log,
+        f: &mut Flash<MemNor>,
+        ram: &Ram,
+        run_id: u32,
+    ) -> Option<(WindowInfo, Vec<u8>)> {
         let info = log.info(f, ram, run_id)?;
         let mut data = Vec::new();
         for c in 0..info.chunk_count {

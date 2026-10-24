@@ -40,11 +40,19 @@ pub enum Action {
     /// [`Planner::start_rejected`].
     StartBaseline(BaselineRequest),
     /// `Machine::arm`.
-    Arm { run_id: u32, duration: PulseDuration },
+    Arm {
+        run_id: u32,
+        duration: PulseDuration,
+    },
     /// `Machine::request_fire` and the persisted-lockout fire sequence.
-    Fire { run_id: u32, nonce: u64 },
+    Fire {
+        run_id: u32,
+        nonce: u64,
+    },
     /// `Machine::abort`.
-    Abort { run_id: u32 },
+    Abort {
+        run_id: u32,
+    },
 }
 
 /// Snapshot of the world for one [`Planner::poll`].
@@ -207,8 +215,8 @@ impl Planner {
         match unix_ms {
             Some(unix_ms) => {
                 let earliest_ms = unix_ms - START_SLACK_MS as i64 + baseline_ms as i64;
-                let earliest_s = earliest_ms.div_euclid(1000)
-                    + (earliest_ms.rem_euclid(1000) != 0) as i64;
+                let earliest_s =
+                    earliest_ms.div_euclid(1000) + (earliest_ms.rem_euclid(1000) != 0) as i64;
                 let mut t = next_aligned(earliest_s, self.schedule.phase_s, interval_s);
                 if let Some(SlotKey::Unix(last)) = self.last_key {
                     if t <= last as i64 {
@@ -324,7 +332,11 @@ impl Planner {
         if inputs.state != State::SafeIdle || now > start_at + START_SLACK_MS {
             return Action::None;
         }
-        self.seq = if self.seq == u16::MAX { 1 } else { self.seq + 1 };
+        self.seq = if self.seq == u16::MAX {
+            1
+        } else {
+            self.seq + 1
+        };
         let run_id = self.run_prefix | self.seq as u32;
         let time_invalid = inputs.unix_ms.is_none();
         self.run = Some(ActiveRun {
@@ -349,9 +361,9 @@ impl Planner {
 mod tests {
     extern crate std;
     use super::*;
+    use crate::pulse::{Effect, Health, Machine, COOLDOWN_MS};
     use std::vec;
     use std::vec::Vec;
-    use crate::pulse::{Effect, Health, Machine, COOLDOWN_MS};
 
     fn enabled() -> Schedule {
         Schedule {
@@ -516,7 +528,8 @@ mod tests {
         let mut sim = Sim::new(enabled(), true);
         sim.run_for_ms(3_600_000 - 30_000);
         assert_eq!(sim.machine.state(), State::Baseline);
-        sim.planner.set_schedule(Schedule::FACTORY_DEFAULT, sim.now_ms);
+        sim.planner
+            .set_schedule(Schedule::FACTORY_DEFAULT, sim.now_ms);
         sim.run_for_ms(80);
         assert_eq!(sim.machine.state(), State::SafeIdle);
         sim.run_for_ms(3_600_000);
@@ -526,7 +539,8 @@ mod tests {
         sim.run_for_ms(3_600_000 + 1_000);
         assert_eq!(sim.fired_at.len(), 1);
         assert_eq!(sim.machine.state(), State::Recovery);
-        sim.planner.set_schedule(Schedule::FACTORY_DEFAULT, sim.now_ms);
+        sim.planner
+            .set_schedule(Schedule::FACTORY_DEFAULT, sim.now_ms);
         sim.run_for_ms(80);
         assert_eq!(sim.machine.state(), State::Recovery);
     }
@@ -579,8 +593,7 @@ mod tests {
         };
         let mut sim = Sim::new(schedule, true);
         // Lease ends between the first and second slot.
-        sim.planner
-            .set_lease((T0_UNIX_MS / 1000 + 5_000) as u32);
+        sim.planner.set_lease((T0_UNIX_MS / 1000 + 5_000) as u32);
         sim.run_for_ms(3 * 3_600_000);
         assert_eq!(sim.fired_at.len(), 1);
         assert!(!sim.planner.lease_ok(sim.unix_ms()));
