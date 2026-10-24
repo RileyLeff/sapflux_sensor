@@ -507,8 +507,8 @@ impl Gateway {
         let nonce = board.next_nonce();
         let clock = &self.clock;
         let expect = Expect {
-            types: Q_ACK,
             timeouts_ms: &SET_RTC_TIMEOUTS_MS,
+            ..Expect::new(Q_ACK)
         };
         // The board treats unix_ms as "now" at receipt; add the 30-byte
         // frame's 2.6 ms at 115200 baud.
@@ -648,7 +648,7 @@ impl Gateway {
                 let nonce = board.next_nonce();
                 let r = board
                     .transact(
-                        Expect::new(Q_WINDOW_CHUNK),
+                        Expect::chunk(Q_WINDOW_CHUNK, info.run_id, chunk),
                         Message::GetWindow(GetWindow {
                             command_nonce: nonce,
                             run_id: info.run_id,

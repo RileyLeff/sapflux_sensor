@@ -147,6 +147,10 @@ pub struct Expect {
     /// An `Ack` with result 0 alone does not complete the reply (it does
     /// when `types` contains `MSG_ACK`); a nonzero `Ack` always does.
     pub timeouts_ms: &'static [u64],
+    /// Only accept a `WindowChunk` for this `(run_id, chunk)`. Chunks carry
+    /// no nonce, so a late reply to an earlier request must be skipped
+    /// rather than completing (and wasting) this attempt.
+    pub chunk: Option<(u32, u16)>,
 }
 
 impl Expect {
@@ -154,6 +158,14 @@ impl Expect {
         Self {
             types,
             timeouts_ms: &TIMEOUTS_MS,
+            chunk: None,
+        }
+    }
+
+    pub const fn chunk(types: &'static [u8], run_id: u32, chunk: u16) -> Self {
+        Self {
+            chunk: Some((run_id, chunk)),
+            ..Self::new(types)
         }
     }
 }
@@ -325,6 +337,13 @@ impl<'d> BoardLink<'d> {
                     None => {}
                     Some(Err(_)) => self.stats.decode_errors += 1,
                     Some(Ok(frame)) => {
+                        if let (Some((run_id, chunk)), Message::WindowChunk(c)) =
+                            (expect.chunk, &frame.frame.message)
+                        {
+                            if c.run_id != run_id || c.chunk != chunk {
+                                continue; // late reply to an earlier chunk request
+                            }
+                        }
                         if let Message::Ack(a) = frame.frame.message {
                             if a.command_type != cmd_type || a.command_nonce != nonce {
                                 continue; // stale reply to an earlier command
