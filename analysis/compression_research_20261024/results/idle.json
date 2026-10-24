@@ -1,0 +1,81 @@
+{
+ "quiet:session_20260824_203902": {
+  "seconds": 921.96,
+  "60s_1mK": {
+   "bits_per_value": 8.228571428571428,
+   "bytes_per_day_12ch": 17797.714285714283
+  },
+  "60s_5mK": {
+   "bits_per_value": 5.914285714285715,
+   "bytes_per_day_12ch": 12798.857142857143
+  },
+  "60s_10mK": {
+   "bits_per_value": 4.814285714285714,
+   "bytes_per_day_12ch": 10422.857142857143
+  },
+  "60s_noise_floor_mK": 2.0662244358283264,
+  "60s_drift_sd_mK": 6.732767200368034,
+  "300s_1mK": {
+   "bits_per_value": 12.3,
+   "bytes_per_day_12ch": 5337.6
+  },
+  "300s_5mK": {
+   "bits_per_value": 10.0,
+   "bytes_per_day_12ch": 4344.0
+  },
+  "300s_10mK": {
+   "bits_per_value": 9.0,
+   "bytes_per_day_12ch": 3912.0
+  },
+  "300s_noise_floor_mK": 2.0662244358283264,
+  "300s_drift_sd_mK": 19.739352373868257
+ },
+ "interference:session_20260824_212832": {
+  "seconds": 3988.64,
+  "60s_1mK": {
+   "bits_per_value": 5.846153846153846,
+   "bytes_per_day_12ch": 12651.692307692307
+  },
+  "60s_5mK": {
+   "bits_per_value": 3.249230769230769,
+   "bytes_per_day_12ch": 7042.338461538461
+  },
+  "60s_10mK": {
+   "bits_per_value": 2.243076923076923,
+   "bytes_per_day_12ch": 4869.046153846154
+  },
+  "60s_noise_floor_mK": 0.6502282719513937,
+  "60s_drift_sd_mK": 5.609760231057578,
+  "300s_1mK": {
+   "bits_per_value": 8.466666666666667,
+   "bytes_per_day_12ch": 3681.6
+  },
+  "300s_5mK": {
+   "bits_per_value": 6.116666666666666,
+   "bytes_per_day_12ch": 2666.3999999999996
+  },
+  "300s_10mK": {
+   "bits_per_value": 5.033333333333333,
+   "bytes_per_day_12ch": 2198.4
+  },
+  "300s_noise_floor_mK": 0.6502282719513937,
+  "300s_drift_sd_mK": 25.46131922928706
+ },
+ "july:session_20260711_003122": {
+  "seconds": 425.92,
+  "60s_1mK": {
+   "bits_per_value": 3.966666666666667,
+   "bytes_per_day_12ch": 8592.0
+  },
+  "60s_5mK": {
+   "bits_per_value": 2.2333333333333334,
+   "bytes_per_day_12ch": 4848.0
+  },
+  "60s_10mK": {
+   "bits_per_value": 1.9666666666666666,
+   "bytes_per_day_12ch": 4272.0
+  },
+  "60s_noise_floor_mK": 6.550722591192443,
+  "60s_drift_sd_mK": 1.3458899449728954
+ }
+}
