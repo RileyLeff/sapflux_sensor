@@ -1,0 +1,15 @@
+[package]
+name = "sap-flux-monitor"
+version = "0.1.0"
+edition = "2021"
+description = "Native desktop monitor for the sap-flux instrument"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+chrono = "0.4.45"
+eframe = "0.35.0"
+egui_plot = "0.36.0"
+sap-flux-protocol = { path = "../sap-flux-protocol" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+serialport = "4.9.0"
