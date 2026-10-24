@@ -42,6 +42,10 @@ pub const SCHEDULE_SAMPLE_HZ: [u16; 3] = [10, 20, 25];
 pub const SCHEDULE_BIN_MS: [u16; 3] = [250, 500, 1000];
 /// Most bins one window may hold (the board's RAM slot size).
 pub const SCHEDULE_MAX_WINDOW_BINS: u32 = 1000;
+/// Margin [`Schedule::validate`] adds to the nominal window span: a real
+/// window runs a little long (recovery starts when the board sees the
+/// pulse end, up to a frame late), and the RAM slot must still hold it.
+pub const SCHEDULE_WINDOW_SLACK_MS: u32 = 1000;
 /// Minimum `interval_s`.
 pub const SCHEDULE_MIN_INTERVAL_S: u32 = 600;
 /// Allowed `baseline_s` range.
@@ -72,7 +76,8 @@ pub enum ScheduleError {
     SampleHz,
     /// `bin_ms` not in {250, 500, 1000}.
     BinMs,
-    /// The window would need more than [`SCHEDULE_MAX_WINDOW_BINS`] bins.
+    /// The window, plus [`SCHEDULE_WINDOW_SLACK_MS`], would need more than
+    /// [`SCHEDULE_MAX_WINDOW_BINS`] bins.
     WindowTooLong,
 }
 
@@ -173,7 +178,10 @@ impl Schedule {
         if !SCHEDULE_BIN_MS.contains(&self.bin_ms) {
             return Err(ScheduleError::BinMs);
         }
-        if self.window_bins() > SCHEDULE_MAX_WINDOW_BINS {
+        let bin = self.bin_ms.max(1) as u32;
+        if (self.window_span_ms() + SCHEDULE_WINDOW_SLACK_MS).div_ceil(bin)
+            > SCHEDULE_MAX_WINDOW_BINS
+        {
             return Err(ScheduleError::WindowTooLong);
         }
         Ok(())
@@ -182,10 +190,12 @@ impl Schedule {
     /// Bins in the window this schedule produces:
     /// `ceil((baseline + pulse + recovery) / bin_ms)`.
     pub fn window_bins(&self) -> u32 {
-        let span_ms = (self.baseline_s as u32 + self.recovery_s as u32) * 1000
-            + self.pulse_duration_ms as u32;
         let bin = self.bin_ms.max(1) as u32;
-        span_ms.div_ceil(bin)
+        self.window_span_ms().div_ceil(bin)
+    }
+
+    fn window_span_ms(&self) -> u32 {
+        (self.baseline_s as u32 + self.recovery_s as u32) * 1000 + self.pulse_duration_ms as u32
     }
 }
 

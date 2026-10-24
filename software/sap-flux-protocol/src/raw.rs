@@ -303,7 +303,8 @@ impl BlockBuilder {
             && dt.is_some_and(|d| d <= u16::MAX as u64);
         let delta = delta_fits(&self.prev, frame);
         let len = if delta { DELTA_LEN } else { ABSOLUTE_LEN };
-        if !same_block || HEADER_LEN + self.used + len > CRC_OFFSET || self.n as usize >= MAX_FRAMES {
+        if !same_block || HEADER_LEN + self.used + len > CRC_OFFSET || self.n as usize >= MAX_FRAMES
+        {
             let done = self.finish();
             self.start(run_id, frame);
             return done;
@@ -330,7 +331,11 @@ impl BlockBuilder {
         self.buf[2] = VERSION;
         self.buf[4..8].copy_from_slice(&run_id.to_le_bytes());
         self.buf[16..24].copy_from_slice(&frame.monotonic_us.to_le_bytes());
-        let rtc = if frame.rtc_unix_ms >= 0 { frame.rtc_unix_ms } else { -1 };
+        let rtc = if frame.rtc_unix_ms >= 0 {
+            frame.rtc_unix_ms
+        } else {
+            -1
+        };
         self.buf[24..32].copy_from_slice(&rtc.to_le_bytes());
         self.first_rtc_valid = frame.rtc_unix_ms >= 0;
         self.put(frame, 0, false);
@@ -343,7 +348,8 @@ impl BlockBuilder {
             self.buf[p] = TAG_DELTA;
             self.buf[p + 1..p + 3].copy_from_slice(&dt);
             for i in 0..VALUES {
-                self.buf[p + 3 + i] = (frame.values[i] as i32 - self.prev.values[i] as i32) as i8 as u8;
+                self.buf[p + 3 + i] =
+                    (frame.values[i] as i32 - self.prev.values[i] as i32) as i8 as u8;
             }
             self.used += DELTA_LEN;
         } else {
@@ -352,7 +358,8 @@ impl BlockBuilder {
             self.buf[p + 3] = frame.flags;
             self.buf[p + 4] = frame.state;
             for i in 0..VALUES {
-                self.buf[p + 5 + 2 * i..p + 7 + 2 * i].copy_from_slice(&frame.values[i].to_le_bytes());
+                self.buf[p + 5 + 2 * i..p + 7 + 2 * i]
+                    .copy_from_slice(&frame.values[i].to_le_bytes());
             }
             self.used += ABSOLUTE_LEN;
         }
@@ -403,7 +410,9 @@ mod tests {
 
     #[test]
     fn slow_signals_pack_twelve_frames_per_block_losslessly() {
-        let frames: Vec<RawFrame> = (0..100).map(|i| frame(i, 1000 + (i % 7) as i16 * 3)).collect();
+        let frames: Vec<RawFrame> = (0..100)
+            .map(|i| frame(i, 1000 + (i % 7) as i16 * 3))
+            .collect();
         let (blocks, out) = roundtrip(&frames);
         assert_eq!(blocks.len(), 9); // ceil(100 / 12)
         assert_eq!(out, frames);
@@ -411,7 +420,9 @@ mod tests {
         // The last block is padded with 0xFF.
         let last = blocks.last().unwrap();
         assert_eq!(last[3], 4);
-        assert!(last[HEADER_LEN + ABSOLUTE_LEN + 3 * DELTA_LEN..CRC_OFFSET].iter().all(|&b| b == 0xFF));
+        assert!(last[HEADER_LEN + ABSOLUTE_LEN + 3 * DELTA_LEN..CRC_OFFSET]
+            .iter()
+            .all(|&b| b == 0xFF));
     }
 
     #[test]

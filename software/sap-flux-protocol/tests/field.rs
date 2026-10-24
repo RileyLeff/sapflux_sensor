@@ -500,6 +500,18 @@ fn schedule_limits() {
         }),
         Err(ScheduleError::WindowTooLong)
     );
+    // Exactly 1000 nominal bins (60 + 1 + 439 s at 500 ms) leaves no room
+    // for a late pulse end; 438 s (998 bins + 1 s slack = 1000) does.
+    let long = |recovery_s| {
+        let mut s = DEFAULT_SCHEDULE;
+        s.baseline_s = 60;
+        s.recovery_s = recovery_s;
+        s.pulse_duration_ms = 1000;
+        s.bin_ms = 500;
+        s.validate(600_000)
+    };
+    assert_eq!(long(439), Err(ScheduleError::WindowTooLong));
+    assert_eq!(long(438), Ok(()));
     // 60 + 180 + 600 = 840 s busy: interval 840 rejected, 841 accepted.
     assert_eq!(bad(|s| s.interval_s = 840), Err(ScheduleError::Timing));
     assert_eq!(bad(|s| s.interval_s = 841), Ok(()));
