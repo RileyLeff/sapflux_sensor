@@ -173,21 +173,66 @@ only, so every connection would pay for a TLS handshake.
   command.
 - J6 TX is driven only while sending (see the BOOT0 caveat above).
 
-### Gateway
+### Gateway (Feather v1–v3, micro-USB; findings from the v1/v2 Eagle schematics)
 
-- LTE-M only, PSM requested (`AT+CPSMS`) with a long periodic TAU and a
-  short active time. eDRX stays off, since downlink is only ever a reply to
-  an uplink.
-- Batch uploads every 30–60 min plus an immediate small alert on any board
-  fault.
-- Turn off UARTEs and the console between exchanges. The CP2102N and LEDs
-  are quiescent drains, so measure them.
+- **Firmware must drive P0.31 (NRF_PS_EN) high at boot, or the board turns
+  itself off.** On battery alone the TPS63031 enable is a diode-OR of VBUS,
+  the MODE button, the PCF85063A RTC alarm and P0.31. Zephyr does this
+  automatically; the Rust firmware currently does not. On USB it works
+  anyway, so the bench never shows the problem.
+- **PSM isn't a low-power state on this revision.** The TPS63031 PS/SYNC pin
+  is tied to VSYS, which forces PWM mode. Expect mA-level input current
+  whenever the regulator runs (estimated from the datasheet curve; measure
+  it). The real sleep is the latch: set a PCF85063A alarm (I2C 0x51), drive
+  P0.31 low, and the board drops to under 3 µA until the alarm turns it back
+  on. Every wake is therefore a cold boot plus a full LTE-M attach.
+- Each wake: attach, sync time, pull records from both boards, upload,
+  receive config, set the next alarm, latch off. Plus an immediate small
+  alert on any board fault the next time it is awake.
+- Drains to cut while awake:
+  - LIS2DH12 SDO pull-up, about 130 µA (CTRL_REG0 = 0x90, then ODR = 0).
+  - W25Q32 deep power-down (0xB9).
+  - Blue LED on P0.03, active low.
+  - UART0 to the unpowered CP2102N: leave its pins as disconnected inputs.
+- GNSS needs an active antenna on the U.FL plus `AT%XCOEX0`. Not planned.
+
+### Gateway battery: 18650 LiFePO4
+
+- **A LiFePO4 cell on the JST battery input is fine.** The TPS63031
+  buck-boost holds 3.3 V down to about 1.8 V input. Peak TX current is about
+  0.4–0.6 A from the cell, which is inside its 500 mA boost limit.
+- **Never plug USB in with LiFePO4 attached.** The STBC08 charger is always
+  on when VBUS is present and charges toward 4.2 V; LiFePO4's maximum is
+  3.65 V. Unplug the battery before USB flashing or recovery. To remove the
+  hazard permanently, remove R12 (the 3.4 kΩ PROG resistor), which puts the
+  charger in shutdown.
+- **Paralleling cells:**
+  - Use the same model and age.
+  - Charge each cell to full (3.65 V CV until the current tapers) on a
+    LiFePO4 charger before connecting them. The flat LiFePO4 curve means a
+    matching voltage reading doesn't prove a matching state of charge.
+  - Check whether the holders are wired in series: two cells reading about
+    6.5 V means series. Rewire or buy parallel holders.
+  - Join the holders with short, thick leads. Add a per-cell fuse of about
+    2 A if you want to be careful.
+  - Spring-contact resistance is tolerable at these currents.
+- Estimated life on two 1.5 Ah cells (90% usable, latch-off sleep of about
+  8 µA total). These are estimates, not measurements:
+
+| wake period | awake | average | life |
+|---|---|---:|---:|
+| 30 min | 45 s @ 30 mA | 0.76 mA | ~150 days |
+| 30 min | 90 s @ 60 mA | 3.0 mA | ~37 days |
+| 60 min | 45 s @ 30 mA | 0.38 mA | ~290 days |
+| always on, forced-PWM regulator ~5 mA | — | 5 mA | ~22 days |
 
 ## Bench checklist
 
 - [ ] Confirm whether PA13/PA14 are LPUART1 or LPUART2 (scope PA14 in UART mode).
 - [ ] Measure board current: streaming vs. RS-485 receiver off vs. Stop.
-- [ ] Measure Feather PSM floor current and uplink energy per exchange.
+- [ ] Identify Feather revision (micro-USB = v1–v3; LIS2DH12 present = v2+).
+- [ ] Verify P0.31-high keeps the Feather on with USB unplugged; verify latch-off + RTC-alarm wake.
+- [ ] Measure Feather current: latched off, awake idle (forced PWM), and energy per wake/attach/upload.
 - [ ] Measure SP3485 current with ~RE high and DE low.
 - [ ] Confirm the CR2032 is fitted and the RTC survives removal of 24 V.
 - [ ] Measure clock ratio: regress `rtc_unix_ms` against `monotonic_us` on an existing capture.
