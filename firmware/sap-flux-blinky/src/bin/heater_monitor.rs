@@ -295,6 +295,9 @@ struct FieldState {
     last_rtc_step_ms: i32,
     /// Nonce of the last applied SetRtc: a retry is answered, not re-applied.
     last_set_rtc_nonce: Option<u64>,
+    /// (nonce, run_id) of the last applied AckWindow: a retry is answered,
+    /// not applied again (it would retire a later window reusing the id).
+    last_ack_window: Option<(u64, u32)>,
 }
 
 /// Everything command handling and the scheduler act on.
@@ -713,6 +716,7 @@ async fn main(_spawner: Spawner) {
             trim_ppb,
             last_rtc_step_ms: 0,
             last_set_rtc_nonce: None,
+            last_ack_window: None,
         },
         flash,
         raw,
@@ -1226,7 +1230,11 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
         Message::AckWindow(command) => {
             // A flash window's delivered marker is programmed later by
             // service_storage, so this never waits on the chip.
-            let result = if ctx.window_log.ack(ctx.field.windows, command.run_id) {
+            let key = (command.command_nonce, command.run_id);
+            let result = if ctx.field.last_ack_window == Some(key) {
+                OK_RESULT
+            } else if ctx.window_log.ack(ctx.field.windows, command.run_id) {
+                ctx.field.last_ack_window = Some(key);
                 OK_RESULT
             } else {
                 sap_flux_protocol::ACK_NOT_FOUND
