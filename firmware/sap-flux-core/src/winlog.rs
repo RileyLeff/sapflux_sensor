@@ -513,7 +513,13 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
     }
 
     fn start_job(&mut self, run_id: u32) {
-        let slot = self.next_slot;
+        // The next free (empty or delivered) slot in ring order; only when
+        // all of them hold undelivered windows is the oldest one dropped.
+        let slot = (0..SLOTS)
+            .map(|k| (self.next_slot + k) % SLOTS)
+            .find(|&i| self.entries[i].state != SlotState::Pending)
+            .or_else(|| self.oldest_flash())
+            .unwrap_or(self.next_slot);
         if self.entries[slot].state == SlotState::Pending {
             self.dropped = self.dropped.saturating_add(1);
         }
@@ -776,6 +782,38 @@ mod tests {
             assert!(log.ack(&mut ram, 41));
         }
         assert_eq!(log.windows_pending(&ram), 0);
+    }
+
+    #[test]
+    fn a_full_ring_reuses_delivered_slots_before_dropping() {
+        let mut f = chip();
+        let mut ram = Ram::new();
+        let mut log = Log::new();
+        log.mount(&mut f, BASE, || {});
+        for r in 0..SLOTS as u32 {
+            record(&mut ram, 100 + r, 4);
+            persist_all(&mut log, &mut f, &mut ram);
+        }
+        // Slot 0 stays pending; the rest are delivered.
+        for r in 1..SLOTS as u32 {
+            assert!(log.ack(&mut ram, 100 + r));
+        }
+        for r in 0..SLOTS as u32 - 1 {
+            record(&mut ram, 200 + r, 4);
+            persist_all(&mut log, &mut f, &mut ram);
+        }
+        assert_eq!(log.windows_dropped(&ram), 0);
+        assert_eq!(log.windows_pending(&ram), SLOTS);
+        assert_eq!(log.oldest_pending_run_id(&ram), 100);
+        // Only now is the ring full of undelivered windows.
+        record(&mut ram, 300, 4);
+        persist_all(&mut log, &mut f, &mut ram);
+        assert_eq!(log.windows_dropped(&ram), 1);
+        assert_eq!(log.oldest_pending_run_id(&ram), 200);
+        let mut log2 = Log::new();
+        log2.mount(&mut f, BASE, || {});
+        assert_eq!(log2.oldest_pending_run_id(&ram), 200);
+        assert_eq!(log2.windows_pending(&ram), SLOTS);
     }
 
     #[test]
