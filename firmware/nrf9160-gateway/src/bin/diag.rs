@@ -143,7 +143,14 @@ fn report_crsm_iccid(uart: &mut Uarte<'_>, response: &str) {
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
+    // NRF_PS_EN: on battery the TPS63031 stays enabled only while P0.31 is
+    // high (diode-OR with VBUS, MODE and the RTC alarm). Latch it on before
+    // anything else, straight through the PAC.
+    pac::P0.outset().write(|w| w.set_pin(31, true));
+    pac::P0.dirset().write(|w| w.set_pin(31, true));
+
     let p = embassy_nrf::init(Default::default());
+    let _ps_en = Output::new(p.P0_31, Level::High, OutputDrive::Standard);
 
     // D7 is active-low on this early nRF9160 Feather revision.
     let mut blue = Output::new(p.P0_03, Level::High, OutputDrive::Standard);
