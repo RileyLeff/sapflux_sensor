@@ -1,0 +1,11 @@
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[env]
+CPATH = { value = "c-include", relative = true }
+
+[target.thumbv8m.main-none-eabihf]
+rustflags = [
+  "-C", "link-arg=--nmagic",
+  "-C", "link-arg=-Tlink.x",
+]
