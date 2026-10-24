@@ -122,6 +122,8 @@ const FAULT_PULSE_OVERRUN: u8 = 2;
 // SetRtc wait for the next whole second (<= 1 s) plus EEPROM writes; a
 // reset forces the heater gate low through the pin reset state.
 const IWDG_TIMEOUT_US: u32 = 4_000_000;
+/// TPL5010 DONE cadence, independent of WAKE (period ~9.6 s).
+const WATCHDOG_DONE_PERIOD: Duration = Duration::from_secs(1);
 
 // Window store: 4 windows (the spec's "newest 4 undelivered") of up to 1000
 // bins each = 104 000 B of the 144 KiB RAM (Python budget). The default
@@ -484,7 +486,8 @@ async fn main(_spawner: Spawner) {
     let mut iwdg = IndependentWatchdog::new(p.IWDG, IWDG_TIMEOUT_US);
     iwdg.unleash();
     let mut watchdog_done = Output::new(p.PA5, Level::Low, Speed::Low);
-    let watchdog_wake = Input::new(p.PA4, Pull::None);
+    // WAKE (PA4) is not polled; see the DONE cadence in the main loop.
+    let _watchdog_wake = Input::new(p.PA4, Pull::None);
     let pgood = Input::new(p.PC7, Pull::None);
     let mut eeprom_wp = Output::new(p.PA12, Level::High, Speed::Low);
     let _flash_cs = Output::new(p.PB12, Level::High, Speed::VeryHigh);
@@ -651,7 +654,7 @@ async fn main(_spawner: Spawner) {
     }
 
     let mut watchdog_bootstrapped = false;
-    let mut watchdog_serviced = false;
+    let mut last_watchdog_done = Instant::now();
     let mut frame_counter = 0_u32;
     let mut next_frame_at = Instant::now();
 
@@ -688,7 +691,7 @@ async fn main(_spawner: Spawner) {
         if !watchdog_bootstrapped {
             pulse_watchdog_done(&mut watchdog_done).await;
             watchdog_bootstrapped = true;
-            watchdog_serviced = watchdog_wake.is_high();
+            last_watchdog_done = Instant::now();
         }
 
         if ctx.field.windows.recording().is_some() {
@@ -732,13 +735,17 @@ async fn main(_spawner: Spawner) {
 
             service_pulse_state(&mut ctx).await;
 
-            if watchdog_wake.is_high() {
-                if !watchdog_serviced {
-                    pulse_watchdog_done(&mut watchdog_done).await;
-                    watchdog_serviced = true;
-                }
-            } else {
-                watchdog_serviced = false;
+            // WAKE is only a 20 ms pulse, shorter than one acquisition, so
+            // polling it can miss it and let the TPL5010 reset the MCU (which
+            // fires the SCR heater latch). Instead pulse DONE from this loop on
+            // a fixed cadence well inside the ~9.6 s period: any DONE at least
+            // 20 ms before the next WAKE rising edge satisfies the TPL5010, and
+            // a hung control loop still stops the pulses.
+            if watchdog_bootstrapped
+                && Instant::now() - last_watchdog_done >= WATCHDOG_DONE_PERIOD
+            {
+                pulse_watchdog_done(&mut watchdog_done).await;
+                last_watchdog_done = Instant::now();
             }
 
             if Instant::now() >= frame_deadline {
