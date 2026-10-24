@@ -3,9 +3,9 @@
 use crate::channels::{CHANNEL_COUNT, PROBE_CHANNELS};
 use crate::thermo::ChannelReading;
 use sap_flux_protocol::{
-    BoardState, FieldStatus, Sample, Sample12, FIELD_STATUS_ENABLED, FIELD_STATUS_FLASH_OK,
-    FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
-    FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR,
+    BoardState, FieldStatus, Sample, Sample12, FIELD_STATUS_EEPROM_FAULT, FIELD_STATUS_ENABLED,
+    FIELD_STATUS_FLASH_OK, FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID,
+    FIELD_STATUS_REQUIRE_LEASE, FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR,
 };
 
 /// One ADC frame from either a v1 `Sample` (6 thermistors, probe 1 only)
@@ -156,13 +156,14 @@ pub fn format_fw_version(v: u32) -> String {
 /// Names of the set `FieldStatus.schedule_flags` bits, `|`-joined
 /// (`"-"` when none are set).
 pub fn field_status_flag_names(flags: u8) -> String {
-    const NAMES: [(u8, &str); 6] = [
+    const NAMES: [(u8, &str); 7] = [
         (FIELD_STATUS_ENABLED, "enabled"),
         (FIELD_STATUS_REQUIRE_LEASE, "require_lease"),
         (FIELD_STATUS_LEASE_VALID, "lease_valid"),
         (FIELD_STATUS_RTC_VALID, "rtc_valid"),
         (FIELD_STATUS_HEATER_LOCKOUT, "heater_lockout"),
         (FIELD_STATUS_FLASH_OK, "flash_ok"),
+        (FIELD_STATUS_EEPROM_FAULT, "eeprom_fault"),
     ];
     let set: Vec<&str> = NAMES
         .iter()
