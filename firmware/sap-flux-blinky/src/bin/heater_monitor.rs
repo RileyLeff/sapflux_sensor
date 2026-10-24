@@ -2,7 +2,6 @@
 #![no_main]
 
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
 use embassy_stm32::adc::{Adc, SampleTime};
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::dma;
@@ -108,7 +107,10 @@ const MUX_SETTLE_US: u64 = 200;
 const ADS_CONVERSION_US: u64 = 1_350;
 const MIN_EXCITATION_RAW: i16 = 100;
 const INVALID_ADC: i16 = i16::MIN;
-const UART_HELLO_PERIOD: Duration = Duration::from_secs(30);
+// Field link: TX (PA14) is re-enabled this long before a reply so the
+// Feather's receiver sees idle-high before the leading delimiter.
+const TTL_TX_ENABLE_US: u64 = 200;
+const PA14: usize = 14;
 const FAULT_PERSISTENCE: u8 = 1;
 const FAULT_PULSE_OVERRUN: u8 = 2;
 // Internal watchdog (LSI, about +/-7 %). The longest deliberate stall is a
@@ -127,7 +129,8 @@ type Windows = WindowStore<WINDOW_SLOTS, { WINDOW_MAX_BINS * BIN_BYTES }>;
 static mut WINDOWS: Windows = Windows::new();
 
 static RS485_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
-static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
+// Holds the commands the Feather sends during a heater pulse (not polled).
+static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
 
 bind_interrupts!(struct Irqs {
     USART2_LPUART2 =>
@@ -160,10 +163,36 @@ struct TtlUart<'d> {
     decoder: Decoder,
 }
 
-#[derive(Clone, Copy)]
-enum Ingress {
-    Rs485,
-    TtlUart,
+/// The one host link chosen by the PA6 strap at boot.
+enum Link<'d> {
+    /// Bench (strap open): v1 RS-485 streaming of Sample12/Status.
+    Rs485(Rs485<'d>),
+    /// Field (strap low): LPUART2 on J6, replies only, SP3485 shut down.
+    Ttl(TtlUart<'d>),
+}
+
+impl Link<'_> {
+    fn streams(&self) -> bool {
+        matches!(self, Link::Rs485(_))
+    }
+
+    fn poll_message(&mut self) -> Option<Message> {
+        match self {
+            Link::Rs485(link) => link.poll_message(),
+            Link::Ttl(link) => link.poll_message(),
+        }
+    }
+
+    async fn send(&mut self, messages: &[Option<Message>]) {
+        match self {
+            Link::Rs485(link) => {
+                for message in messages.iter().flatten() {
+                    link.send_message(*message).await;
+                }
+            }
+            Link::Ttl(link) => link.send_burst(messages).await,
+        }
+    }
 }
 
 struct CommandResponses {
@@ -272,14 +301,26 @@ impl<'d> Rs485<'d> {
 }
 
 impl<'d> TtlUart<'d> {
-    async fn send_message(&mut self, message: Message) {
-        let mut frame = [0_u8; MAX_ENCODED_LEN];
-        let Ok(length) = encode(&message, self.tx_sequence, &mut frame) else {
+    /// One reply burst: PA14 to AF, idle-high settle, a leading delimiter
+    /// (resyncs the Feather's decoder after the line sat low), the frames,
+    /// then PA14 back to analog so the BOOT0 pull-down draws nothing.
+    async fn send_burst(&mut self, messages: &[Option<Message>]) {
+        if messages.iter().all(Option::is_none) {
             return;
-        };
-        self.tx_sequence = self.tx_sequence.wrapping_add(1);
-        let _ = self.tx.write(&frame[..length]).await;
+        }
+        set_pa14_mode(pac::gpio::vals::Moder::ALTERNATE);
+        Timer::after_micros(TTL_TX_ENABLE_US).await;
+        let _ = self.tx.write(&[0x00]).await;
+        for message in messages.iter().flatten() {
+            let mut frame = [0_u8; MAX_ENCODED_LEN];
+            let Ok(length) = encode(message, self.tx_sequence, &mut frame) else {
+                continue;
+            };
+            self.tx_sequence = self.tx_sequence.wrapping_add(1);
+            let _ = self.tx.write(&frame[..length]).await;
+        }
         let _ = self.tx.flush().await;
+        set_pa14_mode(pac::gpio::vals::Moder::ANALOG);
     }
 
     fn poll_message(&mut self) -> Option<Message> {
@@ -449,32 +490,14 @@ async fn main(_spawner: Spawner) {
     // a board reset so the SWD pins cannot become UART pins unexpectedly.
     let ttl_uart_enabled = Input::new(p.PA6, Pull::Up).is_low();
 
-    let mut rs485_uart_config = UartConfig::default();
-    rs485_uart_config.baudrate = 115_200;
-    let uart = Uart::new(
-        p.USART2,
-        p.PA3,
-        p.PA2,
-        p.DMA1_CH1,
-        p.DMA1_CH2,
-        Irqs,
-        rs485_uart_config,
-    )
-    .unwrap();
-    let (tx, rx) = uart.split();
-    let rx_buffer = RS485_RX_DMA_BUFFER.init([0; 256]);
-    let mut rx = rx.into_ring_buffered(rx_buffer);
-    rx.start_uart();
-    let mut rs485 = Rs485 {
-        tx,
-        rx,
-        de: Output::new(p.PA1, Level::Low, Speed::Low),
-        n_re: Output::new(p.PA0, Level::Low, Speed::Low),
-        tx_sequence: 0,
-        decoder: Decoder::new(),
-    };
-
-    let mut ttl_uart = if ttl_uart_enabled {
+    // Field mode holds the SP3485 in shutdown (~RE high, DE low) and leaves
+    // USART2 unconfigured (PA2/PA3 stay analog).
+    let mut _rs485_shutdown = None;
+    let mut link = if ttl_uart_enabled {
+        _rs485_shutdown = Some((
+            Output::new(p.PA1, Level::Low, Speed::Low),
+            Output::new(p.PA0, Level::High, Speed::Low),
+        ));
         let mut ttl_uart_config = UartConfig::default();
         ttl_uart_config.baudrate = 115_200;
         let uart = Uart::new(
@@ -487,18 +510,44 @@ async fn main(_spawner: Spawner) {
             ttl_uart_config,
         )
         .unwrap();
+        // TX idles high into PA14's 10 kOhm BOOT0 pull-down (330 uA):
+        // keep the pin analog except while replying.
+        set_pa14_mode(pac::gpio::vals::Moder::ANALOG);
         let (tx, rx) = uart.split();
-        let rx_buffer = TTL_UART_RX_DMA_BUFFER.init([0; 256]);
+        let rx_buffer = TTL_UART_RX_DMA_BUFFER.init([0; 512]);
         let mut rx = rx.into_ring_buffered(rx_buffer);
         rx.start_uart();
-        Some(TtlUart {
+        Link::Ttl(TtlUart {
             tx,
             rx,
             tx_sequence: 0,
             decoder: Decoder::new(),
         })
     } else {
-        None
+        let mut rs485_uart_config = UartConfig::default();
+        rs485_uart_config.baudrate = 115_200;
+        let uart = Uart::new(
+            p.USART2,
+            p.PA3,
+            p.PA2,
+            p.DMA1_CH1,
+            p.DMA1_CH2,
+            Irqs,
+            rs485_uart_config,
+        )
+        .unwrap();
+        let (tx, rx) = uart.split();
+        let rx_buffer = RS485_RX_DMA_BUFFER.init([0; 256]);
+        let mut rx = rx.into_ring_buffered(rx_buffer);
+        rx.start_uart();
+        Link::Rs485(Rs485 {
+            tx,
+            rx,
+            de: Output::new(p.PA1, Level::Low, Speed::Low),
+            n_re: Output::new(p.PA0, Level::Low, Speed::Low),
+            tx_sequence: 0,
+            decoder: Decoder::new(),
+        })
     };
 
     let mut i2c_config = I2cConfig::default();
@@ -573,14 +622,15 @@ async fn main(_spawner: Spawner) {
 
     excitation.set_high();
     Timer::after_millis(5).await;
-    broadcast_message(&mut rs485, &mut ttl_uart, hello_message(board_id)).await;
-    broadcast_message(&mut rs485, &mut ttl_uart, ctx.status()).await;
+    // The field link sends nothing unsolicited.
+    if link.streams() {
+        link.send(&[Some(hello_message(board_id)), Some(ctx.status())]).await;
+    }
 
     let mut watchdog_bootstrapped = false;
     let mut watchdog_serviced = false;
     let mut frame_counter = 0_u32;
     let mut next_frame_at = Instant::now();
-    let mut next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
 
     loop {
         iwdg.pet();
@@ -630,22 +680,12 @@ async fn main(_spawner: Spawner) {
         run_scheduler(&mut ctx).await;
         close_window_if_done(&mut ctx);
 
-        if cycle_index != 0 {
+        if link.streams() && cycle_index != 0 {
             let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
             let extra = if command_window { FLAG_COMMAND_WINDOW } else { 0 };
-            broadcast_message(
-                &mut rs485,
-                &mut ttl_uart,
-                sample12_message(&frame, &ctx.machine, extra),
-            )
-            .await;
-            if cycle_index == STATUS_FRAME_IN_CYCLE {
-                broadcast_message(&mut rs485, &mut ttl_uart, ctx.status()).await;
-            }
-        }
-        if ttl_uart.is_some() && Instant::now() >= next_uart_hello_at {
-            next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
-            broadcast_message(&mut rs485, &mut ttl_uart, hello_message(board_id)).await;
+            let status = (cycle_index == STATUS_FRAME_IN_CYCLE).then(|| ctx.status());
+            link.send(&[Some(sample12_message(&frame, &ctx.machine, extra)), status])
+                .await;
         }
 
         // Fixed-rate frames; after an overrun, restart the grid from now
@@ -656,18 +696,15 @@ async fn main(_spawner: Spawner) {
         }
         let frame_deadline = next_frame_at;
         loop {
-            while let Some(message) = rs485.poll_message() {
-                let responses = handle_command(message, &mut ctx).await;
-                send_responses(Ingress::Rs485, responses, &mut rs485, &mut ttl_uart).await;
-            }
-
-            loop {
-                let message = ttl_uart.as_mut().and_then(TtlUart::poll_message);
-                let Some(message) = message else {
-                    break;
-                };
-                let responses = handle_command(message, &mut ctx).await;
-                send_responses(Ingress::TtlUart, responses, &mut rs485, &mut ttl_uart).await;
+            // Field link: commands that arrive while the heater is on wait
+            // in the RX ring buffer and are answered after the pulse.
+            let heater_on =
+                ctx.machine.state() == State::Pulsing || ctx.hardware_pulse.is_running();
+            if link.streams() || !heater_on {
+                while let Some(message) = link.poll_message() {
+                    let responses = handle_command(message, &mut ctx).await;
+                    link.send(&responses.messages).await;
+                }
             }
 
             service_pulse_state(&mut ctx).await;
@@ -696,39 +733,10 @@ async fn pulse_watchdog_done(done: &mut Output<'_>) {
     done.set_low();
 }
 
-async fn broadcast_message(
-    rs485: &mut Rs485<'_>,
-    ttl_uart: &mut Option<TtlUart<'_>>,
-    message: Message,
-) {
-    if let Some(ttl_uart) = ttl_uart.as_mut() {
-        // Both UARTs have independent DMA channels, so transmit in parallel.
-        // This keeps a 50 Hz Sample inside the existing acquisition budget.
-        join(rs485.send_message(message), ttl_uart.send_message(message)).await;
-    } else {
-        rs485.send_message(message).await;
-    }
+fn set_pa14_mode(mode: pac::gpio::vals::Moder) {
+    pac::GPIOA.moder().modify(|w| w.set_moder(PA14, mode));
 }
 
-async fn send_responses(
-    ingress: Ingress,
-    responses: CommandResponses,
-    rs485: &mut Rs485<'_>,
-    ttl_uart: &mut Option<TtlUart<'_>>,
-) {
-    for message in responses.messages.into_iter().flatten() {
-        match ingress {
-            Ingress::Rs485 => rs485.send_message(message).await,
-            Ingress::TtlUart => {
-                if let Some(ttl_uart) = ttl_uart.as_mut() {
-                    ttl_uart.send_message(message).await;
-                }
-            }
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
 async fn acquire_frame(
     i2c: &mut BoardI2c<'_>,
     internal_adc: &mut BoardAdc<'_>,
