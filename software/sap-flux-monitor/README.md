@@ -40,7 +40,8 @@ The first screen is the instrument monitor. Pick a port (the sap-flux
 adapter is pinned to the top of the list and pre-selected when present) and
 press **Connect** — or press **Simulator** to run against a built-in
 simulated board that produces plausible data, an RTC-valid transition, a
-full pulse/recovery/cooldown cycle, six simulated thermistors, and (optionally)
+full pulse/recovery/cooldown cycle, twelve simulated thermistors on two
+probes (streamed as `Sample12`, like field firmware), and (optionally)
 injected CRC/sequence errors. The simulator never opens a serial port and
 feeds the exact same decoder/logger/UI path as real hardware.
 
@@ -56,6 +57,13 @@ default — toggle it back on at any time):
 | T4 | orange | upstream tip |
 | T5 | white | upstream middle |
 | T6 | blue | upstream head |
+| P2T1..P2T6 | same order | probe 2 (only in `Sample12` frames) |
+
+The monitor decodes both the v1 `Sample` (6 thermistors, probe 1) and the
+field `Sample12` (12 thermistors: probe 1 T1..T6, probe 2 T1..T6). Probe-2
+values, toggles and plot traces appear once the first `Sample12` arrives.
+`FieldStatus` frames (field firmware) are shown in the Board panel and
+logged; `WindowInfo`/`WindowChunk` frames are logged as events.
 
 Nothing mutating is ever sent automatically: connecting only listens. RTC
 sync, baseline start, arm, fire, and abort are all explicit buttons, arm/fire
@@ -127,14 +135,16 @@ captures/session_YYYYMMDD_HHMMSS/
   session exactly.
 - **samples.csv** — `host_receive_unix_ns, sequence, monotonic_us,
   rtc_unix_ms, run_id, flags` + decoded flag bits, `state`/`state_name`,
-  `sample_valid`, `excitation_raw`/`excitation_valid`, `v24_raw`, then per
-  channel `tN_raw, tN_res_ohm, tN_temp_c, tN_valid`. Derived fields are
+  `sample_valid`, `excitation_raw`/`excitation_valid`, `v24_raw`,
+  `channel_count` (6 for `Sample`, 12 for `Sample12`), then per channel
+  `tN_raw, tN_res_ohm, tN_temp_c, tN_valid` for probe 1 (`t1`..`t6`) and
+  probe 2 (`p2t1`..`p2t6`; empty for 6-channel frames). Derived fields are
   empty (and `tN_valid=0`) for open/short/nonsense channels instead of
   NaN/inf. Every decoded sample is written — nothing is averaged, decimated,
   or dropped, even when the UI falls behind (plot decimation is
   render-only).
 - **events.csv** — `host_unix_ns, kind, detail` rows for Hello/Status/Ack/
-  Error frames, connect/disconnect, parser errors, sequence gaps, and every
+  Error/FieldStatus/WindowInfo/WindowChunk frames, connect/disconnect, parser errors, sequence gaps, and every
   outbound command.
 - **metadata.json** — app/protocol versions, port settings, board identity,
   channel labels, the exact thermistor conversion (coefficients + formula),

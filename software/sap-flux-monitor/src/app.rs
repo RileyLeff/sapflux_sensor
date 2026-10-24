@@ -3,18 +3,20 @@
 //! Layout: a dense instrument screen — top connection strip, right-hand
 //! status/values/pulse-control column, central live plots. No landing page.
 
-use crate::channels::{CHANNELS, CHANNEL_COUNT, EXCITATION_COLOR};
+use crate::channels::{CHANNELS, CHANNEL_COUNT, EXCITATION_COLOR, PROBE_CHANNELS};
 use crate::control::{
     PulseControl, BASELINE_S_RANGE, PULSE_CHOICES_MS, RECOVERY_S_RANGE, SAMPLE_HZ_RANGE,
 };
 use crate::history::SeriesBuf;
 use crate::stats::StatsSnapshot;
-use crate::types::{format_fw_version, host_unix_ns, state_name, ProcessedSample};
+use crate::types::{
+    field_status_flag_names, format_fw_version, host_unix_ns, state_name, ProcessedSample,
+};
 use crate::worker::{self, ConnectionTarget, UiEvent, WorkerCmd, WorkerHandle};
 use eframe::egui::{self, Color32, RichText, Ui};
 use sap_flux_protocol::{
-    Abort, ArmPulse, BoardState, FirePulse, Hello, Message, Query, SetRtc, StartBaseline, Status,
-    FLAG_HEATER_ACTIVE, FLAG_PGOOD, MSG_SET_RTC, PROTOCOL_VERSION,
+    Abort, ArmPulse, BoardState, FieldStatus, FirePulse, Hello, Message, Query, SetRtc,
+    StartBaseline, Status, FLAG_HEATER_ACTIVE, FLAG_PGOOD, MSG_SET_RTC, PROTOCOL_VERSION,
 };
 use std::path::PathBuf;
 use std::sync::mpsc::TryRecvError;
@@ -53,6 +55,8 @@ struct BoardView {
     status: Option<Status>,
     status_at: Option<Instant>,
     latest: Option<Box<ProcessedSample>>,
+    /// Latest field-mode status (field firmware only).
+    field_status: Option<FieldStatus>,
 }
 
 /// The monitor app.
@@ -74,6 +78,10 @@ pub struct MonitorApp {
     raw_series: [SeriesBuf; CHANNEL_COUNT],
     exc_series: SeriesBuf,
     show_channel: [bool; CHANNEL_COUNT],
+    /// Most thermistor channels any frame carried this connection: 6 for v1
+    /// `Sample` firmware, 12 once a `Sample12` arrives. Probe-2 controls are
+    /// hidden until then.
+    channels_seen: usize,
     show_raw_plot: bool,
     window_secs: f64,
 
@@ -116,6 +124,7 @@ impl MonitorApp {
             raw_series: Default::default(),
             exc_series: SeriesBuf::default(),
             show_channel,
+            channels_seen: PROBE_CHANNELS,
             show_raw_plot: false,
             window_secs: 300.0,
             control: PulseControl::default(),
@@ -214,6 +223,7 @@ impl MonitorApp {
             s.clear();
         }
         self.exc_series.clear();
+        self.channels_seen = PROBE_CHANNELS;
         self.stats = StatsSnapshot::default();
         self.session_dir = None;
         self.log_error = None;
@@ -298,6 +308,7 @@ impl MonitorApp {
                         e.fault_code, e.detail
                     ));
                 }
+                UiEvent::FieldStatusMsg(fs) => self.board.field_status = Some(fs),
                 UiEvent::SampleMsg(ps) => {
                     self.control
                         .note_sample(ps.sample.flags, ps.sample_valid, now);
@@ -332,7 +343,8 @@ impl MonitorApp {
 
     fn push_sample(&mut self, ps: &ProcessedSample) {
         let t = ps.t_rel_s;
-        for (i, r) in ps.readings.iter().enumerate() {
+        self.channels_seen = self.channels_seen.max(ps.channel_count());
+        for (i, r) in ps.present_readings().iter().enumerate() {
             if let Some(temp) = r.temp_c {
                 self.temp_series[i].push(t, temp);
             }
@@ -498,6 +510,36 @@ impl MonitorApp {
                     None => ui.label("—"),
                 };
                 ui.end_row();
+                if let Some(fs) = &self.board.field_status {
+                    ui.label("field flags");
+                    ui.label(RichText::new(field_status_flag_names(fs.schedule_flags)).small());
+                    ui.end_row();
+                    ui.label("next pulse");
+                    ui.label(if fs.next_pulse_unix_s == 0 {
+                        "disabled".to_string()
+                    } else {
+                        format_rtc_ms(fs.next_pulse_unix_s as i64 * 1000)
+                    });
+                    ui.end_row();
+                    ui.label("windows");
+                    ui.label(format!(
+                        "{} pending, {} dropped, last run {}",
+                        fs.windows_pending, fs.windows_dropped, fs.last_run_id
+                    ));
+                    ui.end_row();
+                    ui.label("RTC trim");
+                    ui.label(format!(
+                        "{} ppb, last step {} ms",
+                        fs.calr_ppb, fs.last_rtc_step_ms
+                    ));
+                    ui.end_row();
+                    ui.label("boots / sched crc");
+                    ui.label(
+                        RichText::new(format!("{} / {:04x}", fs.boot_count, fs.schedule_crc))
+                            .monospace(),
+                    );
+                    ui.end_row();
+                }
                 if let Some(st) = &self.board.status {
                     if st.fault_code != 0 {
                         ui.label(RichText::new("fault").color(Color32::RED).strong());
@@ -641,8 +683,7 @@ impl MonitorApp {
                 ui.label(RichText::new("raw").weak().small());
                 ui.label(RichText::new("").weak().small());
                 ui.end_row();
-                for (i, (info, r)) in CHANNELS.iter().zip(&ps.readings).enumerate() {
-                    let _ = i;
+                for (info, r) in CHANNELS.iter().zip(ps.present_readings()) {
                     let known_broken = info.known_broken
                         && !self
                             .conn
@@ -1043,7 +1084,7 @@ impl MonitorApp {
                 .conn
                 .as_ref()
                 .is_some_and(|connection| connection.simulated);
-            for (i, info) in CHANNELS.iter().enumerate() {
+            for (i, info) in CHANNELS.iter().enumerate().take(self.channels_seen) {
                 let known_broken = info.known_broken && !simulated;
                 let mut text = RichText::new(info.id).color(info.color);
                 if known_broken {
@@ -1080,7 +1121,7 @@ impl MonitorApp {
             .y_axis_label("°C")
             .x_axis_label("s since connect")
             .show(ui, |plot_ui| {
-                for (i, info) in CHANNELS.iter().enumerate() {
+                for (i, info) in CHANNELS.iter().enumerate().take(self.channels_seen) {
                     if !self.show_channel[i] {
                         continue;
                     }
@@ -1106,7 +1147,7 @@ impl MonitorApp {
                 .y_axis_label("ADC counts")
                 .x_axis_label("s since connect")
                 .show(ui, |plot_ui| {
-                    for (i, info) in CHANNELS.iter().enumerate() {
+                    for (i, info) in CHANNELS.iter().enumerate().take(self.channels_seen) {
                         if !self.show_channel[i] {
                             continue;
                         }

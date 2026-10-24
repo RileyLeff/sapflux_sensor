@@ -7,15 +7,16 @@
 //!
 //! Behavior: Hello on start, samples at 10 Hz idle (requested rate during a
 //! run), Status at 1 Hz, RTC becomes valid on its own after ~12 s (or
-//! immediately on SetRtc), all six thermistor channels are healthy, and a
+//! immediately on SetRtc), all twelve thermistor channels (two probes, sent as
+//! `Sample12` like field firmware) are healthy, and a
 //! fired pulse produces a plausible heat/decay trace followed by recovery and a
 //! 10-minute board-reported cooldown. Optionally injects CRC errors and
 //! sequence gaps for exercising the error counters.
 
 use sap_flux_protocol::{
-    encode, Ack, BoardState, Hello, Message, Sample, Status, CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC,
-    CAP_V24_MONITOR, FLAG_EXCITATION_ACTIVE, FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID,
-    MAX_ENCODED_LEN,
+    encode, Ack, BoardState, Hello, Message, Sample12, Status, CAP_ADC, CAP_HEATER_CONTROL,
+    CAP_RTC, CAP_V24_MONITOR, FLAG_EXCITATION_ACTIVE, FLAG_HEATER_ACTIVE, FLAG_PGOOD,
+    FLAG_RTC_VALID, MAX_ENCODED_LEN,
 };
 use std::time::{Duration, Instant};
 
@@ -216,19 +217,22 @@ impl SimBoard {
             }
         };
 
-        let mut temps = [0.0f64; 6];
+        let mut temps = [0.0f64; 12];
         // Base temperatures with a slow drift; downstream slightly offset
         // from upstream. Amplitudes: middle sensors see the most heat.
-        let bases = [24.1, 24.4, 24.2, 23.9, 24.2, 24.0];
-        let amps = [1.1, 1.8, 1.5, 0.9, 1.5, 1.2];
-        for i in 0..6 {
+        // Probe 2 (channels 6..12) sits in a slightly cooler, slower stem.
+        let bases = [
+            24.1, 24.4, 24.2, 23.9, 24.2, 24.0, 23.2, 23.5, 23.3, 23.0, 23.3, 23.1,
+        ];
+        let amps = [1.1, 1.8, 1.5, 0.9, 1.5, 1.2, 0.8, 1.3, 1.1, 0.7, 1.1, 0.9];
+        for i in 0..12 {
             let drift = 0.15 * (t / 60.0 + i as f64).sin();
             let noise = self.rng.noise() * 0.02;
             temps[i] = bases[i] + drift + pulse_heat(amps[i], noise, self.last_fire);
         }
 
-        let mut raw = [0i16; 6];
-        for i in 0..6 {
+        let mut raw = [0i16; 12];
+        for i in 0..12 {
             // Invert via a beta-model NTC (close enough to the cubic for
             // plausible-looking data).
             let t_k = temps[i] + 273.15;
@@ -244,15 +248,15 @@ impl SimBoard {
             flags |= FLAG_HEATER_ACTIVE;
         }
 
-        let msg = Message::Sample(Sample {
+        let msg = Message::Sample12(Sample12 {
             monotonic_us: self.monotonic_us(now),
             rtc_unix_ms: self.rtc_ms(now),
             run_id: self.run_id,
             flags,
-            excitation_raw: exc as i16,
-            thermistor_raw: raw,
-            v24_raw: (24_000.0 + self.rng.noise() * 30.0) as i16,
             state: self.state,
+            excitation_raw: exc as i16,
+            v24_raw: (24_000.0 + self.rng.noise() * 30.0) as i16,
+            thermistor_raw: raw,
         });
 
         let corrupt = self.inject_errors && self.sample_count.is_multiple_of(CORRUPT_EVERY);
