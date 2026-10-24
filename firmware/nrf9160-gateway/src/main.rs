@@ -1,17 +1,38 @@
+//! sapflux field gateway for the CircuitDojo nRF9160 Feather (micro-USB
+//! generation, v1–v3) under TF-M/MCUboot from NCS v2.1.2.
+//!
+//! Bridges the sap-flux board (J6 UART) to the server over LTE-M/UDP per
+//! docs/field-protocol.md. See README.md.
+
 #![no_std]
 #![no_main]
 
-use arrayvec::ArrayString;
-use cortex_m::peripheral::NVIC;
+mod board;
+mod clock;
+mod config;
+mod cycle;
+mod entropy;
+mod events;
+#[cfg(feature = "latch-sleep")]
+mod latch;
+mod log;
+mod modem;
+mod power;
+mod uplink;
+mod wdog;
+
+use core::mem::MaybeUninit;
+
 use embassy_executor::Spawner;
+use embassy_nrf::buffered_uarte::{self, BufferedUarte};
 use embassy_nrf::gpio::{Level, Output, OutputDrive};
 use embassy_nrf::interrupt::typelevel;
-use embassy_nrf::pac;
-use embassy_nrf::uarte::{self, Baudrate, Uarte};
-use embassy_nrf::{bind_interrupts, peripherals};
+use embassy_nrf::timer::Timer as HwTimer;
+use embassy_nrf::uarte::{self, Baudrate};
+use embassy_nrf::{bind_interrupts, pac, peripherals, saadc, twim};
 use embassy_time::Timer;
-use nrf_modem::MemoryLayout;
-use panic_halt as _;
+
+use crate::cycle::{Gateway, WINDOW_BUF_LEN};
 
 extern crate tinyrlibc;
 
@@ -23,257 +44,227 @@ impl typelevel::Handler<typelevel::IPC> for ModemInterruptHandler {
     }
 }
 
-bind_interrupts!(struct Irqs {
+bind_interrupts!(pub struct Irqs {
     SERIAL0 => uarte::InterruptHandler<peripherals::SERIAL0>;
+    SERIAL1 => twim::InterruptHandler<peripherals::SERIAL1>;
+    SERIAL2 => buffered_uarte::InterruptHandler<peripherals::SERIAL2>;
+    SAADC => saadc::InterruptHandler;
     IPC => ModemInterruptHandler;
 });
 
-fn write(uart: &mut Uarte<'_>, bytes: &[u8]) {
-    let _ = uart.blocking_write(bytes);
-}
+/// Window staging buffer (WindowInfo frame + data), outside the task.
+#[unsafe(link_section = ".uninit.WINDOW")]
+static mut WINDOW_BUF: MaybeUninit<[u8; WINDOW_BUF_LEN]> = MaybeUninit::uninit();
 
-fn line(uart: &mut Uarte<'_>, bytes: &[u8]) {
-    write(uart, bytes);
-    write(uart, b"\r\n");
-}
-
-fn report_reset_reason(uart: &mut Uarte<'_>) {
-    let reason = pac::POWER.resetreas().read();
-    write(uart, b"reset reason:");
-    if reason.resetpin() {
-        write(uart, b" RESET_PIN");
-    }
-    if reason.dog() {
-        write(uart, b" WATCHDOG");
-    }
-    if reason.off() {
-        write(uart, b" SYSTEM_OFF_WAKE");
-    }
-    if reason.dif() {
-        write(uart, b" DEBUG_WAKE");
-    }
-    if reason.sreq() {
-        write(uart, b" SOFTWARE_REQUEST");
-    }
-    if reason.lockup() {
-        write(uart, b" CPU_LOCKUP");
-    }
-    if reason.ctrlap() {
-        write(uart, b" CTRL_AP");
-    }
-    if reason.0 == 0 {
-        write(uart, b" POWER_ON_OR_BROWNOUT");
-    }
-    write(uart, b"\r\n");
+fn reset_reason() -> (u32, &'static str) {
+    let r = pac::POWER.resetreas().read();
     // RESETREAS is write-one-to-clear.
-    pac::POWER.resetreas().write_value(reason);
-}
-
-async fn report_at<const N: usize>(
-    uart: &mut Uarte<'_>,
-    label: &[u8],
-    command: &str,
-) -> Option<ArrayString<N>> {
-    write(uart, label);
-    write(uart, b": ");
-    match nrf_modem::send_at::<N>(command).await {
-        Ok(response) => {
-            write(uart, response.as_bytes());
-            if !response.ends_with("\r\n") {
-                write(uart, b"\r\n");
-            }
-            Some(response)
-        }
-        Err(_) => {
-            line(uart, b"ERROR");
-            None
-        }
-    }
-}
-
-fn report_redacted_digits(uart: &mut Uarte<'_>, digits: &[u8]) {
-    write(uart, b"SIM ICCID: ");
-    if digits.len() >= 10 {
-        write(uart, &digits[..6]);
-        write(uart, b"...");
-        write(uart, &digits[digits.len() - 4..]);
-        write(uart, b" (");
-        let tens = digits.len() / 10;
-        if tens != 0 {
-            write(uart, &[b'0' + tens as u8]);
-        }
-        write(uart, &[b'0' + (digits.len() % 10) as u8]);
-        line(uart, b" digits)");
+    pac::POWER.resetreas().write_value(r);
+    let name = if r.dog() {
+        "watchdog"
+    } else if r.resetpin() {
+        "pin"
+    } else if r.sreq() {
+        "soft"
+    } else if r.lockup() {
+        "lockup"
+    } else if r.off() {
+        "system-off wake"
+    } else if r.0 == 0 {
+        "power-on"
     } else {
-        line(uart, b"unreadable");
-    }
-}
-
-fn hex_nibble(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
-}
-
-fn report_crsm_iccid(uart: &mut Uarte<'_>, response: &str) {
-    let mut digits = [0_u8; 22];
-    let mut count = 0_usize;
-
-    if let Some(quoted) = response.split('"').nth(1) {
-        for pair in quoted.as_bytes().chunks_exact(2) {
-            let Some(high) = hex_nibble(pair[0]) else {
-                break;
-            };
-            let Some(low) = hex_nibble(pair[1]) else {
-                break;
-            };
-            for nibble in [low, high] {
-                if nibble <= 9 && count < digits.len() {
-                    digits[count] = b'0' + nibble;
-                    count += 1;
-                }
-            }
-        }
-    }
-    report_redacted_digits(uart, &digits[..count]);
+        "other"
+    };
+    (r.0, name)
 }
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
+    // NRF_PS_EN: on battery the TPS63031 stays on only while P0.31 is high.
+    // Latch it before anything else, straight through the PAC.
+    pac::P0.outset().write(|w| w.set_pin(31, true));
+    pac::P0.dirset().write(|w| w.set_pin(31, true));
+
     let p = embassy_nrf::init(Default::default());
+    #[allow(unused_mut)]
+    let mut ps_en = Output::new(p.P0_31, Level::High, OutputDrive::Standard);
 
-    // D7 is active-low on this early nRF9160 Feather revision.
-    let mut blue = Output::new(p.P0_03, Level::High, OutputDrive::Standard);
-
-    // The onboard CP2102N is wired to UARTE0 RX=P0.05 and TX=P0.06.
-    let mut uart_config = uarte::Config::default();
-    uart_config.baudrate = Baudrate::Baud1m;
-    let mut uart = Uarte::new(p.SERIAL0, p.P0_05, p.P0_06, Irqs, uart_config);
-
-    blue.set_low();
-    line(
-        &mut uart,
-        b"sapflux nRF9160 Hologram long-run diagnostic v0.3.3",
+    log::enable();
+    let (reason_bits, reason) = reset_reason();
+    info!(
+        "sapflux gateway v{} (reset: {} 0x{:x})",
+        env!("CARGO_PKG_VERSION"),
+        reason,
+        reason_bits
     );
-    report_reset_reason(&mut uart);
-    line(&mut uart, b"stage: TF-M non-secure application active");
-    let mut cp = cortex_m::Peripherals::take().expect("Cortex-M peripherals unavailable");
-    unsafe {
-        NVIC::unmask(pac::Interrupt::IPC);
-        cp.NVIC.set_priority(pac::Interrupt::IPC, 0);
+    if config::IS_EXAMPLE {
+        info!("WARNING: built with gateway.example.toml (placeholder server/key)");
     }
 
-    line(&mut uart, b"stage: initialize Nordic modem library core");
-    if nrf_modem::init_with_custom_layout_core(MemoryLayout {
-        base_address: 0x2000_8000,
-        tx_area_size: 0x2000,
-        rx_area_size: 0x2000,
-        trace_area_size: 0,
-    })
-    .is_err()
-    {
-        line(
-            &mut uart,
-            b"FATAL: modem library core initialization failed",
-        );
-        blue.set_high();
-        loop {
-            Timer::after_secs(10).await;
+    let (wdt, fresh) = wdog::start(p.WDT);
+    if !fresh {
+        info!("watchdog was already running; adopting it");
+    }
+    spawner.spawn(wdog::pet_task(wdt).unwrap());
+
+    let mut panic_text = log::Line::new();
+    let had_panic = wdog::take_panic_record(&mut panic_text);
+    if had_panic {
+        info!("previous boot panicked: {}", panic_text.as_str());
+    }
+
+    let mut pool = entropy::Pool::new(HwTimer::new(p.TIMER2));
+
+    // Quiet the board peripherals we don't use.
+    let mut serial1 = p.SERIAL1;
+    let mut p26 = p.P0_26;
+    let mut p27 = p.P0_27;
+    power::accel_off(serial1.reborrow(), p26.reborrow(), p27.reborrow()).await;
+    let _flash = power::flash_deep_power_down(p.P0_07, p.P0_11, p.P0_09, p.P0_08, p.P0_10);
+
+    // Modem.
+    let mut modem_ok = modem::init().is_ok();
+    if !modem_ok {
+        info!("modem: library init failed");
+    }
+    let mut imei = 0u64;
+    if modem_ok {
+        if let Err(e) = modem::configure().await {
+            info!("modem: configure failed: {:?}", e);
+            modem_ok = false;
+        }
+        if let Ok(r) = modem::at::<64>("AT+CGSN").await {
+            pool.mix(r.as_bytes());
+            imei = modem::parse_imei(&r).unwrap_or(0);
+        }
+        for cmd in ["AT+CGMR", "AT%XTEMP?", "AT+CFUN?", "AT%XMODEMUUID"] {
+            if let Ok(r) = modem::at::<128>(cmd).await {
+                pool.mix(r.as_bytes());
+            }
         }
     }
-    line(&mut uart, b"stage: Nordic modem library core ready");
-
-    let _ = report_at::<128>(&mut uart, b"early modem firmware", "AT+CGMR").await;
-    let _ = report_at::<64>(&mut uart, b"initial radio state", "AT+CFUN?").await;
-    let _ = report_at::<64>(&mut uart, b"LTE-M system mode", "AT%XSYSTEMMODE=1,0,0,1").await;
-
-    line(&mut uart, b"stage: modem identity and radio configuration");
-    let _ = report_at::<128>(&mut uart, b"modem firmware", "AT+CGMR").await;
-    let _ = report_at::<32>(&mut uart, b"verbose errors", "AT+CMEE=2").await;
-    let _ = report_at::<64>(&mut uart, b"radio offline", "AT+CFUN=0").await;
-    let _ = report_at::<64>(
-        &mut uart,
-        b"APN configuration",
-        "AT+CGDCONT=0,\"IP\",\"hologram\"",
-    )
-    .await;
-    let _ = report_at::<64>(&mut uart, b"registration notifications", "AT+CEREG=5").await;
-    let _ = report_at::<64>(&mut uart, b"network error notifications", "AT+CNEC=24").await;
-    let _ = report_at::<64>(&mut uart, b"radio online", "AT+CFUN=1").await;
-
-    line(
-        &mut uart,
-        b"stage: waiting indefinitely for UICC and LTE-M registration",
-    );
-    line(
-        &mut uart,
-        b"data policy: no DNS, sockets, HTTP, or application payloads",
+    let device_id = if config::DEVICE_ID_OVERRIDE != 0 {
+        config::DEVICE_ID_OVERRIDE
+    } else {
+        imei
+    };
+    let boot_id = pool.finish();
+    info!(
+        "device_id {} (imei {}), boot_id {:08x}, boot #{}",
+        device_id,
+        imei,
+        boot_id,
+        entropy::boot_counter()
     );
 
-    let mut uicc_ready = false;
-    let mut sim_identity_reported = false;
-    let mut operator_selection_started = false;
-    let mut registration_reported = false;
-    let mut denial_reported = false;
+    let mut events = events::Events::new();
+    {
+        let mut text = log::Line::new();
+        let _ = core::fmt::write(
+            &mut text,
+            format_args!(
+                "fw {} reset {} boot_id {:08x}{}{}",
+                env!("CARGO_PKG_VERSION"),
+                reason,
+                boot_id,
+                if had_panic { " panic: " } else { "" },
+                panic_text.as_str()
+            ),
+        );
+        event!(events, events::EVENT_BOOT, "{}", text.as_str());
+    }
+    if !modem_ok {
+        event!(events, events::EVENT_MODEM_ERROR, "modem init/configure failed");
+    }
+
+    // SAFETY: the only reference to WINDOW_BUF, taken once here.
+    let window_buf: &'static mut [u8; WINDOW_BUF_LEN] =
+        unsafe { (*(&raw mut WINDOW_BUF)).assume_init_mut() };
+
+    let mut gw = Gateway::new(
+        modem::Modem::new(),
+        uplink::Uplink::new(device_id, boot_id),
+        clock::Clock::new(),
+        events,
+        window_buf,
+    );
+
+    // Peripherals reused every cycle.
+    let mut serial2 = p.SERIAL2;
+    let mut timer1 = p.TIMER1;
+    let mut ppi0 = p.PPI_CH0;
+    let mut ppi1 = p.PPI_CH1;
+    let mut ppi_group = p.PPI_GROUP0;
+    let mut rx_pin = p.P0_23;
+    let mut tx_pin = p.P0_24;
+    let mut saadc_p = p.SAADC;
+    let mut ain7 = p.P0_20;
+    let mut batt_en = p.P0_25;
+    let mut rx_buf = [0u8; 1024];
+    let mut tx_buf = [0u8; 256];
+    let mut nonce = (boot_id as u64) << 32;
 
     loop {
-        if let Some(xsim) = report_at::<96>(&mut uart, b"UICC state", "AT%XSIM?").await {
-            uicc_ready = xsim.contains("%XSIM: 1");
-        }
+        wdog::alive();
+        log::enable();
+        gw.batt_mv = power::battery_mv(saadc_p.reborrow(), ain7.reborrow(), batt_en.reborrow()).await;
+        info!("cycle start: battery {} mV", gw.batt_mv);
 
-        if uicc_ready && !sim_identity_reported {
-            line(&mut uart, b"stage: UICC initialization complete");
-            let _ = report_at::<96>(&mut uart, b"SIM PIN state", "AT+CPIN?").await;
-            if let Ok(iccid) = nrf_modem::send_at::<128>("AT+CRSM=176,12258,0,0,10").await {
-                report_crsm_iccid(&mut uart, iccid.as_str());
-            } else {
-                line(&mut uart, b"SIM ICCID: ERROR");
-            }
-            sim_identity_reported = true;
-        }
-
-        if uicc_ready && !operator_selection_started {
-            let _ = report_at::<64>(&mut uart, b"automatic operator", "AT+COPS=0").await;
-            operator_selection_started = true;
-        }
-
-        let mut registered = false;
-        let mut denied = false;
-        if let Some(cereg) = report_at::<192>(&mut uart, b"CEREG", "AT+CEREG?").await {
-            registered = cereg.contains("+CEREG: 5,1") || cereg.contains("+CEREG: 5,5");
-            denied = cereg.contains("+CEREG: 5,3");
-        }
-        let _ = report_at::<96>(&mut uart, b"CESQ", "AT+CESQ").await;
-
-        if registered && !registration_reported {
-            line(
-                &mut uart,
-                b"RESULT: LTE-M REGISTERED; ZERO APPLICATION DATA SENT",
+        let sleep_s = {
+            let mut config = uarte::Config::default();
+            config.baudrate = Baudrate::Baud115200;
+            let uart = BufferedUarte::new(
+                serial2.reborrow(),
+                timer1.reborrow(),
+                ppi0.reborrow(),
+                ppi1.reborrow(),
+                ppi_group.reborrow(),
+                rx_pin.reborrow(),
+                tx_pin.reborrow(),
+                Irqs,
+                config,
+                &mut rx_buf,
+                &mut tx_buf,
             );
-            let _ = report_at::<128>(&mut uart, b"operator", "AT+COPS?").await;
-            let _ = report_at::<64>(&mut uart, b"packet attach", "AT+CGATT?").await;
-            let _ = report_at::<256>(&mut uart, b"PDP context", "AT+CGDCONT?").await;
-            let _ = report_at::<256>(&mut uart, b"modem monitor", "AT%XMONITOR").await;
-            registration_reported = true;
-            denial_reported = false;
-            blue.set_high();
-        } else if denied && !denial_reported {
-            line(&mut uart, b"stage: network explicitly denied registration");
-            let _ = report_at::<192>(&mut uart, b"extended error", "AT+CEER").await;
-            denial_reported = true;
-        } else if !denied {
-            denial_reported = false;
+            let mut link = board::BoardLink::new(uart, nonce);
+            let s = gw.run(&mut link).await;
+            nonce = link.next_nonce();
+            info!(
+                "board link: {} commands, {} retries, {} failures, {} decode errors",
+                link.stats.commands,
+                link.stats.retries,
+                link.stats.failures,
+                link.stats.decode_errors
+            );
+            s
+            // The UARTE is disabled and its pins disconnected here.
+        };
+
+        // Between cycles hold TX at the UART idle level so the board's RX
+        // never floats (and never sees a spurious wake byte).
+        let _tx_idle = Output::new(tx_pin.reborrow(), Level::High, OutputDrive::Standard);
+
+        #[cfg(feature = "latch-sleep")]
+        {
+            latch::power_off_for(serial1.reborrow(), p26.reborrow(), p27.reborrow(), &mut ps_en, sleep_s)
+                .await;
+            // Still powered (USB/VBUS or the latch did not drop): fall back
+            // to a timer sleep.
+            info!("latch-sleep: still powered, sleeping on the timer");
+            sleep_timer(sleep_s).await;
+            continue;
         }
 
-        if registration_reported {
-            Timer::after_secs(60).await;
-        } else if uicc_ready {
-            Timer::after_secs(30).await;
-        } else {
-            Timer::after_secs(5).await;
+        #[cfg(not(feature = "latch-sleep"))]
+        {
+            let _ = &mut ps_en;
+            sleep_timer(sleep_s).await;
         }
     }
+}
+
+async fn sleep_timer(sleep_s: u32) {
+    log::disable();
+    wdog::alive_for(sleep_s + 120);
+    Timer::after_secs(sleep_s as u64).await;
 }

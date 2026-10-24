@@ -28,3 +28,6 @@ spice/*.dat
 # Scratch material (papers, slide exports)
 tmp/
 __pycache__/
+
+# nRF9160 gateway build-time secrets (server address, HMAC key)
+firmware/nrf9160-gateway/gateway.local.toml

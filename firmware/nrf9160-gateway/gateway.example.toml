@@ -1,0 +1,25 @@
+# Field gateway build-time configuration (example).
+#
+# Copy this file to `gateway.local.toml` in the same directory and fill in
+# real values. `gateway.local.toml` is gitignored and is read by build.rs at
+# compile time; never commit it. Set SAPFLUX_GATEWAY_CONFIG=/path/to/file to
+# use a different file. If no local file exists the build falls back to
+# this example, prints a cargo warning, and the firmware logs a WARNING
+# at boot (the server will reject its MACs).
+#
+# Only these four keys are understood. Values are `key = value`, strings in
+# double quotes, `#` starts a comment.
+
+# Server public IPv4 literal (no DNS lookup is done).
+server_ip = "192.0.2.1"
+
+# Server UDP port.
+server_port = 47800
+
+# Gateway device_id in every datagram. 0 = derive it from the modem IMEI
+# (AT+CGSN, the 15 IMEI digits as a decimal u64).
+device_id = 0
+
+# 32-byte HMAC-SHA256 key shared with the server, as 64 hex digits.
+# Generate one with: python3 -c "import secrets; print(secrets.token_hex(32))"
+key = "0000000000000000000000000000000000000000000000000000000000000000"

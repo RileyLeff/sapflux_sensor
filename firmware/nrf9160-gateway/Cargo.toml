@@ -1,18 +1,34 @@
 [package]
 name = "sapflux-nrf9160-gateway"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2024"
 publish = false
+default-run = "sapflux-nrf9160-gateway"
+
+[features]
+default = []
+# Keep the CP2102N log UART (UARTE0, 1 Mbaud) enabled while sleeping between
+# cycles. By default it is released (pins disconnected) between cycles.
+log-always-on = []
+# Stretch goal, NOT bench-verified: sleep by programming a PCF85063A alarm
+# and dropping NRF_PS_EN (P0.31) so the TPS63031 turns off. Every wake is a
+# cold boot. Leave off until the latch-off + alarm wake is verified on the
+# bench (see README).
+latch-sleep = []
 
 [dependencies]
 arrayvec = { version = "0.7.6", default-features = false }
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.5"
+critical-section = "1.2.0"
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
 embassy-nrf = { version = "0.11.0", features = ["gpiote", "nrf9160-ns", "time", "time-driver-rtc1", "unstable-pac"] }
 embassy-time = "0.5.0"
 nrf-modem = { version = "0.10.2", features = ["nrf9160"] }
 panic-halt = "1.0.0"
+sap-flux-protocol = { path = "../../software/sap-flux-protocol" }
+sapflux-uplink = { path = "../../server/sapflux-uplink" }
+sha2 = { version = "0.10.9", default-features = false }
 tinyrlibc = { version = "0.5.1", default-features = false, features = [
   "abs", "atoi", "isalpha", "isdigit", "isspace", "isupper", "itoa",
   "memchr", "qsort", "rand", "rand_r", "strcat", "strchr", "strcmp",
