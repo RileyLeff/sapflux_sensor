@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod civil_time;
+pub mod flash;
 pub mod pulse;
 pub mod records;
 pub mod schedule;

@@ -10,6 +10,7 @@ use embassy_stm32::i2c::{Config as I2cConfig, I2c, Master as I2cMaster};
 use embassy_stm32::mode::{Async, Blocking};
 use embassy_stm32::peripherals::{self, ADC1, PB1};
 use embassy_stm32::rtc::{DateTime, DayOfWeek, Rtc, RtcConfig, RtcTimeProvider};
+use embassy_stm32::spi::{Config as SpiConfig, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_stm32::timer::low_level::{
     CountingMode, OutputCompareMode, OutputPolarity, Timer as LowLevelTimer,
@@ -21,7 +22,9 @@ use embassy_stm32::usart::{self, Config as UartConfig, RingBufferedUartRx, Uart,
 use embassy_stm32::Peri;
 use embassy_time::{Duration, Instant, Timer};
 use panic_halt as _;
+use sap_flux_blinky::w25q::W25q;
 use sap_flux_core::civil_time::{datetime_to_unix_ms, unix_ms_to_datetime, UtcDateTime};
+use sap_flux_core::flash::{Flash, Nor, ERASE_TIMEOUT_MS, JEDEC_W25Q256JV};
 use sap_flux_core::pulse::{
     BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State, COOLDOWN_MS,
 };
@@ -30,8 +33,9 @@ use sap_flux_core::schedule::{Action, Inputs, Planner};
 use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
 use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_protocol::{
-    encode, Ack, BoardState, Decoder, FieldStatus, Hello, Message, Sample12, Schedule, Status,
-    CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
+    encode, Ack, BoardState, Decoder, ErrorReport, FieldStatus, Hello, Message, Sample12,
+    Schedule, Status, CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
+    FIELD_STATUS_FLASH_OK,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
     FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
     FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN, WINDOW_FLAG_HEATER_FAULT,
@@ -124,6 +128,12 @@ const FAULT_PULSE_OVERRUN: u8 = 2;
 const IWDG_TIMEOUT_US: u32 = 4_000_000;
 /// TPL5010 DONE cadence, independent of WAKE (period ~9.6 s).
 const WATCHDOG_DONE_PERIOD: Duration = Duration::from_secs(1);
+// W25Q256JV on SPI2. 4 MHz (PCLK 16 MHz / 4) is 4x board_test's proven
+// 1 MHz and well under the chip's limit: a 256 B page moves in ~0.6 ms.
+const FLASH_SPI_HZ: u32 = 4_000_000;
+/// ErrorReport fault code sent at boot on the bench link when the flash
+/// JEDEC ID is wrong or the chip stays busy; detail = ID bytes 2..3.
+const ERROR_FLASH: u16 = 0x0100;
 
 // Window store: 4 windows (the spec's "newest 4 undelivered") of up to 1000
 // bins each = 104 000 B of the 144 KiB RAM (Python budget). The default
@@ -262,6 +272,7 @@ struct Ctx<'d> {
     eeprom_wp: Output<'d>,
     fault_code: u8,
     field: FieldState,
+    flash: Flash<W25q<'d>>,
 }
 
 impl Ctx<'_> {
@@ -490,7 +501,15 @@ async fn main(_spawner: Spawner) {
     let _watchdog_wake = Input::new(p.PA4, Pull::None);
     let pgood = Input::new(p.PC7, Pull::None);
     let mut eeprom_wp = Output::new(p.PA12, Level::High, Speed::Low);
-    let _flash_cs = Output::new(p.PB12, Level::High, Speed::VeryHigh);
+    let mut spi_config = SpiConfig::default();
+    spi_config.frequency = Hertz(FLASH_SPI_HZ);
+    let mut w25q = W25q::new(
+        Spi::new_blocking(p.SPI2, p.PB13, p.PB15, p.PB14, spi_config),
+        Output::new(p.PB12, Level::High, Speed::VeryHigh),
+    );
+    let (flash_id, flash_idle) = flash_boot(&mut w25q, &mut || iwdg.pet()).await;
+    let flash_ok = flash_idle && flash_id == Some(JEDEC_W25Q256JV);
+    let flash = Flash::new(w25q, flash_ok);
     let _led_red = Output::new(p.PB3, Level::High, Speed::Low);
     let _led_green = Output::new(p.PB4, Level::High, Speed::Low);
     let _led_blue = Output::new(p.PB5, Level::High, Speed::Low);
@@ -644,13 +663,24 @@ async fn main(_spawner: Spawner) {
             last_rtc_step_ms: 0,
             last_set_rtc_nonce: None,
         },
+        flash,
     };
 
     excitation.set_high();
     Timer::after_millis(5).await;
     // The field link sends nothing unsolicited.
     if link.streams() {
-        link.send(&[Some(hello_message(board_id)), Some(ctx.status())]).await;
+        // A wrong JEDEC ID (or a chip stuck busy) is reported once here;
+        // the field link shows it as FieldStatus flash_ok = 0.
+        let flash_error = (!flash_ok).then(|| {
+            let id = flash_id.unwrap_or([0; 3]);
+            Message::Error(ErrorReport {
+                fault_code: ERROR_FLASH,
+                detail: u16::from_be_bytes([id[1], id[2]]),
+            })
+        });
+        link.send(&[Some(hello_message(board_id)), Some(ctx.status()), flash_error])
+            .await;
     }
 
     let mut watchdog_bootstrapped = false;
@@ -754,6 +784,25 @@ async fn main(_spawner: Spawner) {
             iwdg.pet();
             Timer::after_micros(250).await;
         }
+    }
+}
+
+/// Wake the flash and read its ID, then wait (bounded) for any program or
+/// erase that a reset interrupted on the MCU side to finish. Returns the
+/// JEDEC ID and whether the chip went idle.
+async fn flash_boot(w25q: &mut W25q<'_>, pet: &mut impl FnMut()) -> (Option<[u8; 3]>, bool) {
+    w25q.release_power_down();
+    Timer::after_millis(1).await;
+    let id = w25q.jedec_id();
+    let start = Instant::now();
+    loop {
+        match w25q.busy() {
+            Some(false) => return (id, true),
+            Some(true) if Instant::now() - start < Duration::from_millis(ERASE_TIMEOUT_MS) => {}
+            _ => return (id, false),
+        }
+        pet();
+        Timer::after_millis(1).await;
     }
 }
 
@@ -1505,6 +1554,9 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
     }
     if unix_ms.is_some() {
         flags |= FIELD_STATUS_RTC_VALID;
+    }
+    if ctx.flash.is_ok() {
+        flags |= FIELD_STATUS_FLASH_OK;
     }
     // Heater inhibited: persisted lockout/cooldown, a pulse in progress, or
     // a latched fault.

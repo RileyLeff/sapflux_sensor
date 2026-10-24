@@ -2,6 +2,7 @@
 #![no_std]
 
 pub mod timebase;
+pub mod w25q;
 
 /// `embassy_stm32::init` followed by starting the LSE/LPTIM1 time base.
 ///
