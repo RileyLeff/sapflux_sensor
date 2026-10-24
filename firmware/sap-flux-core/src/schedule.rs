@@ -28,6 +28,9 @@ pub const START_SLACK_MS: u64 = 2_000;
 /// before the run is aborted. Covers a start up to [`START_SLACK_MS`] late
 /// (the machine enforces the full baseline) plus health retries.
 pub const FIRE_GRACE_MS: u64 = START_SLACK_MS + 1_000;
+// A fire this late stretches the window; schedule validation budgets it.
+const _: () =
+    assert!(sap_flux_protocol::field::SCHEDULE_WINDOW_SLACK_MS as u64 >= FIRE_GRACE_MS + 1_000);
 
 /// High bit marks autonomous run ids; host runs choose their own.
 pub const SCHEDULED_RUN_FLAG: u32 = 0x8000_0000;

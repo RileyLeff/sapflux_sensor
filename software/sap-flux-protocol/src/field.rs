@@ -43,9 +43,11 @@ pub const SCHEDULE_BIN_MS: [u16; 3] = [250, 500, 1000];
 /// Most bins one window may hold (the board's RAM slot size).
 pub const SCHEDULE_MAX_WINDOW_BINS: u32 = 1000;
 /// Margin [`Schedule::validate`] adds to the nominal window span: a real
-/// window runs a little long (recovery starts when the board sees the
-/// pulse end, up to a frame late), and the RAM slot must still hold it.
-pub const SCHEDULE_WINDOW_SLACK_MS: u32 = 1000;
+/// window runs long when firing is retried (up to the board's 3 s fire
+/// grace, which stretches the baseline) and because recovery starts when
+/// the board sees the pulse end (up to a frame late; 1 s allowed). The RAM
+/// slot must still hold it.
+pub const SCHEDULE_WINDOW_SLACK_MS: u32 = 4000;
 /// Minimum `interval_s`.
 pub const SCHEDULE_MIN_INTERVAL_S: u32 = 600;
 /// Allowed `baseline_s` range.
