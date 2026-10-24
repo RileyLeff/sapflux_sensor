@@ -27,6 +27,7 @@ use sap_flux_core::pulse::{
 };
 use sap_flux_core::records;
 use sap_flux_core::schedule::{Action, Inputs, Planner};
+use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
 use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_protocol::{
     encode, Ack, BoardState, Decoder, FieldStatus, Hello, Message, Sample12, Schedule, Status,
@@ -53,6 +54,10 @@ const RTC_MAGIC_INVERSE: u32 = !RTC_MAGIC;
 // TAMP backup registers (5 on STM32G0B1). 0/1 hold the RTC-valid magic and
 // share the RTC's backup domain, which also validates the others.
 const BKP_LEASE_UNTIL: usize = 2;
+// RTC trim learning state (TAMP, same backup domain as the RTC): anchor
+// correction time (unix s, 0 = none) and the sum of steps since then (ms).
+const BKP_TRIM_ANCHOR_UNIX_S: usize = 3;
+const BKP_TRIM_STEPS_MS: usize = 4;
 const EEPROM_PAGE_LEN: usize = records::PAGE_LEN as usize;
 #[cfg(not(feature = "dev-short-cooldown"))]
 const FIRMWARE_VERSION: u32 = 0x00_01_02;
@@ -235,6 +240,12 @@ struct FieldState {
     boot_count: u32,
     v24_raw: i16,
     windows: &'static mut Windows,
+    /// RTC_CALR trim in effect, ppb (positive = slowed).
+    trim_ppb: i32,
+    /// Last applied SetRtc correction, new - old (0 if the RTC was invalid).
+    last_rtc_step_ms: i32,
+    /// Nonce of the last applied SetRtc: a retry is answered, not re-applied.
+    last_set_rtc_nonce: Option<u64>,
 }
 
 /// Everything command handling and the scheduler act on.
@@ -598,6 +609,15 @@ async fn main(_spawner: Spawner) {
     )
     .await;
     let lease_until = if rtc_valid { read_bkp(BKP_LEASE_UNTIL) } else { 0 };
+    // Restore the learned RTC trim (CALR also survives in the backup domain
+    // on VBAT, but a domain reset clears it).
+    let trim_ppb = eeprom_read::<{ records::WORD_RECORD_LEN }>(&mut i2c, records::TRIM_ADDR)
+        .and_then(|r| records::decode_trim(&r))
+        .filter(|ppb| ppb.abs() <= TRIM_LIMIT_PPB)
+        .map(Calr::from_ppb)
+        .filter(|calr| write_calr(*calr))
+        .map(Calr::ppb)
+        .unwrap_or_else(|| read_calr().ppb());
 
     let mut ctx = Ctx {
         rtc,
@@ -617,6 +637,9 @@ async fn main(_spawner: Spawner) {
             v24_raw: 0,
             // SAFETY: the only reference to WINDOWS, taken once in main.
             windows: unsafe { &mut *core::ptr::addr_of_mut!(WINDOWS) },
+            trim_ppb,
+            last_rtc_step_ms: 0,
+            last_set_rtc_nonce: None,
         },
     };
 
@@ -855,19 +878,21 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
             ctx.field.field_mode.then(|| field_status_message(ctx)),
         ),
         Message::SetRtc(command) => {
-            // A sync can wait up to one second for a whole-second boundary.
-            // Only SafeIdle may pause command processing for that long.
-            let mut result = if ctx.machine.state() == State::SafeIdle {
-                set_rtc(&mut ctx.rtc, command.unix_ms).await
+            let result = if ctx.field.last_set_rtc_nonce == Some(command.command_nonce) {
+                // Retry of a SetRtc already applied (its reply was lost):
+                // stepping again would apply a stale timestamp.
+                OK_RESULT
+            } else if matches!(ctx.machine.state(), State::SafeIdle | State::Cooldown)
+                && ctx.field.windows.recording().is_none()
+            {
+                // A sync waits up to one second for a whole-second boundary,
+                // so it is never applied during a window or a pulse.
+                apply_set_rtc(ctx, command.unix_ms).await
             } else {
                 rejection_result(Rejection::WrongState)
             };
             if result == OK_RESULT {
-                write_rtc_magic();
-                ctx.rtc_valid = read_rtc_magic();
-                if !ctx.rtc_valid {
-                    result = BACKUP_WRITE_FAILED_RESULT;
-                }
+                ctx.field.last_set_rtc_nonce = Some(command.command_nonce);
             }
             CommandResponses::ack_and_status(
                 ctx.ack(sap_flux_protocol::MSG_SET_RTC, result, command.command_nonce),
@@ -1281,17 +1306,72 @@ fn board_state(state: State) -> BoardState {
     }
 }
 
-async fn set_rtc(rtc: &mut Rtc, unix_ms: i64) -> u8 {
+/// Step the RTC, then learn RTC_CALR from the correction.
+async fn apply_set_rtc(ctx: &mut Ctx<'_>, unix_ms: i64) -> u8 {
+    let (target_ms, old_ms) =
+        match set_rtc(&mut ctx.rtc, &ctx.rtc_provider, ctx.rtc_valid, unix_ms).await {
+            Ok(set) => set,
+            Err(result) => return result,
+        };
+    write_rtc_magic();
+    ctx.rtc_valid = read_rtc_magic();
+    if !ctx.rtc_valid {
+        return BACKUP_WRITE_FAILED_RESULT;
+    }
+
+    let step_ms = old_ms.map(|old| target_ms - old);
+    ctx.field.last_rtc_step_ms = step_ms
+        .unwrap_or(0)
+        .clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+    let mut learner = TrimLearner {
+        anchor_unix_s: read_bkp(BKP_TRIM_ANCHOR_UNIX_S),
+        steps_ms: read_bkp(BKP_TRIM_STEPS_MS) as i32,
+    };
+    let new_unix_s = (target_ms / 1_000).clamp(0, u32::MAX as i64) as u32;
+    let learned = learner.on_correction(
+        step_ms.is_some(),
+        new_unix_s,
+        step_ms.unwrap_or(0),
+        ctx.field.trim_ppb,
+    );
+    write_bkp(BKP_TRIM_ANCHOR_UNIX_S, learner.anchor_unix_s);
+    write_bkp(BKP_TRIM_STEPS_MS, learner.steps_ms as u32);
+    if let Some(ppb) = learned {
+        let calr = Calr::from_ppb(ppb);
+        if write_calr(calr) {
+            ctx.field.trim_ppb = calr.ppb();
+            // Best effort: the clock is set either way; a failed write only
+            // means the trim is re-learned after the next backup-domain loss.
+            let _ = eeprom_write_verified(
+                &mut ctx.i2c,
+                &mut ctx.eeprom_wp,
+                records::TRIM_ADDR,
+                &records::encode_trim(ctx.field.trim_ppb),
+            )
+            .await;
+        }
+    }
+    OK_RESULT
+}
+
+/// Set the RTC at the next whole second of `unix_ms`. Returns the time set
+/// and the RTC's own reading just before the step (None if it was invalid).
+async fn set_rtc(
+    rtc: &mut Rtc,
+    provider: &RtcTimeProvider,
+    rtc_valid: bool,
+    unix_ms: i64,
+) -> Result<(i64, Option<i64>), u8> {
     let fraction_ms = unix_ms.rem_euclid(1_000) as u64;
     let wait_ms = 1_000 - fraction_ms;
     let Some(target_ms) = unix_ms.checked_add(wait_ms as i64) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     let Some(value) = unix_ms_to_datetime(target_ms) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     let Some(day_of_week) = day_of_week(value.weekday) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     let Ok(value) = DateTime::from(
         value.year,
@@ -1303,13 +1383,47 @@ async fn set_rtc(rtc: &mut Rtc, unix_ms: i64) -> u8 {
         value.second,
         value.millisecond as u32 * 1_000,
     ) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     Timer::after_millis(wait_ms).await;
+    let old_ms = rtc_now_ms(provider, rtc_valid);
     if rtc.set_datetime(value).is_err() {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     }
-    OK_RESULT
+    Ok((target_ms, old_ms))
+}
+
+/// Program RTC_CALR (32 s cycle). False if a previous recalibration is
+/// still pending, in which case the register is left unchanged.
+fn write_calr(calr: Calr) -> bool {
+    use pac::rtc::vals::{Calp, Key, Recalpf};
+    let rtc = pac::RTC;
+    rtc.wpr().write(|w| w.set_key(Key::DEACTIVATE1));
+    rtc.wpr().write(|w| w.set_key(Key::DEACTIVATE2));
+    // RECALPF clears within a few RTCCLK cycles after the previous write.
+    let mut ready = false;
+    for _ in 0..200_000 {
+        if rtc.icsr().read().recalpf() != Recalpf::PENDING {
+            ready = true;
+            break;
+        }
+    }
+    if ready {
+        rtc.calr().write(|w| {
+            w.set_calp(if calr.calp { Calp::INCREASE_FREQ } else { Calp::NO_CHANGE });
+            w.set_calm(calr.calm);
+        });
+    }
+    rtc.wpr().write(|w| w.set_key(Key::ACTIVATE));
+    ready
+}
+
+fn read_calr() -> Calr {
+    let calr = pac::RTC.calr().read();
+    Calr {
+        calp: calr.calp() == pac::rtc::vals::Calp::INCREASE_FREQ,
+        calm: calr.calm(),
+    }
 }
 
 fn rtc_now_ms(provider: &RtcTimeProvider, rtc_valid: bool) -> Option<i64> {
@@ -1403,8 +1517,8 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
         windows_dropped: ctx.field.windows.windows_dropped(),
         oldest_pending_run_id: ctx.field.windows.oldest_pending_run_id(),
         last_run_id: ctx.field.windows.last_run_id(),
-        calr_ppb: 0,
-        last_rtc_step_ms: 0,
+        calr_ppb: ctx.field.trim_ppb,
+        last_rtc_step_ms: ctx.field.last_rtc_step_ms,
         boot_count: ctx.field.boot_count as u16,
         v24_raw: ctx.field.v24_raw,
         flash_used_kib: 0,
