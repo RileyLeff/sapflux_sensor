@@ -17,6 +17,17 @@ On the v0.1 assembled boards, the LED appears to be rotated 180 degrees:
 
 That note is historical: v0.2 has the corrected component orientations.
 
+## Time base
+
+All binaries use `embassy-time` at 32 768 Hz on LPTIM1 clocked from the
+32.768 kHz LSE crystal (`src/timebase.rs`), so sample timing and
+`monotonic_us` are crystal-locked (30.5 µs ticks). Every binary must call
+`sap_flux_blinky::init(config)` instead of `embassy_stm32::init`, or time never
+advances. embassy-stm32 0.6's own `time-driver-lptim1` does not build for
+STM32G0. If the LSE does not start, the driver falls back to the LSI (time then
+runs about 2.3 % slow); the heater pulse width is timed by TIM1 on HSI16 either
+way.
+
 ## Heater monitor transports
 
 `heater_monitor` always exposes protocol v1 over the isolated RS-485 port at

@@ -54,8 +54,11 @@ const FIRMWARE_VERSION: u32 = 0x00_01_20;
 const SAMPLE_PERIOD: Duration = Duration::from_millis(20);
 const COMMAND_FRAME_PERIOD: Duration = Duration::from_millis(60);
 const COMMAND_WINDOW_EVERY_SAMPLES: u32 = 50;
-const MUX_SETTLE_US: u64 = 150;
-const ADS_CONVERSION_US: u64 = 1_300;
+// 32.768 kHz ticks: a wait of n ticks lasts at least n-1 ticks (30.5 us each).
+// 200 us -> 7 ticks -> >= 183 us; 1350 us -> 45 ticks -> >= 1343 us, above the
+// ADS1115 860 SPS worst case of 1279 us (1/860 s + 10 % oscillator).
+const MUX_SETTLE_US: u64 = 200;
+const ADS_CONVERSION_US: u64 = 1_350;
 const MIN_EXCITATION_RAW: i16 = 100;
 const INVALID_ADC: i16 = i16::MIN;
 const STATUS_PERIOD: Duration = Duration::from_secs(1);
@@ -137,7 +140,9 @@ impl<'d> Rs485<'d> {
 
         self.n_re.set_high();
         self.de.set_high();
-        Timer::after_micros(20).await;
+        // DE setup before the first start bit. A sub-tick Timer would round to
+        // one 30.5 us tick of random phase, so busy-wait ~20 us at HSI16.
+        cortex_m::asm::delay(320);
         let _ = self.tx.write(&frame[..length]).await;
         let _ = self.tx.flush().await;
         self.de.set_low();
@@ -281,7 +286,7 @@ impl MuxPins<'_> {
 async fn main(_spawner: Spawner) {
     let mut config = embassy_stm32::Config::default();
     config.rcc.ls = embassy_stm32::rcc::LsConfig::default_lse();
-    let p = embassy_stm32::init(config);
+    let p = sap_flux_blinky::init(config);
 
     let mut hardware_pulse = HardwarePulse::new(p.TIM1, p.PA8);
     let mut excitation = Output::new(p.PC6, Level::Low, Speed::Low);
@@ -532,7 +537,7 @@ async fn main(_spawner: Spawner) {
             if Instant::now() >= frame_deadline {
                 break;
             }
-            Timer::after_micros(100).await;
+            Timer::after_micros(250).await;
         }
     }
 }

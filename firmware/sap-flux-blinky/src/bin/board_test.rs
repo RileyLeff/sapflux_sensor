@@ -77,7 +77,7 @@ impl<'d> Rs485<'d> {
 async fn main(spawner: Spawner) {
     let mut config = embassy_stm32::Config::default();
     config.rcc.ls = embassy_stm32::rcc::LsConfig::default_lse();
-    let p = embassy_stm32::init(config);
+    let p = sap_flux_blinky::init(config);
 
     let mut heater_gate = Output::new(p.PA8, Level::Low, Speed::Low);
     let watchdog_done = Output::new(p.PA5, Level::Low, Speed::Low);
