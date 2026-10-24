@@ -50,6 +50,7 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
 | `0x08` | `GetWindow` | 14 B |
 | `0x09` | `AckWindow` | 12 B |
 | `0x0A` | `GetFieldStatus` | 8 B |
+| `0x0B` | `GetRaw` | 16 B |
 
 `SetSchedule` (32 B): `command_nonce: u64`, `enabled: u8`, `flags: u8`,
 `pulse_duration_ms: u16`, `interval_s: u32`, `phase_s: u32`,
@@ -83,6 +84,14 @@ delivered and frees it. Reply `Ack`.
 `GetFieldStatus` (8 B): `command_nonce: u64`. Reply `FieldStatus`.
 `Query` keeps replying `Hello` + `Status` (+ `FieldStatus` in field mode).
 
+`GetRaw` (16 B): `command_nonce: u64`, `run_id: u32`, `chunk: u32`. Reads
+the raw 25 Hz frame log in flash (bench retrieval; the gateway does not use
+it). Reply `RawChunk` with bytes `[100·chunk, 100·chunk + len)` of the run's
+block stream; an unknown or overwritten run, a chunk past the end, or a
+flash fault gets `Ack` `NOT_FOUND`. The host reads chunks 0, 1, … until
+`len < 100` or `NOT_FOUND`. On RS-485 a `GetRaw` while the heater is on
+gets `Ack` `WRONG_STATE` (0x10).
+
 ### New board → host messages
 
 | type | name | payload |
@@ -91,6 +100,7 @@ delivered and frees it. Reply `Ack`.
 | `0x16` | `WindowInfo` | 90 B |
 | `0x17` | `WindowChunk` | 108 B |
 | `0x18` | `FieldStatus` | 52 B |
+| `0x19` | `RawChunk` | 112 B |
 
 `Sample12` (52 B), for bench streaming and the monitor:
 `monotonic_us: u64`, `rtc_unix_ms: i64`, `run_id: u32`, `flags: u16`,
@@ -139,6 +149,21 @@ i32` (last `SetRtc` correction, new − old), `boot_count: u16`,
 `schedule_crc` = low 16 bits of CRC-32 over the 20 schedule bytes of the
 last accepted `SetSchedule` (`enabled` through `bin_ms`), so the gateway can
 tell whether the board already has the server's config.
+
+`RawChunk` (112 B): `run_id: u32`, `chunk: u32`, `len: u16` (≤ 100),
+`reserved: u16` (zero), `data: [u8; 100]` (zero-padded).
+
+Raw block stream: the run's 256-byte flash blocks in order, each holding up
+to 12 frames of every value a `Sample12` carries (12 thermistors,
+excitation, v24, low byte of `flags`, `state`), from Baseline through the
+end of Recovery. Header: `magic: u16` (`0x4652`), `version: u8` (1),
+`n_frames: u8`, `run_id: u32`, `seq: u32`, `block_in_run: u32`,
+`first_monotonic_us: u64`, `first_rtc_unix_ms: i64` (−1 = invalid); then
+the frames (33 B absolute, 17 B delta: i8 differences from the previous
+frame), `0xFF` padding, and a CRC-32 over bytes 0..252 in the last 4 bytes.
+The exact frame encoding is `software/sap-flux-protocol/src/raw.rs`.
+A frame the board could not queue for flash in time is dropped, so
+`monotonic_us` gaps are possible.
 
 ### Time on the board
 

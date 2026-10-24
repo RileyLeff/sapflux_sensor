@@ -24,21 +24,26 @@ use embassy_time::{Duration, Instant, Timer};
 use panic_halt as _;
 use sap_flux_blinky::w25q::W25q;
 use sap_flux_core::civil_time::{datetime_to_unix_ms, unix_ms_to_datetime, UtcDateTime};
-use sap_flux_core::flash::{Flash, Nor, ERASE_TIMEOUT_MS, JEDEC_W25Q256JV};
+use sap_flux_core::flash::{
+    Flash, Nor, Ready, ERASE_TIMEOUT_MS, JEDEC_W25Q256JV, RAW_BASE, RAW_SECTORS,
+};
 use sap_flux_core::pulse::{
     BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State, COOLDOWN_MS,
 };
+use sap_flux_core::rawlog::{Geometry, RawLog, CHUNK_LEN};
 use sap_flux_core::records;
 use sap_flux_core::schedule::{Action, Inputs, Planner};
 use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
 use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
+use sap_flux_protocol::raw::RawFrame;
 use sap_flux_protocol::{
     encode, Ack, BoardState, Decoder, ErrorReport, FieldStatus, Hello, Message, Sample12,
     Schedule, Status, CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
     FIELD_STATUS_FLASH_OK,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
     FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
-    FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN, WINDOW_FLAG_HEATER_FAULT,
+    FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN, RawChunk,
+    WINDOW_FLAG_HEATER_FAULT,
 };
 use static_cell::StaticCell;
 use stm32_metapac as pac;
@@ -144,6 +149,24 @@ const WINDOW_MAX_BINS: usize = 1000;
 type Windows = WindowStore<WINDOW_SLOTS, { WINDOW_MAX_BINS * BIN_BYTES }>;
 // All-zero when empty, so this lands in .bss rather than flash.
 static mut WINDOWS: Windows = Windows::new();
+
+// Raw 25 Hz frame log: the lower 24 MiB of the W25Q256 (sap_flux_core::flash
+// layout), two sectors kept erased ahead of the head (a 1.5 s pulse needs at
+// most 7 pages), and an index of the newest 256 run starts for GetRaw.
+const RAW_RUNS: usize = 256;
+const RAW_GEOMETRY: Geometry = Geometry {
+    base: RAW_BASE,
+    sectors: RAW_SECTORS,
+    ahead_sectors: 2,
+};
+// GetRaw waits this long for a program/erase in flight to finish: up to a
+// worst-case erase between windows, but only a page program's worth while a
+// window is recording, so a raw fetch never stalls the frame grid for long.
+const RAW_READ_WAIT_IDLE_MS: u64 = 450;
+const RAW_READ_WAIT_RUN_MS: u64 = 5;
+type RawLogStore = RawLog<RAW_RUNS>;
+// All-zero until mounted: .bss.
+static mut RAW_LOG: RawLogStore = RawLogStore::new();
 
 static RS485_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 // Holds the commands the Feather sends during a heater pulse (not polled).
@@ -273,6 +296,7 @@ struct Ctx<'d> {
     fault_code: u8,
     field: FieldState,
     flash: Flash<W25q<'d>>,
+    raw: &'static mut RawLogStore,
 }
 
 impl Ctx<'_> {
@@ -509,7 +533,11 @@ async fn main(_spawner: Spawner) {
     );
     let (flash_id, flash_idle) = flash_boot(&mut w25q, &mut || iwdg.pet()).await;
     let flash_ok = flash_idle && flash_id == Some(JEDEC_W25Q256JV);
-    let flash = Flash::new(w25q, flash_ok);
+    let mut flash = Flash::new(w25q, flash_ok);
+    // SAFETY: the only reference to RAW_LOG, taken once in main.
+    let raw = unsafe { &mut *core::ptr::addr_of_mut!(RAW_LOG) };
+    // Reads 16 B of each of the 6144 sector headers (~0.4 s at 4 MHz).
+    raw.mount(&mut flash, RAW_GEOMETRY, || iwdg.pet());
     let _led_red = Output::new(p.PB3, Level::High, Speed::Low);
     let _led_green = Output::new(p.PB4, Level::High, Speed::Low);
     let _led_blue = Output::new(p.PB5, Level::High, Speed::Low);
@@ -664,6 +692,7 @@ async fn main(_spawner: Spawner) {
             last_set_rtc_nonce: None,
         },
         flash,
+        raw,
     };
 
     excitation.set_high();
@@ -733,6 +762,15 @@ async fn main(_spawner: Spawner) {
                 .push(frame.monotonic_us, &values, frame.v24_raw);
         }
 
+        // Raw log: every frame of every run (scheduled or host-commanded),
+        // RAM only here; flash writes happen in the wait loop below.
+        if run_active(ctx.machine.state()) {
+            let raw_frame = raw_frame(&frame, &ctx.machine);
+            ctx.raw.push(ctx.machine.run_id(), &raw_frame);
+        } else {
+            ctx.raw.end_run();
+        }
+
         run_scheduler(&mut ctx).await;
         close_window_if_done(&mut ctx);
 
@@ -754,9 +792,7 @@ async fn main(_spawner: Spawner) {
         loop {
             // Field link: commands that arrive while the heater is on wait
             // in the RX ring buffer and are answered after the pulse.
-            let heater_on =
-                ctx.machine.state() == State::Pulsing || ctx.hardware_pulse.is_running();
-            if link.streams() || !heater_on {
+            if link.streams() || !heater_on(&ctx) {
                 while let Some(message) = link.poll_message() {
                     let responses = handle_command(message, &mut ctx).await;
                     link.send(&responses.messages).await;
@@ -764,6 +800,7 @@ async fn main(_spawner: Spawner) {
             }
 
             service_pulse_state(&mut ctx).await;
+            service_storage(&mut ctx);
 
             // WAKE is only a 20 ms pulse, shorter than one acquisition, so
             // polling it can miss it and let the TPL5010 reset the MCU (which
@@ -887,6 +924,97 @@ async fn acquire_frame(
         v24_raw,
         flags,
         heater_health_valid,
+    }
+}
+
+fn run_active(state: State) -> bool {
+    matches!(
+        state,
+        State::Baseline | State::Armed | State::Pulsing | State::Recovery
+    )
+}
+
+fn heater_on(ctx: &Ctx<'_>) -> bool {
+    ctx.machine.state() == State::Pulsing || ctx.hardware_pulse.is_running()
+}
+
+/// The Sample12 content of a frame, as the raw log stores it.
+fn raw_frame(frame: &Frame, machine: &Machine) -> RawFrame {
+    let mut values = [0_i16; 14];
+    values[..12].copy_from_slice(&frame.thermistor_raw);
+    values[12] = frame.excitation_raw;
+    values[13] = frame.v24_raw;
+    RawFrame {
+        monotonic_us: frame.monotonic_us,
+        rtc_unix_ms: frame.rtc_unix_ms,
+        flags: frame.flags as u8,
+        state: board_state(machine.state()) as u8,
+        values,
+    }
+}
+
+/// At most one flash operation per call (a page program is ~0.6 ms of SPI;
+/// erases only start while the heater is off, and never block: the chip is
+/// polled until done). Called every ~250 us from the frame wait loop.
+fn service_storage(ctx: &mut Ctx<'_>) {
+    let now_ms = Instant::now().as_millis();
+    let allow_erase = !heater_on(ctx);
+    ctx.raw.service(&mut ctx.flash, now_ms, allow_erase);
+}
+
+/// Wait (bounded) for the flash to finish a program or erase in flight.
+async fn flash_idle(ctx: &mut Ctx<'_>, max_ms: u64) -> bool {
+    let start = Instant::now().as_millis();
+    loop {
+        match ctx.flash.poll(Instant::now().as_millis()) {
+            Ready::Ready => return true,
+            Ready::Failed => return false,
+            Ready::Busy if Instant::now().as_millis() - start >= max_ms => return false,
+            Ready::Busy => Timer::after_micros(250).await,
+        }
+    }
+}
+
+/// GetRaw: one 100-byte chunk of a run's raw block stream from flash.
+async fn get_raw(ctx: &mut Ctx<'_>, run_id: u32, chunk: u32, nonce: u64) -> Message {
+    let not_found = || {
+        ack_message(
+            sap_flux_protocol::MSG_GET_RAW,
+            sap_flux_protocol::ACK_NOT_FOUND,
+            nonce,
+            run_id,
+        )
+    };
+    // Bench link: commands are served during a pulse, but flash reads are
+    // not (no flash I/O but sample appends while the heater is on).
+    if heater_on(ctx) {
+        return ack_message(
+            sap_flux_protocol::MSG_GET_RAW,
+            rejection_result(Rejection::WrongState),
+            nonce,
+            run_id,
+        );
+    }
+    if !ctx.raw.has_run(run_id) {
+        return not_found();
+    }
+    let wait_ms = if run_active(ctx.machine.state()) {
+        RAW_READ_WAIT_RUN_MS
+    } else {
+        RAW_READ_WAIT_IDLE_MS
+    };
+    if !flash_idle(ctx, wait_ms).await {
+        return not_found();
+    }
+    let mut data = [0_u8; CHUNK_LEN];
+    match ctx.raw.read_chunk(&mut ctx.flash, run_id, chunk, &mut data) {
+        Some(len) if len > 0 => Message::RawChunk(RawChunk {
+            run_id,
+            chunk,
+            len: len as u16,
+            data,
+        }),
+        _ => not_found(),
     }
 }
 
@@ -1051,6 +1179,9 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
                 command.run_id,
             ))
         }
+        Message::GetRaw(command) => CommandResponses::one(
+            get_raw(ctx, command.run_id, command.chunk, command.command_nonce).await,
+        ),
         // Board-to-host messages and anything this firmware does not
         // implement are ignored, exactly like unknown bytes.
         _ => CommandResponses::none(),
@@ -1580,7 +1711,7 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
         last_rtc_step_ms: ctx.field.last_rtc_step_ms,
         boot_count: ctx.field.boot_count as u16,
         v24_raw: ctx.field.v24_raw,
-        flash_used_kib: 0,
+        flash_used_kib: ctx.raw.used_kib(),
         schedule_crc: schedule.crc16(),
     })
 }

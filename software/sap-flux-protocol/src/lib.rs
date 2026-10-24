@@ -32,7 +32,8 @@
 //! GetWindow `0x08`, AckWindow `0x09`, GetFieldStatus `0x0A` (host→board)
 //! and Sample12 `0x15`, WindowInfo `0x16`, WindowChunk `0x17`, FieldStatus
 //! `0x18` (board→host), still protocol version 1. Window data and schedule
-//! helpers live in [`field`].
+//! helpers live in [`field`]. GetRaw `0x0B` / RawChunk `0x19` read the
+//! board's raw 25 Hz flash log, whose block format is in [`raw`].
 //!
 //! # Robustness
 //!
@@ -70,6 +71,7 @@
 pub mod cobs;
 pub mod crc;
 pub mod field;
+pub mod raw;
 
 mod frame;
 mod msg;
@@ -78,8 +80,8 @@ pub use field::{ScheduleError, BIN_VALUE_MISSING, BIN_VALUE_SCALE, SCHEDULE_LEN}
 pub use frame::{decode_frame, encode, encode_frame, DecodeError, Decoder, EncodeError, Frame};
 pub use msg::{
     payload_len_for, Abort, Ack, AckWindow, ArmPulse, BoardState, ErrorReport, FieldStatus,
-    FirePulse, GetFieldStatus, GetWindow, Hello, Message, Query, Sample, Sample12, Schedule,
-    SetRtc, SetSchedule, StartBaseline, Status, WindowChunk, WindowInfo,
+    FirePulse, GetFieldStatus, GetRaw, GetWindow, Hello, Message, Query, RawChunk, Sample,
+    Sample12, Schedule, SetRtc, SetSchedule, StartBaseline, Status, WindowChunk, WindowInfo,
 };
 
 /// Protocol version carried in byte 0 of every frame.
@@ -130,6 +132,8 @@ pub const MSG_GET_WINDOW: u8 = 0x08;
 pub const MSG_ACK_WINDOW: u8 = 0x09;
 /// Host-to-board (field): request a `FieldStatus`.
 pub const MSG_GET_FIELD_STATUS: u8 = 0x0A;
+/// Host-to-board (field): fetch 100 bytes of a run's raw frame log.
+pub const MSG_GET_RAW: u8 = 0x0B;
 
 /// Board-to-host: one complete 12-thermistor sample frame.
 pub const MSG_SAMPLE12: u8 = 0x15;
@@ -139,6 +143,8 @@ pub const MSG_WINDOW_INFO: u8 = 0x16;
 pub const MSG_WINDOW_CHUNK: u8 = 0x17;
 /// Board-to-host (field): scheduler, storage and time report.
 pub const MSG_FIELD_STATUS: u8 = 0x18;
+/// Board-to-host (field): 100 bytes of a run's raw block stream.
+pub const MSG_RAW_CHUNK: u8 = 0x19;
 
 /// Ack result: command accepted.
 pub const ACK_OK: u8 = 0x00;
@@ -188,8 +194,8 @@ pub const FIELD_STATUS_HEATER_LOCKOUT: u8 = 1 << 4;
 /// `FieldStatus.schedule_flags` bit: SPI flash is healthy.
 pub const FIELD_STATUS_FLASH_OK: u8 = 1 << 5;
 
-// Every message must fit in one frame; the largest is WindowChunk (108 B).
-const _: () = assert!(MIN_FRAME_LEN + 108 <= MAX_FRAME_LEN);
+// Every message must fit in one frame; the largest is RawChunk (112 B).
+const _: () = assert!(MIN_FRAME_LEN + 112 <= MAX_FRAME_LEN);
 
 /// Sample flag bit: heater output currently active.
 pub const FLAG_HEATER_ACTIVE: u16 = 1 << 0;

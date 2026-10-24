@@ -2,6 +2,7 @@
 //! implements the field-mode command handling from docs/field-protocol.md.
 
 use sap_flux_field_cli::link::{Link, LinkError, LinkOptions, Transport};
+use sap_flux_field_cli::raw::{self as rawdl, RawDownloadError};
 use sap_flux_field_cli::window::{self, Window, WindowError};
 use sap_flux_protocol::field::{encode_bin_value, mean_raw_rounded};
 use sap_flux_protocol::*;
@@ -30,6 +31,8 @@ struct FakeBoard {
     schedule_crc: u16,
     rtc_offset_ms: i64,
     windows: BTreeMap<u32, (WindowInfo, Vec<u8>)>,
+    /// Raw block streams by run id.
+    raw_logs: BTreeMap<u32, Vec<u8>>,
 }
 
 impl FakeBoard {
@@ -46,6 +49,7 @@ impl FakeBoard {
             schedule_crc: Schedule::FACTORY_DEFAULT.crc16(),
             rtc_offset_ms: 1234,
             windows: BTreeMap::new(),
+            raw_logs: BTreeMap::new(),
         }
     }
 
@@ -174,6 +178,24 @@ impl FakeBoard {
                     None => self.ack(MSG_GET_WINDOW, ACK_NOT_FOUND, g.command_nonce, g.run_id),
                 }
             }
+            Message::GetRaw(g) => {
+                let Some(stream) = self.raw_logs.get(&g.run_id) else {
+                    return self.ack(MSG_GET_RAW, ACK_NOT_FOUND, g.command_nonce, g.run_id);
+                };
+                let start = (g.chunk as usize * 100).min(stream.len());
+                let bytes = &stream[start..(start + 100).min(stream.len())];
+                if bytes.is_empty() {
+                    return self.ack(MSG_GET_RAW, ACK_NOT_FOUND, g.command_nonce, g.run_id);
+                }
+                let mut data = [0u8; 100];
+                data[..bytes.len()].copy_from_slice(bytes);
+                self.reply(Message::RawChunk(RawChunk {
+                    run_id: g.run_id,
+                    chunk: g.chunk,
+                    len: bytes.len() as u16,
+                    data,
+                }));
+            }
             Message::AckWindow(a) => {
                 let result = if self.windows.remove(&a.run_id).is_some() {
                     ACK_OK
@@ -184,6 +206,38 @@ impl FakeBoard {
             }
             _ => {}
         }
+    }
+
+    /// Log `n` frames of `run_id` the way the board does.
+    fn add_raw(&mut self, run_id: u32, n: u64) -> Vec<raw::RawFrame> {
+        let frames: Vec<raw::RawFrame> = (0..n)
+            .map(|i| raw::RawFrame {
+                monotonic_us: 60_000_000 + i * 40_000,
+                rtc_unix_ms: 1_793_000_000_000 + i as i64 * 40,
+                flags: 0x0e | u8::from((1500..1538).contains(&i)),
+                state: if i < 1500 { 1 } else { 4 },
+                values: core::array::from_fn(|c| {
+                    if c == 3 && i == 77 {
+                        raw::INVALID
+                    } else {
+                        12_000 + 100 * c as i16 + (i % 9) as i16
+                    }
+                }),
+            })
+            .collect();
+        let mut b = raw::BlockBuilder::new();
+        let mut blocks = Vec::new();
+        for f in &frames {
+            blocks.extend(b.push(run_id, f));
+        }
+        blocks.extend(b.finish());
+        let mut stream = Vec::new();
+        for (k, mut blk) in blocks.into_iter().enumerate() {
+            raw::seal_block(&mut blk, 1000 + k as u32, k as u32);
+            stream.extend_from_slice(&blk);
+        }
+        self.raw_logs.insert(run_id, stream);
+        frames
     }
 
     /// Add a synthetic default-schedule window (482 bins × 13 channels).
@@ -552,4 +606,43 @@ fn rtc_interpolation_and_time_invalid() {
     let csv = String::from_utf8(csv).unwrap();
     let row0: Vec<&str> = csv.lines().nth(1).unwrap().split(',').collect();
     assert_eq!(row0[4], "", "no RTC column when TIME_INVALID");
+}
+
+#[test]
+fn raw_log_download_verifies_blocks_and_writes_csv() {
+    let mut l = link();
+    let frames = l.transport_mut().add_raw(0x8001_0002, 2000);
+    l.transport_mut().drop_replies = 1; // chunk 0 retried
+    let run = rawdl::download(&mut l, 0x8001_0002, |_| {}).unwrap();
+    assert_eq!(run.frames(), frames);
+    assert_eq!(run.bytes(), l.transport_mut().raw_logs[&0x8001_0002]);
+    assert_eq!(l.retries_used, 1);
+
+    let mut csv = Vec::new();
+    run.write_csv(&mut csv).unwrap();
+    let csv = String::from_utf8(csv).unwrap();
+    let lines: Vec<&str> = csv.lines().collect();
+    assert_eq!(lines.len(), 1 + 2000);
+    let header: Vec<&str> = lines[0].split(',').collect();
+    assert_eq!(header.len(), 5 + 14);
+    assert_eq!(header[5], "t1_raw");
+    assert_eq!(header[18], "v24_raw");
+    let row: Vec<&str> = lines[1 + 77].split(',').collect();
+    assert_eq!(row[1], "63080000");
+    assert_eq!(row[2], "1793000003080");
+    assert_eq!(row[5 + 3], ""); // failed read
+    assert_eq!(row[5 + 4], (12_000 + 400 + 77 % 9).to_string());
+
+    // Unknown run: NOT_FOUND, terminal.
+    assert!(matches!(
+        rawdl::download(&mut l, 5, |_| {}),
+        Err(RawDownloadError::Link(LinkError::NotFound))
+    ));
+
+    // A corrupted block fails its CRC.
+    l.transport_mut().raw_logs.get_mut(&0x8001_0002).unwrap()[3 * 256 + 100] ^= 1;
+    assert!(matches!(
+        rawdl::download(&mut l, 0x8001_0002, |_| {}),
+        Err(RawDownloadError::Verify(_))
+    ));
 }

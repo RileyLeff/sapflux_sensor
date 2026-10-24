@@ -184,6 +184,29 @@ fn field_messages() -> Vec<(&'static str, u32, Message)> {
                 run_id: 17,
             }),
         ),
+        (
+            "GetRaw",
+            13,
+            Message::GetRaw(GetRaw {
+                command_nonce: 14,
+                run_id: 17,
+                chunk: 70_000,
+            }),
+        ),
+        (
+            "RawChunk_short",
+            14,
+            Message::RawChunk(RawChunk {
+                run_id: 17,
+                chunk: 70_000,
+                len: 3,
+                data: {
+                    let mut d = [0u8; 100];
+                    d[..3].copy_from_slice(&[0x46, 0x52, 0x01]);
+                    d
+                },
+            }),
+        ),
     ]
 }
 
@@ -263,6 +286,8 @@ fn exact_payload_sizes() {
         (MSG_WINDOW_INFO, 90),
         (MSG_WINDOW_CHUNK, 108),
         (MSG_FIELD_STATUS, 52),
+        (MSG_GET_RAW, 16),
+        (MSG_RAW_CHUNK, 112),
     ];
     for (t, n) in expected {
         assert_eq!(payload_len_for(t), Some(n), "type {t:#04x}");
@@ -274,9 +299,9 @@ fn exact_payload_sizes() {
         assert!(raw.len() <= MAX_FRAME_LEN, "{name}");
     }
     assert_eq!(WINDOW_INFO_FRAME_LEN, 102);
-    // Largest frame overall is WindowChunk: 120 decoded bytes.
+    // Largest frame overall is RawChunk: 124 decoded bytes.
     let max = (0u8..=0xFF).filter_map(payload_len_for).max().unwrap();
-    assert_eq!(max, 108);
+    assert_eq!(max, 112);
     assert!(MIN_FRAME_LEN + max <= MAX_FRAME_LEN);
 }
 
@@ -290,6 +315,8 @@ fn type_codes_match_spec() {
     assert_eq!(MSG_WINDOW_INFO, 0x16);
     assert_eq!(MSG_WINDOW_CHUNK, 0x17);
     assert_eq!(MSG_FIELD_STATUS, 0x18);
+    assert_eq!(MSG_GET_RAW, 0x0B);
+    assert_eq!(MSG_RAW_CHUNK, 0x19);
     assert_eq!(ACK_NOT_FOUND, 0x04);
     assert_eq!(ACK_INVALID_PARAMETER, 0x02);
 }
@@ -305,6 +332,8 @@ fn wrong_lengths_rejected() {
         (MSG_WINDOW_INFO, 90),
         (MSG_WINDOW_CHUNK, 108),
         (MSG_FIELD_STATUS, 52),
+        (MSG_GET_RAW, 16),
+        (MSG_RAW_CHUNK, 112),
     ] {
         for bad in [0, n - 1, n + 1, MAX_PAYLOAD_LEN] {
             if bad == n {

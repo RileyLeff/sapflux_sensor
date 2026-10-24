@@ -2,6 +2,7 @@
 
 use clap::{Args, Parser, Subcommand};
 use sap_flux_field_cli::link::{host_unix_ms, Link, LinkError, LinkOptions, QueryReply};
+use sap_flux_field_cli::raw;
 use sap_flux_field_cli::serial::{candidate_ports, SerialTransport, DEFAULT_BAUD};
 use sap_flux_field_cli::window::{self, Window};
 use sap_flux_protocol::field::ScheduleError;
@@ -66,6 +67,9 @@ enum Command {
     SetRtc(RtcArgs),
     /// GetWindow: download a window, verify data_crc32, write CSV + uplink bytes.
     GetWindow(GetWindowArgs),
+    /// GetRaw: download a run's raw 25 Hz frame log, verify every block,
+    /// write raw_<run>.csv + raw_<run>.bin.
+    GetRaw(GetRawArgs),
     /// AckWindow: mark a window delivered (the board frees it).
     AckWindow {
         /// Run id to acknowledge.
@@ -144,6 +148,16 @@ struct GetWindowArgs {
     /// Only print the header (no chunk download).
     #[arg(long)]
     header_only: bool,
+}
+
+#[derive(Args)]
+struct GetRawArgs {
+    /// Run id (as in WindowInfo / FieldStatus last_run_id).
+    #[arg(long)]
+    run: u32,
+    /// Output directory for raw_<run>.csv and raw_<run>.bin.
+    #[arg(long, default_value = ".")]
+    out_dir: PathBuf,
 }
 
 fn main() -> ExitCode {
@@ -225,6 +239,7 @@ fn run(cli: Cli) -> Result<(), BoxError> {
         Command::SetSchedule(a) => set_schedule(&mut link, a)?,
         Command::SetRtc(a) => set_rtc(&mut link, a, cli.baud)?,
         Command::GetWindow(a) => get_window(&mut link, a)?,
+        Command::GetRaw(a) => get_raw(&mut link, a)?,
         Command::AckWindow { run } => {
             let r = link.ack_window(run)?;
             print_ack("AckWindow", &r.ack);
@@ -551,6 +566,42 @@ fn get_window<T: sap_flux_field_cli::link::Transport>(
             return Err(format!("AckWindow rejected ({})", ack_result_name(r.ack.result)).into());
         }
     }
+    Ok(())
+}
+
+fn get_raw<T: sap_flux_field_cli::link::Transport>(
+    link: &mut Link<T>,
+    a: GetRawArgs,
+) -> Result<(), BoxError> {
+    let run = raw::download(link, a.run, |bytes| {
+        if bytes % 10_000 < 100 {
+            eprint!("\r{} KiB", bytes / 1024);
+        }
+    })
+    .map_err(|e| -> BoxError {
+        match e {
+            raw::RawDownloadError::Link(LinkError::NotFound) => format!(
+                "no raw log for run {} (NOT_FOUND): never logged, or overwritten",
+                a.run
+            )
+            .into(),
+            other => other.into(),
+        }
+    })?;
+    eprintln!();
+    let frames = run.frames();
+    println!(
+        "run {}: {} blocks, {} frames, all block CRCs verified",
+        run.run_id,
+        run.blocks.len(),
+        frames.len()
+    );
+    std::fs::create_dir_all(&a.out_dir)?;
+    let csv = a.out_dir.join(format!("raw_{}.csv", run.run_id));
+    let bin = a.out_dir.join(format!("raw_{}.bin", run.run_id));
+    run.write_csv(std::io::BufWriter::new(std::fs::File::create(&csv)?))?;
+    std::fs::write(&bin, run.bytes())?;
+    println!("wrote {} and {}", csv.display(), bin.display());
     Ok(())
 }
 

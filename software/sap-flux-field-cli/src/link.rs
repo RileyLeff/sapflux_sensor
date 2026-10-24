@@ -8,9 +8,10 @@
 //! Rejections (`Ack` with a nonzero result) are never retried.
 
 use sap_flux_protocol::{
-    encode, Ack, AckWindow, Decoder, FieldStatus, GetFieldStatus, GetWindow, Hello, Message, Query,
-    SetRtc, SetSchedule, Status, WindowChunk, WindowInfo, ACK_NOT_FOUND, CHUNK_HEADER,
-    MAX_ENCODED_LEN, MSG_ACK_WINDOW, MSG_GET_WINDOW, MSG_SET_RTC, MSG_SET_SCHEDULE,
+    encode, Ack, AckWindow, Decoder, FieldStatus, GetFieldStatus, GetRaw, GetWindow, Hello,
+    Message, Query, RawChunk, SetRtc, SetSchedule, Status, WindowChunk, WindowInfo, ACK_NOT_FOUND,
+    CHUNK_HEADER, MAX_ENCODED_LEN, MSG_ACK_WINDOW, MSG_GET_RAW, MSG_GET_WINDOW, MSG_SET_RTC,
+    MSG_SET_SCHEDULE,
 };
 use std::fmt;
 use std::io;
@@ -162,6 +163,7 @@ fn is_board_message(m: &Message) -> bool {
             | Message::WindowInfo(_)
             | Message::WindowChunk(_)
             | Message::FieldStatus(_)
+            | Message::RawChunk(_)
     )
 }
 
@@ -529,6 +531,32 @@ impl<T: Transport> Link<T> {
             .ok_or_else(|| LinkError::Protocol("no WindowChunk".into()))
     }
 
+    /// `GetRaw` → `RawChunk` (bytes `100·chunk ..` of the run's raw block
+    /// stream). NOT_FOUND: unknown run, or past its end.
+    pub fn raw_chunk(&mut self, run_id: u32, chunk: u32) -> Result<RawChunk, LinkError> {
+        let is_ours = move |m: &Message| matches!(m, Message::RawChunk(c) if c.run_id == run_id && c.chunk == chunk);
+        let nonce = self.next_nonce();
+        let replies = self.transact(
+            "GetRaw",
+            nonce,
+            |nonce| {
+                Message::GetRaw(GetRaw {
+                    command_nonce: nonce,
+                    run_id,
+                    chunk,
+                })
+            },
+            |r| judge_reply(r, MSG_GET_RAW, nonce, is_ours),
+        )?;
+        replies
+            .into_iter()
+            .find_map(|(_, m)| match m {
+                Message::RawChunk(c) if c.run_id == run_id && c.chunk == chunk => Some(c),
+                _ => None,
+            })
+            .ok_or_else(|| LinkError::Protocol("no RawChunk".into()))
+    }
+
     /// `AckWindow` → `Ack`.
     pub fn ack_window(&mut self, run_id: u32) -> Result<AckReply, LinkError> {
         self.ack_command(
@@ -548,17 +576,28 @@ impl<T: Transport> Link<T> {
 
 /// GetWindow replies: the wanted frame, or a NOT_FOUND Ack.
 fn judge_window(r: &[(i64, Message)], nonce: u64, wanted: impl Fn(&Message) -> bool) -> Progress {
+    judge_reply(r, MSG_GET_WINDOW, nonce, wanted)
+}
+
+/// Data-fetch replies (GetWindow, GetRaw): the wanted frame, or an Ack for
+/// this command (NOT_FOUND, or another rejection).
+fn judge_reply(
+    r: &[(i64, Message)],
+    command_type: u8,
+    nonce: u64,
+    wanted: impl Fn(&Message) -> bool,
+) -> Progress {
     for (_, m) in r {
         if wanted(m) {
             return Progress::Done;
         }
         if let Message::Ack(a) = m {
-            if a.command_type == MSG_GET_WINDOW && a.command_nonce == nonce {
+            if a.command_type == command_type && a.command_nonce == nonce {
                 return if a.result == ACK_NOT_FOUND {
                     Progress::Fail(LinkError::NotFound)
                 } else {
                     Progress::Fail(LinkError::Protocol(format!(
-                        "GetWindow rejected with result {:#04x}",
+                        "command {command_type:#04x} rejected with result {:#04x}",
                         a.result
                     )))
                 };

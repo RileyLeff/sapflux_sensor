@@ -287,6 +287,23 @@ pub struct GetFieldStatus {
     pub command_nonce: u64,
 }
 
+/// `0x0B` GetRaw — fetch 100 bytes of a run's raw frame log (16-byte
+/// payload).
+///
+/// Layout: `command_nonce: u64`, `run_id: u32`, `chunk: u32`. Chunk `i`
+/// is bytes `[100·i, 100·i + len)` of the run's [`raw`](crate::raw) block
+/// stream. Reply: `RawChunk`; an unknown run, or a chunk past the end of
+/// the run, gets `Ack` with [`ACK_NOT_FOUND`](crate::ACK_NOT_FOUND).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GetRaw {
+    /// Host-chosen nonce echoed in a NOT_FOUND Ack.
+    pub command_nonce: u64,
+    /// Run id of the logged run.
+    pub run_id: u32,
+    /// Chunk index.
+    pub chunk: u32,
+}
+
 /// `0x15` Sample12 — one complete 12-thermistor ADC frame (52-byte payload),
 /// for bench streaming and the monitor.
 ///
@@ -409,6 +426,32 @@ impl WindowChunk {
     }
 }
 
+/// `0x19` RawChunk — 100 bytes of a run's raw block stream (112-byte
+/// payload).
+///
+/// Layout: `run_id: u32`, `chunk: u32`, `len: u16` (≤ 100; shorter only
+/// for the run's last chunk), `reserved: u16` (zero), `data: [u8; 100]`
+/// (bytes past `len` are zero on send, ignored on receive).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawChunk {
+    /// Run id.
+    pub run_id: u32,
+    /// Chunk index.
+    pub chunk: u32,
+    /// Valid bytes in `data` (≤ 100).
+    pub len: u16,
+    /// Chunk bytes; only `data[..len]` is meaningful.
+    pub data: [u8; crate::WINDOW_CHUNK_DATA_LEN],
+}
+
+impl RawChunk {
+    /// The meaningful `data[..len]` bytes.
+    pub fn bytes(&self) -> &[u8] {
+        let n = (self.len as usize).min(crate::WINDOW_CHUNK_DATA_LEN);
+        &self.data[..n]
+    }
+}
+
 /// `0x18` FieldStatus — field-mode scheduler/storage/time report (52-byte
 /// payload).
 ///
@@ -483,6 +526,8 @@ pub enum Message {
     AckWindow(AckWindow),
     /// `0x0A`
     GetFieldStatus(GetFieldStatus),
+    /// `0x0B`
+    GetRaw(GetRaw),
     /// `0x15`
     Sample12(Sample12),
     /// `0x16`
@@ -491,6 +536,8 @@ pub enum Message {
     WindowChunk(WindowChunk),
     /// `0x18`
     FieldStatus(FieldStatus),
+    /// `0x19`
+    RawChunk(RawChunk),
 }
 
 impl Message {
@@ -512,10 +559,12 @@ impl Message {
             Message::GetWindow(_) => crate::MSG_GET_WINDOW,
             Message::AckWindow(_) => crate::MSG_ACK_WINDOW,
             Message::GetFieldStatus(_) => crate::MSG_GET_FIELD_STATUS,
+            Message::GetRaw(_) => crate::MSG_GET_RAW,
             Message::Sample12(_) => crate::MSG_SAMPLE12,
             Message::WindowInfo(_) => crate::MSG_WINDOW_INFO,
             Message::WindowChunk(_) => crate::MSG_WINDOW_CHUNK,
             Message::FieldStatus(_) => crate::MSG_FIELD_STATUS,
+            Message::RawChunk(_) => crate::MSG_RAW_CHUNK,
         }
     }
 
@@ -613,6 +662,21 @@ impl Message {
             }
             Message::GetFieldStatus(m) => {
                 w.u64(m.command_nonce);
+            }
+            Message::GetRaw(m) => {
+                w.u64(m.command_nonce);
+                w.u32(m.run_id);
+                w.u32(m.chunk);
+            }
+            Message::RawChunk(m) => {
+                w.u32(m.run_id);
+                w.u32(m.chunk);
+                w.u16(m.len);
+                w.u16(0); // reserved
+                let n = (m.len as usize).min(crate::WINDOW_CHUNK_DATA_LEN);
+                let mut data = [0u8; crate::WINDOW_CHUNK_DATA_LEN];
+                data[..n].copy_from_slice(&m.data[..n]);
+                w.put(&data);
             }
             Message::Sample12(m) => {
                 w.u64(m.monotonic_us);
@@ -806,6 +870,28 @@ impl Message {
             crate::MSG_GET_FIELD_STATUS => Message::GetFieldStatus(GetFieldStatus {
                 command_nonce: r.u64(),
             }),
+            crate::MSG_GET_RAW => Message::GetRaw(GetRaw {
+                command_nonce: r.u64(),
+                run_id: r.u32(),
+                chunk: r.u32(),
+            }),
+            crate::MSG_RAW_CHUNK => {
+                let run_id = r.u32();
+                let chunk = r.u32();
+                let len = r.u16();
+                let _reserved = r.u16(); // ignored on receive
+                if len as usize > crate::WINDOW_CHUNK_DATA_LEN {
+                    return Err(DecodeError::ChunkLength(len));
+                }
+                let mut data: [u8; crate::WINDOW_CHUNK_DATA_LEN] = r.bytes();
+                data[len as usize..].fill(0);
+                Message::RawChunk(RawChunk {
+                    run_id,
+                    chunk,
+                    len,
+                    data,
+                })
+            }
             crate::MSG_SAMPLE12 => {
                 let monotonic_us = r.u64();
                 let rtc_unix_ms = r.i64();
@@ -927,6 +1013,8 @@ pub fn payload_len_for(message_type: u8) -> Option<usize> {
         crate::MSG_WINDOW_INFO => 90,
         crate::MSG_WINDOW_CHUNK => 108,
         crate::MSG_FIELD_STATUS => 52,
+        crate::MSG_GET_RAW => 16,
+        crate::MSG_RAW_CHUNK => 112,
         _ => return None,
     })
 }
