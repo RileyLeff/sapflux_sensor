@@ -462,6 +462,15 @@ fn schedule_limits() {
     assert_eq!(bad(|s| s.recovery_s = 601), Err(ScheduleError::Recovery));
     assert_eq!(bad(|s| s.sample_hz = 50), Err(ScheduleError::SampleHz));
     assert_eq!(bad(|s| s.bin_ms = 100), Err(ScheduleError::BinMs));
+    // 241 s at 250 ms = 964 bins fits; 361 s at 250 ms = 1444 bins does not.
+    assert_eq!(bad(|s| s.bin_ms = 250), Ok(()));
+    assert_eq!(
+        bad(|s| {
+            s.bin_ms = 250;
+            s.recovery_s = 300;
+        }),
+        Err(ScheduleError::WindowTooLong)
+    );
     // 60 + 180 + 600 = 840 s busy: interval 840 rejected, 841 accepted.
     assert_eq!(bad(|s| s.interval_s = 840), Err(ScheduleError::Timing));
     assert_eq!(bad(|s| s.interval_s = 841), Ok(()));

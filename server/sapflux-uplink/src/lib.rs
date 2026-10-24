@@ -180,6 +180,9 @@ pub fn schedule_error_text(e: ScheduleError) -> &'static str {
         ScheduleError::Timing => "baseline_s + recovery_s + 600 s cooldown must be < interval_s",
         ScheduleError::SampleHz => "sample_hz must be 10, 20 or 25",
         ScheduleError::BinMs => "bin_ms must be 250, 500 or 1000",
+        ScheduleError::WindowTooLong => {
+            "baseline + pulse + recovery must fit in 1000 bins of bin_ms"
+        }
     }
 }
 

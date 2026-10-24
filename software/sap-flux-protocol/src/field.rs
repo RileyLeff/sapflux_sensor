@@ -40,6 +40,8 @@ pub const SCHEDULE_PULSE_DURATIONS_MS: [u16; 3] = [500, 1000, 1500];
 pub const SCHEDULE_SAMPLE_HZ: [u16; 3] = [10, 20, 25];
 /// Allowed `bin_ms` values.
 pub const SCHEDULE_BIN_MS: [u16; 3] = [250, 500, 1000];
+/// Most bins one window may hold (the board's RAM slot size).
+pub const SCHEDULE_MAX_WINDOW_BINS: u32 = 1000;
 /// Minimum `interval_s`.
 pub const SCHEDULE_MIN_INTERVAL_S: u32 = 600;
 /// Allowed `baseline_s` range.
@@ -70,6 +72,8 @@ pub enum ScheduleError {
     SampleHz,
     /// `bin_ms` not in {250, 500, 1000}.
     BinMs,
+    /// The window would need more than [`SCHEDULE_MAX_WINDOW_BINS`] bins.
+    WindowTooLong,
 }
 
 impl Schedule {
@@ -168,6 +172,9 @@ impl Schedule {
         }
         if !SCHEDULE_BIN_MS.contains(&self.bin_ms) {
             return Err(ScheduleError::BinMs);
+        }
+        if self.window_bins() > SCHEDULE_MAX_WINDOW_BINS {
+            return Err(ScheduleError::WindowTooLong);
         }
         Ok(())
     }
