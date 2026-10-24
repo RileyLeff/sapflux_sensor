@@ -28,12 +28,13 @@ use sap_flux_core::pulse::{
 };
 use sap_flux_core::records;
 use sap_flux_core::schedule::{Action, Inputs, Planner};
+use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_protocol::{
     encode, Ack, BoardState, Decoder, FieldStatus, Hello, Message, Sample12, Schedule, Status,
     CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
     FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
-    FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN,
+    FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN, WINDOW_FLAG_HEATER_FAULT,
 };
 use static_cell::StaticCell;
 use stm32_metapac as pac;
@@ -115,6 +116,16 @@ const FAULT_PULSE_OVERRUN: u8 = 2;
 // reset forces the heater gate low through the pin reset state.
 const IWDG_TIMEOUT_US: u32 = 4_000_000;
 
+// Window store: 4 windows (the spec's "newest 4 undelivered") of up to 1000
+// bins each = 104 000 B of the 144 KiB RAM (Python budget). The default
+// schedule needs 482 bins; longer windows are cut and flagged TRUNCATED.
+// A new window overwrites the oldest undelivered one when all are taken.
+const WINDOW_SLOTS: usize = 4;
+const WINDOW_MAX_BINS: usize = 1000;
+type Windows = WindowStore<WINDOW_SLOTS, { WINDOW_MAX_BINS * BIN_BYTES }>;
+// All-zero when empty, so this lands in .bss rather than flash.
+static mut WINDOWS: Windows = Windows::new();
+
 static RS485_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 
@@ -194,6 +205,7 @@ struct FieldState {
     schedule_in_eeprom: Option<Schedule>,
     boot_count: u32,
     v24_raw: i16,
+    windows: &'static mut Windows,
 }
 
 /// Everything command handling and the scheduler act on.
@@ -554,6 +566,8 @@ async fn main(_spawner: Spawner) {
             schedule_in_eeprom,
             boot_count,
             v24_raw: 0,
+            // SAFETY: the only reference to WINDOWS, taken once in main.
+            windows: unsafe { &mut *core::ptr::addr_of_mut!(WINDOWS) },
         },
     };
 
@@ -604,7 +618,17 @@ async fn main(_spawner: Spawner) {
             watchdog_serviced = watchdog_wake.is_high();
         }
 
+        if ctx.field.windows.recording().is_some() {
+            let mut values = [0_i16; 13];
+            values[..12].copy_from_slice(&frame.thermistor_raw);
+            values[12] = frame.excitation_raw;
+            ctx.field
+                .windows
+                .push(frame.monotonic_us, &values, frame.v24_raw);
+        }
+
         run_scheduler(&mut ctx).await;
+        close_window_if_done(&mut ctx);
 
         if cycle_index != 0 {
             let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
@@ -626,7 +650,7 @@ async fn main(_spawner: Spawner) {
 
         // Fixed-rate frames; after an overrun, restart the grid from now
         // (missed frames are simply absent; every frame carries its own time).
-        next_frame_at += FRAME_PERIOD;
+        next_frame_at += frame_period(&ctx);
         if next_frame_at < Instant::now() {
             next_frame_at = Instant::now();
         }
@@ -904,6 +928,40 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
             )
         }
         Message::GetFieldStatus(_) => CommandResponses::one(field_status_message(ctx)),
+        Message::GetWindow(command) => {
+            let reply = if command.chunk == sap_flux_protocol::CHUNK_HEADER {
+                ctx.field
+                    .windows
+                    .info(command.run_id)
+                    .map(Message::WindowInfo)
+            } else {
+                ctx.field
+                    .windows
+                    .chunk(command.run_id, command.chunk)
+                    .map(Message::WindowChunk)
+            };
+            CommandResponses::one(reply.unwrap_or_else(|| {
+                ack_message(
+                    sap_flux_protocol::MSG_GET_WINDOW,
+                    sap_flux_protocol::ACK_NOT_FOUND,
+                    command.command_nonce,
+                    command.run_id,
+                )
+            }))
+        }
+        Message::AckWindow(command) => {
+            let result = if ctx.field.windows.ack(command.run_id) {
+                OK_RESULT
+            } else {
+                sap_flux_protocol::ACK_NOT_FOUND
+            };
+            CommandResponses::one(ack_message(
+                sap_flux_protocol::MSG_ACK_WINDOW,
+                result,
+                command.command_nonce,
+                command.run_id,
+            ))
+        }
         // Board-to-host messages and anything this firmware does not
         // implement are ignored, exactly like unknown bytes.
         _ => CommandResponses::none(),
@@ -998,6 +1056,18 @@ async fn run_scheduler(ctx: &mut Ctx<'_>) {
                     ctx.field.planner.start_rejected();
                     return;
                 }
+                if let Some(run) = ctx.field.planner.active_run() {
+                    let start_rtc_ms = ctx.unix_ms().unwrap_or(-1);
+                    ctx.field.windows.begin(WindowParams {
+                        run_id: run.run_id,
+                        start_us: Instant::now().as_micros(),
+                        start_rtc_ms,
+                        bin_ms: run.schedule.bin_ms,
+                        sample_hz: run.schedule.sample_hz,
+                        pulse_duration_ms: run.schedule.pulse_duration_ms,
+                        time_invalid: run.time_invalid,
+                    });
+                }
             }
             Action::Arm { run_id, duration } => {
                 if ctx.machine.arm(run_id, duration, now_ms).is_err() {
@@ -1008,12 +1078,45 @@ async fn run_scheduler(ctx: &mut Ctx<'_>) {
                 if fire_sequence(ctx, run_id, nonce).await != OK_RESULT {
                     return;
                 }
+                ctx.field.windows.note_heater_on(Instant::now().as_micros());
             }
             Action::Abort { .. } => {
                 ctx.hardware_pulse.force_off();
                 ctx.machine.abort(now_ms);
             }
         }
+    }
+}
+
+/// A window ends when its run leaves Baseline/Armed/Pulsing/Recovery:
+/// recovery done (normal), aborted before the pulse, or a fault.
+fn close_window_if_done(ctx: &mut Ctx<'_>) {
+    let Some(run_id) = ctx.field.windows.recording() else {
+        return;
+    };
+    if ctx.fault_code != 0 || ctx.machine.state() == State::Fault {
+        ctx.field.windows.add_flags(WINDOW_FLAG_HEATER_FAULT);
+    }
+    let running = ctx.machine.run_id() == run_id
+        && matches!(
+            ctx.machine.state(),
+            State::Baseline | State::Armed | State::Pulsing | State::Recovery
+        );
+    if !running {
+        let end_rtc_ms = ctx.unix_ms().unwrap_or(-1);
+        ctx.field
+            .windows
+            .finish(Instant::now().as_micros(), end_rtc_ms);
+    }
+}
+
+/// 25 Hz normally; a recording window uses its schedule's sample rate.
+fn frame_period(ctx: &Ctx<'_>) -> Duration {
+    match ctx.field.planner.active_run() {
+        Some(run) if ctx.field.windows.recording() == Some(run.run_id) => {
+            Duration::from_millis(1000 / run.schedule.sample_hz.max(1) as u64)
+        }
+        _ => FRAME_PERIOD,
     }
 }
 
@@ -1288,10 +1391,10 @@ fn field_status_message(ctx: &Ctx<'_>) -> Message {
         rtc_unix_ms: unix_ms.unwrap_or(-1),
         next_pulse_unix_s: planner.next_pulse_unix_s(now_ms, unix_ms),
         schedule_flags: flags,
-        windows_pending: 0,
-        windows_dropped: 0,
-        oldest_pending_run_id: 0,
-        last_run_id: 0,
+        windows_pending: ctx.field.windows.windows_pending() as u8,
+        windows_dropped: ctx.field.windows.windows_dropped(),
+        oldest_pending_run_id: ctx.field.windows.oldest_pending_run_id(),
+        last_run_id: ctx.field.windows.last_run_id(),
         calr_ppb: 0,
         last_rtc_step_ms: 0,
         boot_count: ctx.field.boot_count as u16,
