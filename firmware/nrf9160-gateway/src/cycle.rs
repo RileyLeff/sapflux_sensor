@@ -61,7 +61,7 @@ const Q_WINDOW_INFO: &[u8] = &[proto::MSG_WINDOW_INFO];
 const Q_WINDOW_CHUNK: &[u8] = &[proto::MSG_WINDOW_CHUNK];
 /// SetRtc: the board waits up to 1 s for the next second boundary before
 /// it acknowledges, so its Ack can take ~1.1 s (spec: 200 ms).
-const SET_RTC_TIMEOUTS_MS: [u64; 4] = [1300, 1300, 1300, 1700];
+const SET_RTC_TIMEOUTS_MS: [u64; 4] = [2000, 2000, 2000, 2000];
 
 pub struct Gateway {
     pub modem: Modem,
