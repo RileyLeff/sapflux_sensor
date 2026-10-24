@@ -69,6 +69,14 @@ CONFIGS = [
     ("2part_hybrid4_pca6_q2", E.two_part, {"kind": "hybrid4", "k": 6, "q": 2.0}),
     # piecewise-constant log bins inside the two-part frame
     ("2part_logbins8_q2", E.two_part, {"kind": "logbins", "k": 8, "q": 2.0}),
+    # two-part v2: KLT rotation inside the spline span + static Rice k-table
+    *[(f"tp2_k{k}_q2_klt_table", E.tp2, {"k": k, "q": 2.0, "coder": "table"}) for k in (8, 12, 16)],
+    ("tp2_k12_q1.5_klt_table", E.tp2, {"k": 12, "q": 1.5, "coder": "table"}),
+    ("tp2_k12_q3_klt_table", E.tp2, {"k": 12, "q": 3.0, "coder": "table"}),
+    ("tp2_k12_q2_klt_agolomb", E.tp2, {"k": 12, "q": 2.0, "coder": "agolomb"}),
+    ("tp2_k12_q2_noklt_agolomb", E.tp2, {"k": 12, "q": 2.0, "coder": "agolomb", "rotate": False}),
+    ("tp2_k12_q2_klt_table_b10", E.tp2, {"k": 12, "q": 2.0, "coder": "table", "base_bin": 10.0}),
+    ("tp2_k12_q2_klt_table_qb2", E.tp2, {"k": 12, "q": 2.0, "coder": "table", "qb": 2.0}),
     # flash tier
     ("lossless_mean8_rice", E.lossless, {"predictor": "mean8", "coder": "rice32"}),
     ("lossless_delta_rice", E.lossless, {"predictor": "delta", "coder": "rice32"}),

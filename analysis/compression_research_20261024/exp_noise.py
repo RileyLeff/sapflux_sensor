@@ -106,20 +106,11 @@ def exc_sensitivity() -> dict:
             "counts_per_degC": float(raw[0] - raw[1])}
 
 
-def main() -> None:
-    OUT.mkdir(exist_ok=True)
-    P.setup()
-    stats, psds = regime_stats()
-    temp_noise = exc_temperature_noise()
-    corpus = C.load_corpus()
-    sci = exc_science_sigma(corpus)
-    sens = exc_sensitivity()
-    C.save_json({"regimes": stats, "exc_temperature_noise_mK": temp_noise,
-                 "exc_science_sigma_ratio_vs_per_sample": sci, "exc_sensitivity": sens},
-                OUT / "noise.json")
+def plot(psds: dict, sci: dict) -> None:
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(1, 2, figsize=(11, 3.8))
+    P.setup()
+    fig, ax = plt.subplots(1, 2, figsize=(11, 3.9))
     labels = {"quiet": "Aug 24 quiet (after pulse)", "interference": "Aug 24 idle, 9.8 Hz interference",
               "july": "Jul 11 idle, 9.6 Hz interference"}
     for regime, (fr, p) in psds.items():
@@ -129,16 +120,37 @@ def main() -> None:
     ax[0].set_title("Two noise regimes: white-ish vs a ~9.7 Hz tone")
     ax[0].legend(fontsize=8)
     modes = EXC_MODES
+    kinds = [("V", "V (Marshall)"), ("hrm60", "HRM α 60–80 s"), ("tau", "τ"), ("peak_down", "peak rise")]
     x = np.arange(len(modes))
-    for i, regime in enumerate(temp_noise):
-        ax[1].bar(x + (i - 1) * 0.27, [temp_noise[regime][m] for m in modes], 0.25, label=labels[regime])
-    ax[1].set_xticks(x, ["per sample", "0.5 s MA", "5 s MA", "window line", "window mean"])
-    ax[1].set_ylabel("Temperature noise (mK), 25 Hz")
-    ax[1].set_title("Excitation used in the ratiometric conversion")
+    wbar = 0.19
+    for i, (k, lab) in enumerate(kinds):
+        ax[1].bar(x + (i - 1.5) * (wbar + 0.01), [sci[m][k] for m in modes], wbar, label=lab)
+    ax[1].axhline(1.0, color=P.INK2, linewidth=1)
+    ax[1].set_xticks(x, ["per\nsample", "0.5 s\nboxcar", "5 s\nboxcar", "window\nline", "window\nmean"])
+    ax[1].set_ylabel("Estimator σ / σ with per-sample excitation")
+    ax[1].set_title("Excitation needs ~2 Hz: constant excitation doubles σ")
+    ax[1].legend(fontsize=8, ncols=2)
     fig.tight_layout()
     fig.savefig(C.HERE / "fig_noise.png", dpi=160)
-    import json
 
+
+def main() -> None:
+    import json
+    import sys
+
+    OUT.mkdir(exist_ok=True)
+    stats, psds = regime_stats()
+    if "--plot" in sys.argv:  # re-plot from results/noise.json
+        plot(psds, json.loads((OUT / "noise.json").read_text())["exc_science_sigma_ratio_vs_per_sample"])
+        return
+    temp_noise = exc_temperature_noise()
+    corpus = C.load_corpus()
+    sci = exc_science_sigma(corpus)
+    sens = exc_sensitivity()
+    C.save_json({"regimes": stats, "exc_temperature_noise_mK": temp_noise,
+                 "exc_science_sigma_ratio_vs_per_sample": sci, "exc_sensitivity": sens},
+                OUT / "noise.json")
+    plot(psds, sci)
     print(json.dumps({"regimes": stats, "temp_noise": temp_noise, "sci": sci, "sens": sens}, indent=1))
 
 

@@ -1,0 +1,305 @@
+{
+ "assumptions": {
+  "flash_bytes": 33554432,
+  "flash_reserved_frac": 0.1,
+  "frame_header_B": 24,
+  "datagram_payload_max_B": 1100,
+  "datagram_overhead_B": 57,
+  "ack_bytes_per_wake": 120,
+  "wake_energy_equiv_kB": 10.0,
+  "wake_energy_J": 0.5,
+  "usd_per_MB": 0.5,
+  "days_per_month": 30.44
+ },
+ "idle_summary_B_per_day_5min_10mK": 3912.0,
+ "rows": [
+  {
+   "tier": "day-one 500 ms bins, i16",
+   "payload_B_per_pulse": 12616.0,
+   "pulses_per_day": 24,
+   "flash_days": 99.54835443037975,
+   "wakes24": {
+    "MB_per_month": 9.821648640000001,
+    "usd_per_month": 4.910824320000001,
+    "radio_J_per_day": 28.132799999999996,
+    "payload_share_of_radio_energy": 0.5734516294147757
+   },
+   "wakes4": {
+    "MB_per_month": 9.72777168,
+    "usd_per_month": 4.86388584,
+    "radio_J_per_day": 17.9786,
+    "payload_share_of_radio_energy": 0.8887566328857642
+   },
+   "wakes1": {
+    "MB_per_month": 9.716813280000002,
+    "usd_per_month": 4.858406640000001,
+    "radio_J_per_day": 16.4606,
+    "payload_share_of_radio_energy": 0.9696244365332977
+   }
+  },
+  {
+   "tier": "day-one 500 ms bins, i16",
+   "payload_B_per_pulse": 12616.0,
+   "pulses_per_day": 48,
+   "flash_days": 49.77417721518987,
+   "wakes48": {
+    "MB_per_month": 19.643297280000002,
+    "usd_per_month": 9.821648640000001,
+    "radio_J_per_day": 56.26559999999999,
+    "payload_share_of_radio_energy": 0.5734516294147757
+   },
+   "wakes4": {
+    "MB_per_month": 19.44093216,
+    "usd_per_month": 9.72046608,
+    "radio_J_per_day": 33.9332,
+    "payload_share_of_radio_energy": 0.9410606721440948
+   },
+   "wakes1": {
+    "MB_per_month": 19.429973760000003,
+    "usd_per_month": 9.714986880000001,
+    "radio_J_per_day": 32.4152,
+    "payload_share_of_radio_energy": 0.9845751375897727
+   }
+  },
+  {
+   "tier": "day-one 500 ms bins, Rice",
+   "payload_B_per_pulse": 5323.8,
+   "pulses_per_day": 24,
+   "flash_days": 235.29150964620362,
+   "wakes24": {
+    "MB_per_month": 4.2027632850000005,
+    "usd_per_month": 2.1013816425000003,
+    "radio_J_per_day": 18.90335625,
+    "payload_share_of_radio_energy": 0.365192093864284
+   },
+   "wakes4": {
+    "MB_per_month": 4.129707285,
+    "usd_per_month": 2.0648536425,
+    "radio_J_per_day": 8.78335625,
+    "payload_share_of_radio_energy": 0.7722966092830403
+   },
+   "wakes1": {
+    "MB_per_month": 4.113543645,
+    "usd_per_month": 2.0567718225,
+    "radio_J_per_day": 7.2568062499999995,
+    "payload_share_of_radio_energy": 0.9310991663860393
+   }
+  },
+  {
+   "tier": "day-one 500 ms bins, Rice",
+   "payload_B_per_pulse": 5323.8,
+   "pulses_per_day": 48,
+   "flash_days": 117.64575482310181,
+   "wakes48": {
+    "MB_per_month": 8.405526570000001,
+    "usd_per_month": 4.2027632850000005,
+    "radio_J_per_day": 37.8067125,
+    "payload_share_of_radio_energy": 0.365192093864284
+   },
+   "wakes4": {
+    "MB_per_month": 8.237863050000001,
+    "usd_per_month": 4.118931525000001,
+    "radio_J_per_day": 15.531312500000002,
+    "payload_share_of_radio_energy": 0.871227882382767
+   },
+   "wakes1": {
+    "MB_per_month": 8.22343449,
+    "usd_per_month": 4.111717245,
+    "radio_J_per_day": 14.007612499999999,
+    "payload_share_of_radio_energy": 0.9643051233748792
+   }
+  },
+  {
+   "tier": "log-time bins 4%",
+   "payload_B_per_pulse": 1144.8,
+   "pulses_per_day": 24,
+   "flash_days": 1076.6067943026164,
+   "wakes24": {
+    "MB_per_month": 1.0247977962500001,
+    "usd_per_month": 0.5123988981250001,
+    "radio_J_per_day": 13.683307812499999,
+    "payload_share_of_radio_energy": 0.12301907079531324
+   },
+   "wakes4": {
+    "MB_per_month": 0.91704019625,
+    "usd_per_month": 0.458520098125,
+    "radio_J_per_day": 3.5063078125000002,
+    "payload_share_of_radio_energy": 0.42959942282591596
+   },
+   "wakes1": {
+    "MB_per_month": 0.90261163625,
+    "usd_per_month": 0.451305818125,
+    "radio_J_per_day": 1.9826078125000002,
+    "payload_share_of_radio_energy": 0.7478069052045562
+   }
+  },
+  {
+   "tier": "log-time bins 4%",
+   "payload_B_per_pulse": 1144.8,
+   "pulses_per_day": 48,
+   "flash_days": 538.3033971513082,
+   "wakes48": {
+    "MB_per_month": 2.0495955925000002,
+    "usd_per_month": 1.0247977962500001,
+    "radio_J_per_day": 27.366615624999998,
+    "payload_share_of_radio_energy": 0.12301907079531324
+   },
+   "wakes4": {
+    "MB_per_month": 1.8125288725000002,
+    "usd_per_month": 0.9062644362500001,
+    "radio_J_per_day": 4.9772156249999995,
+    "payload_share_of_radio_energy": 0.5981689059332245
+   },
+   "wakes1": {
+    "MB_per_month": 1.8015704725000001,
+    "usd_per_month": 0.9007852362500001,
+    "radio_J_per_day": 3.459215625,
+    "payload_share_of_radio_energy": 0.8554585622282507
+   }
+  },
+  {
+   "tier": "SFK1 k12 (recommended)",
+   "payload_B_per_pulse": 250.3,
+   "pulses_per_day": 24,
+   "flash_days": 4587.349339682304,
+   "wakes24": {
+    "MB_per_month": 0.329698746122449,
+    "usd_per_month": 0.1648493730612245,
+    "radio_J_per_day": 12.541555102040816,
+    "payload_share_of_radio_energy": 0.04318085736853256
+   },
+   "wakes4": {
+    "MB_per_month": 0.22888146612244897,
+    "usd_per_month": 0.11444073306122449,
+    "radio_J_per_day": 2.3759551020408165,
+    "payload_share_of_radio_energy": 0.15823325184802156
+   },
+   "wakes1": {
+    "MB_per_month": 0.21445290612244897,
+    "usd_per_month": 0.10722645306122448,
+    "radio_J_per_day": 0.8522551020408162,
+    "payload_share_of_radio_energy": 0.4133212006561224
+   }
+  },
+  {
+   "tier": "SFK1 k12 (recommended)",
+   "payload_B_per_pulse": 250.3,
+   "pulses_per_day": 48,
+   "flash_days": 2293.674669841152,
+   "wakes48": {
+    "MB_per_month": 0.659397492244898,
+    "usd_per_month": 0.329698746122449,
+    "radio_J_per_day": 25.08311020408163,
+    "payload_share_of_radio_energy": 0.04318085736853256
+   },
+   "wakes4": {
+    "MB_per_month": 0.4362114122448979,
+    "usd_per_month": 0.21810570612244895,
+    "radio_J_per_day": 2.7165102040816325,
+    "payload_share_of_radio_energy": 0.26376127835082525
+   },
+   "wakes1": {
+    "MB_per_month": 0.425253012244898,
+    "usd_per_month": 0.212626506122449,
+    "radio_J_per_day": 1.1985102040816327,
+    "payload_share_of_radio_energy": 0.5828154000715173
+   }
+  },
+  {
+   "tier": "SFK1 k16",
+   "payload_B_per_pulse": 266.7,
+   "pulses_per_day": 24,
+   "flash_days": 4328.578264532435,
+   "wakes24": {
+    "MB_per_month": 0.34167843918367347,
+    "usd_per_month": 0.17083921959183673,
+    "radio_J_per_day": 12.561232653061225,
+    "payload_share_of_radio_energy": 0.0446797435062593
+   },
+   "wakes4": {
+    "MB_per_month": 0.24086115918367348,
+    "usd_per_month": 0.12043057959183674,
+    "radio_J_per_day": 2.3956326530612246,
+    "payload_share_of_radio_energy": 0.16514746221866322
+   },
+   "wakes1": {
+    "MB_per_month": 0.22816767918367345,
+    "usd_per_month": 0.11408383959183672,
+    "radio_J_per_day": 0.8747826530612244,
+    "payload_share_of_radio_energy": 0.4284294524470802
+   }
+  },
+  {
+   "tier": "SFK1 k16",
+   "payload_B_per_pulse": 266.7,
+   "pulses_per_day": 48,
+   "flash_days": 2164.2891322662176,
+   "wakes48": {
+    "MB_per_month": 0.6833568783673469,
+    "usd_per_month": 0.34167843918367347,
+    "radio_J_per_day": 25.12246530612245,
+    "payload_share_of_radio_energy": 0.0446797435062593
+   },
+   "wakes4": {
+    "MB_per_month": 0.4671111183673469,
+    "usd_per_month": 0.23355555918367346,
+    "radio_J_per_day": 2.7672653061224493,
+    "payload_share_of_radio_energy": 0.2772648160712705
+   },
+   "wakes1": {
+    "MB_per_month": 0.45094747836734694,
+    "usd_per_month": 0.22547373918367347,
+    "radio_J_per_day": 1.240715306122449,
+    "payload_share_of_radio_energy": 0.5970066641938776
+   }
+  },
+  {
+   "tier": "lossless 25 Hz (mean8 Rice)",
+   "payload_B_per_pulse": 35128.8,
+   "pulses_per_day": 24,
+   "flash_days": 35.794894078532124,
+   "wakes24": {
+    "MB_per_month": 27.10144734,
+    "usd_per_month": 13.55072367,
+    "radio_J_per_day": 56.516175,
+    "payload_share_of_radio_energy": 0.7876714055754834
+   },
+   "wakes4": {
+    "MB_per_month": 27.02839134,
+    "usd_per_month": 13.51419567,
+    "radio_J_per_day": 46.396175,
+    "payload_share_of_radio_energy": 0.9568929981835788
+   },
+   "wakes1": {
+    "MB_per_month": 27.01569786,
+    "usd_per_month": 13.50784893,
+    "radio_J_per_day": 44.875325,
+    "payload_share_of_radio_energy": 0.9888580194126728
+   }
+  },
+  {
+   "tier": "lossless 25 Hz (mean8 Rice)",
+   "payload_B_per_pulse": 35128.8,
+   "pulses_per_day": 48,
+   "flash_days": 17.897447039266062,
+   "wakes48": {
+    "MB_per_month": 54.20289468,
+    "usd_per_month": 27.10144734,
+    "radio_J_per_day": 113.03235,
+    "payload_share_of_radio_energy": 0.7876714055754834
+   },
+   "wakes4": {
+    "MB_per_month": 54.04217148000001,
+    "usd_per_month": 27.021085740000004,
+    "radio_J_per_day": 90.76835,
+    "payload_share_of_radio_energy": 0.9779658878893359
+   },
+   "wakes1": {
+    "MB_per_month": 54.02774292,
+    "usd_per_month": 27.01387146,
+    "radio_J_per_day": 89.24465000000001,
+    "payload_share_of_radio_energy": 0.994397423262907
+   }
+  }
+ ]
+}
