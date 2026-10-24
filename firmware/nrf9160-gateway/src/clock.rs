@@ -10,6 +10,10 @@ use embassy_time::Instant;
 /// Exchanges with a round trip at or above this are discarded (spec).
 pub const MAX_RTT_MS: i64 = 3000;
 
+/// Asymmetric LTE-M delays can bias the offset by up to RTT / 2, so only a
+/// sync this tight may step a board RTC that is already valid.
+pub const BOARD_STEP_MAX_RTT_MS: i64 = 1000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
     None,
@@ -55,6 +59,11 @@ impl Clock {
 
     pub fn start_cycle(&mut self) {
         self.cycle_best_rtt = None;
+    }
+
+    /// Lowest round trip accepted this cycle, if any.
+    pub fn best_rtt(&self) -> Option<i64> {
+        self.cycle_best_rtt
     }
 
     /// True if a server sample was accepted this cycle.

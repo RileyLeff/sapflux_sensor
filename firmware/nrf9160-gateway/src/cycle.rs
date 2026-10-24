@@ -492,6 +492,14 @@ impl Gateway {
             info!("board rtc ok ({} ms)", diff);
             return;
         }
+        let precise = self
+            .clock
+            .best_rtt()
+            .is_some_and(|rtt| rtt <= crate::clock::BOARD_STEP_MAX_RTT_MS);
+        if rtc_valid && !precise {
+            info!("board rtc off by {} ms but sync rtt too high; not stepping", diff);
+            return;
+        }
         if !matches!(status.state, BoardState::SafeIdle | BoardState::Cooldown) {
             info!("board rtc off by {} ms but state {:?}; not stepping", diff, status.state);
             return;
