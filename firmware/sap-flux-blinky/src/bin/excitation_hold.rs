@@ -56,7 +56,7 @@ enum MuxMode {
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
+    let p = sap_flux_blinky::init(Default::default());
 
     let mut heater_gate = Output::new(p.PA8, Level::Low, Speed::Low);
     let mut excitation = Output::new(p.PC6, Level::High, Speed::Low);

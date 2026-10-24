@@ -2,7 +2,6 @@
 #![no_main]
 
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
 use embassy_stm32::adc::{Adc, SampleTime};
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::dma;
@@ -17,18 +16,25 @@ use embassy_stm32::timer::low_level::{
 };
 use embassy_stm32::timer::simple_pwm::PwmPin;
 use embassy_stm32::timer::{Ch1, Channel};
+use embassy_stm32::wdg::IndependentWatchdog;
 use embassy_stm32::usart::{self, Config as UartConfig, RingBufferedUartRx, Uart, UartTx};
 use embassy_stm32::Peri;
 use embassy_time::{Duration, Instant, Timer};
 use panic_halt as _;
 use sap_flux_core::civil_time::{datetime_to_unix_ms, unix_ms_to_datetime, UtcDateTime};
 use sap_flux_core::pulse::{
-    BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State,
+    BaselineRequest, Effect, Health, Machine, PulseDuration, Rejection, State, COOLDOWN_MS,
 };
+use sap_flux_core::records;
+use sap_flux_core::schedule::{Action, Inputs, Planner};
+use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
+use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_protocol::{
-    encode, Ack, BoardState, Decoder, Hello, Message, Sample, Status, CAP_ADC, CAP_HEATER_CONTROL,
-    CAP_RTC, CAP_V24_MONITOR, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
-    FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN,
+    encode, Ack, BoardState, Decoder, FieldStatus, Hello, Message, Sample12, Schedule, Status,
+    CAP_ADC, CAP_HEATER_CONTROL, CAP_RTC, CAP_V24_MONITOR, FIELD_STATUS_ENABLED,
+    FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
+    FIELD_STATUS_RTC_VALID, FLAG_ADC_ERROR, FLAG_COMMAND_WINDOW, FLAG_EXCITATION_ACTIVE,
+    FLAG_HEATER_ACTIVE, FLAG_PGOOD, FLAG_RTC_VALID, MAX_ENCODED_LEN, WINDOW_FLAG_HEATER_FAULT,
 };
 use static_cell::StaticCell;
 use stm32_metapac as pac;
@@ -45,26 +51,91 @@ const ADS_MUX_AIN0_GND: u16 = 0x4000;
 const ADS_MUX_AIN1_GND: u16 = 0x5000;
 const RTC_MAGIC: u32 = 0x5346_5031;
 const RTC_MAGIC_INVERSE: u32 = !RTC_MAGIC;
+// TAMP backup registers (5 on STM32G0B1). 0/1 hold the RTC-valid magic and
+// share the RTC's backup domain, which also validates the others.
+const BKP_LEASE_UNTIL: usize = 2;
+// RTC trim learning state (TAMP, same backup domain as the RTC): anchor
+// correction time (unix s, 0 = none) and the sum of steps since then (ms).
+const BKP_TRIM_ANCHOR_UNIX_S: usize = 3;
+const BKP_TRIM_STEPS_MS: usize = 4;
+const EEPROM_PAGE_LEN: usize = records::PAGE_LEN as usize;
 #[cfg(not(feature = "dev-short-cooldown"))]
-const FIRMWARE_VERSION: u32 = 0x00_01_02;
+const FIRMWARE_VERSION: u32 = 0x00_02_00;
 // Patch 32 is intentionally conspicuous in the monitor: this is the
 // supervised bench build with a 30-second persistent cooldown.
 #[cfg(feature = "dev-short-cooldown")]
-const FIRMWARE_VERSION: u32 = 0x00_01_20;
-const SAMPLE_PERIOD: Duration = Duration::from_millis(20);
-const COMMAND_FRAME_PERIOD: Duration = Duration::from_millis(60);
-const COMMAND_WINDOW_EVERY_SAMPLES: u32 = 50;
-const MUX_SETTLE_US: u64 = 150;
-const ADS_CONVERSION_US: u64 = 1_300;
+const FIRMWARE_VERSION: u32 = 0x00_02_20;
+// One frame = 12 thermistors + excitation at 25 Hz. Budget (Python, 400 kHz
+// I2C, 32.768 kHz ticks): 12 x 1.88 ms + 1.67 ms = 24.3 ms acquisition, plus
+// a 5.7 ms Sample12 and, once per second, a 3.6 ms Status on RS-485.
+const FRAME_PERIOD: Duration = Duration::from_millis(40);
+// RS-485 bench streaming cycle (25 frames = 1 s): the last frame of the cycle
+// carries FLAG_COMMAND_WINDOW and nothing follows it; the first frame of the
+// next cycle sends nothing, so the bus stays quiet ~45 ms for one host
+// command. Status rides on a mid-cycle frame so it never closes the window.
+const FRAMES_PER_CYCLE: u32 = 25;
+const STATUS_FRAME_IN_CYCLE: u32 = 12;
+
+/// The 12 window/Sample12 thermistor channels (probe 1 T1..T6, then probe 2
+/// T1..T6) as (mux bank, 74HC4067 channel).
+///
+/// Probe 1 is the bench-verified J2 block A wiring (J2 p3..p8 = therm_1..6 →
+/// mux A Y1, Y0, Y3, Y2, Y5, Y4). Probe 2 assumes an identical cable on J2
+/// block B (p21 GND, p22 EXC, p23..p28 = therm_17..22), which elec/adc.ato
+/// routes to mux B (PA10) Y1, Y0, Y3, Y2, Y5, Y4.
+/// NEEDS BENCH CONFIRMATION: probe 2 has never been read on hardware. Touch
+/// each probe-2 thermistor and check that P2T1..P2T6 respond in order.
+const THERMISTOR_MUX_MAP: [(MuxBank, u8); 12] = [
+    (MuxBank::A, 1),
+    (MuxBank::A, 0),
+    (MuxBank::A, 3),
+    (MuxBank::A, 2),
+    (MuxBank::A, 5),
+    (MuxBank::A, 4),
+    (MuxBank::B, 1),
+    (MuxBank::B, 0),
+    (MuxBank::B, 3),
+    (MuxBank::B, 2),
+    (MuxBank::B, 5),
+    (MuxBank::B, 4),
+];
+// Read order (indices into THERMISTOR_MUX_MAP): matched-depth pairs (T1/T4,
+// T2/T5, T3/T6) are read back to back to minimize pair skew, as before; the
+// excitation read sits after the first three probe-1 channels, near the
+// frame's midpoint, and stamps the frame time.
+const READ_ORDER_BEFORE_EXCITATION: [usize; 3] = [0, 3, 1];
+const READ_ORDER_AFTER_EXCITATION: [usize; 9] = [4, 2, 5, 6, 9, 7, 10, 8, 11];
+// 32.768 kHz ticks: a wait of n ticks lasts at least n-1 ticks (30.5 us each).
+// 200 us -> 7 ticks -> >= 183 us; 1350 us -> 45 ticks -> >= 1343 us, above the
+// ADS1115 860 SPS worst case of 1279 us (1/860 s + 10 % oscillator).
+const MUX_SETTLE_US: u64 = 200;
+const ADS_CONVERSION_US: u64 = 1_350;
 const MIN_EXCITATION_RAW: i16 = 100;
 const INVALID_ADC: i16 = i16::MIN;
-const STATUS_PERIOD: Duration = Duration::from_secs(1);
-const UART_HELLO_PERIOD: Duration = Duration::from_secs(30);
+// Field link: TX (PA14) is re-enabled this long before a reply so the
+// Feather's receiver sees idle-high before the leading delimiter.
+const TTL_TX_ENABLE_US: u64 = 200;
+const PA14: usize = 14;
 const FAULT_PERSISTENCE: u8 = 1;
 const FAULT_PULSE_OVERRUN: u8 = 2;
+// Internal watchdog (LSI, about +/-7 %). The longest deliberate stall is a
+// SetRtc wait for the next whole second (<= 1 s) plus EEPROM writes; a
+// reset forces the heater gate low through the pin reset state.
+const IWDG_TIMEOUT_US: u32 = 4_000_000;
+
+// Window store: 4 windows (the spec's "newest 4 undelivered") of up to 1000
+// bins each = 104 000 B of the 144 KiB RAM (Python budget). The default
+// schedule needs 482 bins; longer windows are cut and flagged TRUNCATED.
+// A new window overwrites the oldest undelivered one when all are taken.
+const WINDOW_SLOTS: usize = 4;
+const WINDOW_MAX_BINS: usize = 1000;
+type Windows = WindowStore<WINDOW_SLOTS, { WINDOW_MAX_BINS * BIN_BYTES }>;
+// All-zero when empty, so this lands in .bss rather than flash.
+static mut WINDOWS: Windows = Windows::new();
 
 static RS485_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
-static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
+// Holds the commands the Feather sends during a heater pulse (not polled).
+static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
 
 bind_interrupts!(struct Irqs {
     USART2_LPUART2 =>
@@ -97,33 +168,111 @@ struct TtlUart<'d> {
     decoder: Decoder,
 }
 
-#[derive(Clone, Copy)]
-enum Ingress {
-    Rs485,
-    TtlUart,
+/// The one host link chosen by the PA6 strap at boot.
+enum Link<'d> {
+    /// Bench (strap open): v1 RS-485 streaming of Sample12/Status.
+    Rs485(Rs485<'d>),
+    /// Field (strap low): LPUART2 on J6, replies only, SP3485 shut down.
+    Ttl(TtlUart<'d>),
+}
+
+impl Link<'_> {
+    fn streams(&self) -> bool {
+        matches!(self, Link::Rs485(_))
+    }
+
+    fn poll_message(&mut self) -> Option<Message> {
+        match self {
+            Link::Rs485(link) => link.poll_message(),
+            Link::Ttl(link) => link.poll_message(),
+        }
+    }
+
+    async fn send(&mut self, messages: &[Option<Message>]) {
+        match self {
+            Link::Rs485(link) => {
+                for message in messages.iter().flatten() {
+                    link.send_message(*message).await;
+                }
+            }
+            Link::Ttl(link) => link.send_burst(messages).await,
+        }
+    }
 }
 
 struct CommandResponses {
-    messages: [Option<Message>; 3],
+    messages: [Option<Message>; 4],
 }
 
 impl CommandResponses {
     fn none() -> Self {
         Self {
-            messages: [None, None, None],
+            messages: [None, None, None, None],
+        }
+    }
+
+    fn one(message: Message) -> Self {
+        Self {
+            messages: [Some(message), None, None, None],
         }
     }
 
     fn ack_and_status(ack: Message, status: Message) -> Self {
         Self {
-            messages: [Some(ack), Some(status), None],
+            messages: [Some(ack), Some(status), None, None],
         }
     }
 
-    fn query(ack: Message, hello: Message, status: Message) -> Self {
+    fn query(ack: Message, hello: Message, status: Message, field: Option<Message>) -> Self {
         Self {
-            messages: [Some(ack), Some(hello), Some(status)],
+            messages: [Some(ack), Some(hello), Some(status), field],
         }
+    }
+}
+
+/// Field-mode state: autonomous schedule and bookkeeping for FieldStatus.
+struct FieldState {
+    /// PA6 strapped low at boot (LPUART field link).
+    field_mode: bool,
+    planner: Planner,
+    /// What the EEPROM schedule record holds (None if unknown/unreadable).
+    schedule_in_eeprom: Option<Schedule>,
+    boot_count: u32,
+    v24_raw: i16,
+    windows: &'static mut Windows,
+    /// RTC_CALR trim in effect, ppb (positive = slowed).
+    trim_ppb: i32,
+    /// Last applied SetRtc correction, new - old (0 if the RTC was invalid).
+    last_rtc_step_ms: i32,
+    /// Nonce of the last applied SetRtc: a retry is answered, not re-applied.
+    last_set_rtc_nonce: Option<u64>,
+}
+
+/// Everything command handling and the scheduler act on.
+struct Ctx<'d> {
+    rtc: Rtc,
+    rtc_provider: RtcTimeProvider,
+    rtc_valid: bool,
+    board_id: u64,
+    machine: Machine,
+    hardware_pulse: HardwarePulse<'d>,
+    i2c: BoardI2c<'d>,
+    eeprom_wp: Output<'d>,
+    fault_code: u8,
+    field: FieldState,
+}
+
+impl Ctx<'_> {
+    fn unix_ms(&self) -> Option<i64> {
+        rtc_now_ms(&self.rtc_provider, self.rtc_valid)
+    }
+
+    fn status(&self) -> Message {
+        status_message(&self.machine, &self.rtc_provider, self.rtc_valid, self.fault_code)
+    }
+
+    fn ack(&self, command_type: u8, result: u8, command_nonce: u64) -> Message {
+        ack_message(command_type, result, command_nonce, self.machine.run_id())
     }
 }
 
@@ -137,7 +286,9 @@ impl<'d> Rs485<'d> {
 
         self.n_re.set_high();
         self.de.set_high();
-        Timer::after_micros(20).await;
+        // DE setup before the first start bit. A sub-tick Timer would round to
+        // one 30.5 us tick of random phase, so busy-wait ~20 us at HSI16.
+        cortex_m::asm::delay(320);
         let _ = self.tx.write(&frame[..length]).await;
         let _ = self.tx.flush().await;
         self.de.set_low();
@@ -161,14 +312,26 @@ impl<'d> Rs485<'d> {
 }
 
 impl<'d> TtlUart<'d> {
-    async fn send_message(&mut self, message: Message) {
-        let mut frame = [0_u8; MAX_ENCODED_LEN];
-        let Ok(length) = encode(&message, self.tx_sequence, &mut frame) else {
+    /// One reply burst: PA14 to AF, idle-high settle, a leading delimiter
+    /// (resyncs the Feather's decoder after the line sat low), the frames,
+    /// then PA14 back to analog so the BOOT0 pull-down draws nothing.
+    async fn send_burst(&mut self, messages: &[Option<Message>]) {
+        if messages.iter().all(Option::is_none) {
             return;
-        };
-        self.tx_sequence = self.tx_sequence.wrapping_add(1);
-        let _ = self.tx.write(&frame[..length]).await;
+        }
+        set_pa14_mode(pac::gpio::vals::Moder::ALTERNATE);
+        Timer::after_micros(TTL_TX_ENABLE_US).await;
+        let _ = self.tx.write(&[0x00]).await;
+        for message in messages.iter().flatten() {
+            let mut frame = [0_u8; MAX_ENCODED_LEN];
+            let Ok(length) = encode(message, self.tx_sequence, &mut frame) else {
+                continue;
+            };
+            self.tx_sequence = self.tx_sequence.wrapping_add(1);
+            let _ = self.tx.write(&frame[..length]).await;
+        }
         let _ = self.tx.flush().await;
+        set_pa14_mode(pac::gpio::vals::Moder::ANALOG);
     }
 
     fn poll_message(&mut self) -> Option<Message> {
@@ -246,11 +409,35 @@ impl<'d> HardwarePulse<'d> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MuxBank {
+    A,
+    B,
+}
+
+/// One acquired frame.
+#[derive(Clone, Copy)]
+struct Frame {
+    monotonic_us: u64,
+    rtc_unix_ms: i64,
+    thermistor_raw: [i16; 12],
+    excitation_raw: i16,
+    v24_raw: i16,
+    flags: u16,
+    heater_health_valid: bool,
+}
+
 impl MuxPins<'_> {
-    fn enable_bank_a(&mut self) {
-        self.en_a.set_low();
+    /// Enable exactly one mux (active-low ~E); the others float off the
+    /// shared Z → AIN0 node.
+    fn enable_bank(&mut self, bank: MuxBank) {
+        self.en_a.set_high();
         self.en_b.set_high();
         self.en_c.set_high();
+        match bank {
+            MuxBank::A => self.en_a.set_low(),
+            MuxBank::B => self.en_b.set_low(),
+        }
     }
 
     fn select(&mut self, channel: u8) {
@@ -281,7 +468,7 @@ impl MuxPins<'_> {
 async fn main(_spawner: Spawner) {
     let mut config = embassy_stm32::Config::default();
     config.rcc.ls = embassy_stm32::rcc::LsConfig::default_lse();
-    let p = embassy_stm32::init(config);
+    let p = sap_flux_blinky::init(config);
 
     let mut hardware_pulse = HardwarePulse::new(p.TIM1, p.PA8);
     let mut excitation = Output::new(p.PC6, Level::Low, Speed::Low);
@@ -294,6 +481,8 @@ async fn main(_spawner: Spawner) {
         s2: Output::new(p.PD2, Level::Low, Speed::Low),
         s3: Output::new(p.PD3, Level::Low, Speed::Low),
     };
+    let mut iwdg = IndependentWatchdog::new(p.IWDG, IWDG_TIMEOUT_US);
+    iwdg.unleash();
     let mut watchdog_done = Output::new(p.PA5, Level::Low, Speed::Low);
     let watchdog_wake = Input::new(p.PA4, Pull::None);
     let pgood = Input::new(p.PC7, Pull::None);
@@ -304,7 +493,7 @@ async fn main(_spawner: Spawner) {
     let _led_blue = Output::new(p.PB5, Level::High, Speed::Low);
 
     hardware_pulse.force_off();
-    mux.enable_bank_a();
+    mux.enable_bank(MuxBank::A);
 
     // J4 pin 5 / PA6 is a boot-only mode strap. Open selects normal SWD on
     // J6; grounding it before reset repurposes J6 PA13/PA14 as LPUART2.
@@ -312,32 +501,14 @@ async fn main(_spawner: Spawner) {
     // a board reset so the SWD pins cannot become UART pins unexpectedly.
     let ttl_uart_enabled = Input::new(p.PA6, Pull::Up).is_low();
 
-    let mut rs485_uart_config = UartConfig::default();
-    rs485_uart_config.baudrate = 115_200;
-    let uart = Uart::new(
-        p.USART2,
-        p.PA3,
-        p.PA2,
-        p.DMA1_CH1,
-        p.DMA1_CH2,
-        Irqs,
-        rs485_uart_config,
-    )
-    .unwrap();
-    let (tx, rx) = uart.split();
-    let rx_buffer = RS485_RX_DMA_BUFFER.init([0; 256]);
-    let mut rx = rx.into_ring_buffered(rx_buffer);
-    rx.start_uart();
-    let mut rs485 = Rs485 {
-        tx,
-        rx,
-        de: Output::new(p.PA1, Level::Low, Speed::Low),
-        n_re: Output::new(p.PA0, Level::Low, Speed::Low),
-        tx_sequence: 0,
-        decoder: Decoder::new(),
-    };
-
-    let mut ttl_uart = if ttl_uart_enabled {
+    // Field mode holds the SP3485 in shutdown (~RE high, DE low) and leaves
+    // USART2 unconfigured (PA2/PA3 stay analog).
+    let mut _rs485_shutdown = None;
+    let mut link = if ttl_uart_enabled {
+        _rs485_shutdown = Some((
+            Output::new(p.PA1, Level::Low, Speed::Low),
+            Output::new(p.PA0, Level::High, Speed::Low),
+        ));
         let mut ttl_uart_config = UartConfig::default();
         ttl_uart_config.baudrate = 115_200;
         let uart = Uart::new(
@@ -350,18 +521,44 @@ async fn main(_spawner: Spawner) {
             ttl_uart_config,
         )
         .unwrap();
+        // TX idles high into PA14's 10 kOhm BOOT0 pull-down (330 uA):
+        // keep the pin analog except while replying.
+        set_pa14_mode(pac::gpio::vals::Moder::ANALOG);
         let (tx, rx) = uart.split();
-        let rx_buffer = TTL_UART_RX_DMA_BUFFER.init([0; 256]);
+        let rx_buffer = TTL_UART_RX_DMA_BUFFER.init([0; 512]);
         let mut rx = rx.into_ring_buffered(rx_buffer);
         rx.start_uart();
-        Some(TtlUart {
+        Link::Ttl(TtlUart {
             tx,
             rx,
             tx_sequence: 0,
             decoder: Decoder::new(),
         })
     } else {
-        None
+        let mut rs485_uart_config = UartConfig::default();
+        rs485_uart_config.baudrate = 115_200;
+        let uart = Uart::new(
+            p.USART2,
+            p.PA3,
+            p.PA2,
+            p.DMA1_CH1,
+            p.DMA1_CH2,
+            Irqs,
+            rs485_uart_config,
+        )
+        .unwrap();
+        let (tx, rx) = uart.split();
+        let rx_buffer = RS485_RX_DMA_BUFFER.init([0; 256]);
+        let mut rx = rx.into_ring_buffered(rx_buffer);
+        rx.start_uart();
+        Link::Rs485(Rs485 {
+            tx,
+            rx,
+            de: Output::new(p.PA1, Level::Low, Speed::Low),
+            n_re: Output::new(p.PA0, Level::Low, Speed::Low),
+            tx_sequence: 0,
+            decoder: Decoder::new(),
+        })
     };
 
     let mut i2c_config = I2cConfig::default();
@@ -372,7 +569,7 @@ async fn main(_spawner: Spawner) {
 
     let mut v24_monitor = p.PB1;
     let mut internal_adc = Adc::new(p.ADC1);
-    let (mut rtc, rtc_provider) = Rtc::new(p.RTC, RtcConfig::default());
+    let (rtc, rtc_provider) = Rtc::new(p.RTC, RtcConfig::default());
     enable_backup_domain_access().await;
     let mut rtc_valid = read_rtc_magic();
     // Migrate clocks set by the previous one-word marker, but do not accept a
@@ -383,64 +580,106 @@ async fn main(_spawner: Spawner) {
     }
     let board_id = board_id();
     let lockout_read = read_lockout(&mut i2c);
-    let mut fault_code = if lockout_read.is_err() {
+    let fault_code = if lockout_read.is_err() {
         FAULT_PERSISTENCE
     } else {
         0
     };
-    let mut machine = Machine::boot(Instant::now().as_millis(), lockout_read.unwrap_or(true));
+    let machine = Machine::boot(Instant::now().as_millis(), lockout_read.unwrap_or(true));
+
+    // Stored schedule: a blank, corrupt, unreadable or out-of-limits record
+    // falls back to the factory default, which is disabled.
+    let schedule_in_eeprom = eeprom_read::<{ records::SCHEDULE_RECORD_LEN }>(
+        &mut i2c,
+        records::SCHEDULE_ADDR,
+    )
+    .and_then(|r| records::decode_schedule(&r));
+    let schedule = schedule_in_eeprom
+        .filter(|s| s.validate(COOLDOWN_MS as u32).is_ok())
+        .unwrap_or(Schedule::FACTORY_DEFAULT);
+    let boot_count = eeprom_read::<{ records::WORD_RECORD_LEN }>(&mut i2c, records::BOOT_COUNT_ADDR)
+        .and_then(|r| records::decode_boot_count(&r))
+        .unwrap_or(0)
+        .wrapping_add(1);
+    let _ = eeprom_write_verified(
+        &mut i2c,
+        &mut eeprom_wp,
+        records::BOOT_COUNT_ADDR,
+        &records::encode_boot_count(boot_count),
+    )
+    .await;
+    let lease_until = if rtc_valid { read_bkp(BKP_LEASE_UNTIL) } else { 0 };
+    // Restore the learned RTC trim (CALR also survives in the backup domain
+    // on VBAT, but a domain reset clears it).
+    let trim_ppb = eeprom_read::<{ records::WORD_RECORD_LEN }>(&mut i2c, records::TRIM_ADDR)
+        .and_then(|r| records::decode_trim(&r))
+        .filter(|ppb| ppb.abs() <= TRIM_LIMIT_PPB)
+        .map(Calr::from_ppb)
+        .filter(|calr| write_calr(*calr))
+        .map(Calr::ppb)
+        .unwrap_or_else(|| read_calr().ppb());
+
+    let mut ctx = Ctx {
+        rtc,
+        rtc_provider,
+        rtc_valid,
+        board_id,
+        machine,
+        hardware_pulse,
+        i2c,
+        eeprom_wp,
+        fault_code,
+        field: FieldState {
+            field_mode: ttl_uart_enabled,
+            planner: Planner::new(schedule, lease_until, boot_count),
+            schedule_in_eeprom,
+            boot_count,
+            v24_raw: 0,
+            // SAFETY: the only reference to WINDOWS, taken once in main.
+            windows: unsafe { &mut *core::ptr::addr_of_mut!(WINDOWS) },
+            trim_ppb,
+            last_rtc_step_ms: 0,
+            last_set_rtc_nonce: None,
+        },
+    };
 
     excitation.set_high();
     Timer::after_millis(5).await;
-    broadcast_message(&mut rs485, &mut ttl_uart, hello_message(board_id)).await;
-    broadcast_message(
-        &mut rs485,
-        &mut ttl_uart,
-        status_message(&machine, &rtc_provider, rtc_valid, fault_code),
-    )
-    .await;
+    // The field link sends nothing unsolicited.
+    if link.streams() {
+        link.send(&[Some(hello_message(board_id)), Some(ctx.status())]).await;
+    }
 
     let mut watchdog_bootstrapped = false;
     let mut watchdog_serviced = false;
-    let mut sample_counter = 0_u32;
-    let mut next_status_at = Instant::now() + STATUS_PERIOD;
-    let mut next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
+    let mut frame_counter = 0_u32;
+    let mut next_frame_at = Instant::now();
 
     loop {
-        let frame_started = Instant::now();
-        service_pulse_state(
-            &mut machine,
-            &mut hardware_pulse,
-            &mut i2c,
-            &mut eeprom_wp,
-            &mut fault_code,
-        )
-        .await;
-        let command_window =
-            sample_counter % COMMAND_WINDOW_EVERY_SAMPLES == COMMAND_WINDOW_EVERY_SAMPLES - 1;
-        sample_counter = sample_counter.wrapping_add(1);
-        mux.enable_bank_a();
+        iwdg.pet();
+        service_pulse_state(&mut ctx).await;
+        let cycle_index = frame_counter % FRAMES_PER_CYCLE;
+        frame_counter = frame_counter.wrapping_add(1);
         excitation.set_high();
 
-        let (sample, heater_health_valid) = acquire_sample(
-            &mut i2c,
+        let frame = acquire_frame(
+            &mut ctx.i2c,
             &mut internal_adc,
             &mut v24_monitor,
             &mut mux,
-            &rtc_provider,
-            rtc_valid,
+            &ctx.rtc_provider,
+            ctx.rtc_valid,
             pgood.is_high(),
-            command_window,
-            &machine,
-            hardware_pulse.is_running(),
+            ctx.hardware_pulse.is_running(),
         )
         .await;
-        machine.update_health(Health {
-            rtc_valid,
-            pgood: sample.flags & FLAG_PGOOD != 0,
-            adc_valid: heater_health_valid,
+        ctx.machine.update_health(Health {
+            rtc_valid: ctx.rtc_valid,
+            pgood: frame.flags & FLAG_PGOOD != 0,
+            adc_valid: frame.heater_health_valid,
             measured_at_ms: Instant::now().as_millis(),
         });
+        ctx.field.v24_raw = frame.v24_raw;
 
         // TPL5010 does not emit WAKE at the beginning of its first cycle.
         // Reaching this point proves the control loop completed an acquisition
@@ -451,74 +690,47 @@ async fn main(_spawner: Spawner) {
             watchdog_bootstrapped = true;
             watchdog_serviced = watchdog_wake.is_high();
         }
-        broadcast_message(&mut rs485, &mut ttl_uart, Message::Sample(sample)).await;
-        if Instant::now() >= next_status_at {
-            next_status_at = Instant::now() + STATUS_PERIOD;
-            broadcast_message(
-                &mut rs485,
-                &mut ttl_uart,
-                status_message(&machine, &rtc_provider, rtc_valid, fault_code),
-            )
-            .await;
-        }
-        if ttl_uart.is_some() && Instant::now() >= next_uart_hello_at {
-            next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
-            broadcast_message(&mut rs485, &mut ttl_uart, hello_message(board_id)).await;
+
+        if ctx.field.windows.recording().is_some() {
+            let mut values = [0_i16; 13];
+            values[..12].copy_from_slice(&frame.thermistor_raw);
+            values[12] = frame.excitation_raw;
+            ctx.field
+                .windows
+                .push(frame.monotonic_us, &values, frame.v24_raw);
         }
 
-        let frame_deadline = frame_started
-            + if command_window {
-                COMMAND_FRAME_PERIOD
-            } else {
-                SAMPLE_PERIOD
-            };
+        run_scheduler(&mut ctx).await;
+        close_window_if_done(&mut ctx);
+
+        if link.streams() && cycle_index != 0 {
+            let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
+            let extra = if command_window { FLAG_COMMAND_WINDOW } else { 0 };
+            let status = (cycle_index == STATUS_FRAME_IN_CYCLE).then(|| ctx.status());
+            link.send(&[Some(sample12_message(&frame, &ctx.machine, extra)), status])
+                .await;
+        }
+
+        // Fixed-rate frames; after an overrun, restart the grid from now
+        // (missed frames are simply absent; every frame carries its own time).
+        next_frame_at += frame_period(&ctx);
+        if next_frame_at < Instant::now() {
+            next_frame_at = Instant::now();
+        }
+        let frame_deadline = next_frame_at;
         loop {
-            while let Some(message) = rs485.poll_message() {
-                let responses = handle_command(
-                    message,
-                    &mut rtc,
-                    &rtc_provider,
-                    &mut rtc_valid,
-                    board_id,
-                    &mut machine,
-                    &mut hardware_pulse,
-                    &mut i2c,
-                    &mut eeprom_wp,
-                    &mut fault_code,
-                )
-                .await;
-                send_responses(Ingress::Rs485, responses, &mut rs485, &mut ttl_uart).await;
+            // Field link: commands that arrive while the heater is on wait
+            // in the RX ring buffer and are answered after the pulse.
+            let heater_on =
+                ctx.machine.state() == State::Pulsing || ctx.hardware_pulse.is_running();
+            if link.streams() || !heater_on {
+                while let Some(message) = link.poll_message() {
+                    let responses = handle_command(message, &mut ctx).await;
+                    link.send(&responses.messages).await;
+                }
             }
 
-            loop {
-                let message = ttl_uart.as_mut().and_then(TtlUart::poll_message);
-                let Some(message) = message else {
-                    break;
-                };
-                let responses = handle_command(
-                    message,
-                    &mut rtc,
-                    &rtc_provider,
-                    &mut rtc_valid,
-                    board_id,
-                    &mut machine,
-                    &mut hardware_pulse,
-                    &mut i2c,
-                    &mut eeprom_wp,
-                    &mut fault_code,
-                )
-                .await;
-                send_responses(Ingress::TtlUart, responses, &mut rs485, &mut ttl_uart).await;
-            }
-
-            service_pulse_state(
-                &mut machine,
-                &mut hardware_pulse,
-                &mut i2c,
-                &mut eeprom_wp,
-                &mut fault_code,
-            )
-            .await;
+            service_pulse_state(&mut ctx).await;
 
             if watchdog_wake.is_high() {
                 if !watchdog_serviced {
@@ -532,7 +744,8 @@ async fn main(_spawner: Spawner) {
             if Instant::now() >= frame_deadline {
                 break;
             }
-            Timer::after_micros(100).await;
+            iwdg.pet();
+            Timer::after_micros(250).await;
         }
     }
 }
@@ -543,40 +756,11 @@ async fn pulse_watchdog_done(done: &mut Output<'_>) {
     done.set_low();
 }
 
-async fn broadcast_message(
-    rs485: &mut Rs485<'_>,
-    ttl_uart: &mut Option<TtlUart<'_>>,
-    message: Message,
-) {
-    if let Some(ttl_uart) = ttl_uart.as_mut() {
-        // Both UARTs have independent DMA channels, so transmit in parallel.
-        // This keeps a 50 Hz Sample inside the existing acquisition budget.
-        join(rs485.send_message(message), ttl_uart.send_message(message)).await;
-    } else {
-        rs485.send_message(message).await;
-    }
+fn set_pa14_mode(mode: pac::gpio::vals::Moder) {
+    pac::GPIOA.moder().modify(|w| w.set_moder(PA14, mode));
 }
 
-async fn send_responses(
-    ingress: Ingress,
-    responses: CommandResponses,
-    rs485: &mut Rs485<'_>,
-    ttl_uart: &mut Option<TtlUart<'_>>,
-) {
-    for message in responses.messages.into_iter().flatten() {
-        match ingress {
-            Ingress::Rs485 => rs485.send_message(message).await,
-            Ingress::TtlUart => {
-                if let Some(ttl_uart) = ttl_uart.as_mut() {
-                    ttl_uart.send_message(message).await;
-                }
-            }
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn acquire_sample(
+async fn acquire_frame(
     i2c: &mut BoardI2c<'_>,
     internal_adc: &mut BoardAdc<'_>,
     v24_monitor: &mut V24MonitorPin<'_>,
@@ -584,21 +768,16 @@ async fn acquire_sample(
     rtc_provider: &RtcTimeProvider,
     rtc_valid: bool,
     pgood: bool,
-    command_window: bool,
-    machine: &Machine,
     heater_active: bool,
-) -> (Sample, bool) {
-    let mut thermistor_raw = [INVALID_ADC; 6];
+) -> Frame {
+    let mut thermistor_raw = [INVALID_ADC; 12];
     let mut adc_error = false;
 
-    // Interleave matched-depth channels to minimize pair timing skew.
-    for (index, channel) in [(0, 1), (3, 2), (1, 0)] {
-        thermistor_raw[index] = read_mux_channel(i2c, mux, channel)
-            .await
-            .unwrap_or_else(|| {
-                adc_error = true;
-                INVALID_ADC
-            });
+    for index in READ_ORDER_BEFORE_EXCITATION {
+        thermistor_raw[index] = read_thermistor(i2c, mux, index).await.unwrap_or_else(|| {
+            adc_error = true;
+            INVALID_ADC
+        });
     }
 
     let monotonic_us = Instant::now().as_micros();
@@ -609,13 +788,11 @@ async fn acquire_sample(
             INVALID_ADC
         });
 
-    for (index, channel) in [(4, 5), (2, 3), (5, 4)] {
-        thermistor_raw[index] = read_mux_channel(i2c, mux, channel)
-            .await
-            .unwrap_or_else(|| {
-                adc_error = true;
-                INVALID_ADC
-            });
+    for index in READ_ORDER_AFTER_EXCITATION {
+        thermistor_raw[index] = read_thermistor(i2c, mux, index).await.unwrap_or_else(|| {
+            adc_error = true;
+            INVALID_ADC
+        });
     }
 
     let v24_raw = internal_adc
@@ -633,9 +810,6 @@ async fn acquire_sample(
     if adc_error {
         flags |= FLAG_ADC_ERROR;
     }
-    if command_window {
-        flags |= FLAG_COMMAND_WINDOW;
-    }
     if heater_active {
         flags |= FLAG_HEATER_ACTIVE;
     }
@@ -649,26 +823,33 @@ async fn acquire_sample(
         && excitation_raw >= MIN_EXCITATION_RAW
         && (1_000..=4_000).contains(&v24_raw);
 
-    (
-        Sample {
-            monotonic_us,
-            rtc_unix_ms,
-            run_id: machine.run_id(),
-            flags,
-            excitation_raw,
-            thermistor_raw,
-            v24_raw,
-            state: board_state(machine.state()),
-        },
+    Frame {
+        monotonic_us,
+        rtc_unix_ms,
+        thermistor_raw,
+        excitation_raw,
+        v24_raw,
+        flags,
         heater_health_valid,
-    )
+    }
 }
 
-async fn read_mux_channel(
-    i2c: &mut BoardI2c<'_>,
-    mux: &mut MuxPins<'_>,
-    channel: u8,
-) -> Option<i16> {
+fn sample12_message(frame: &Frame, machine: &Machine, extra_flags: u16) -> Message {
+    Message::Sample12(Sample12 {
+        monotonic_us: frame.monotonic_us,
+        rtc_unix_ms: frame.rtc_unix_ms,
+        run_id: machine.run_id(),
+        flags: frame.flags | extra_flags,
+        state: board_state(machine.state()),
+        excitation_raw: frame.excitation_raw,
+        v24_raw: frame.v24_raw,
+        thermistor_raw: frame.thermistor_raw,
+    })
+}
+
+async fn read_thermistor(i2c: &mut BoardI2c<'_>, mux: &mut MuxPins<'_>, index: usize) -> Option<i16> {
+    let (bank, channel) = THERMISTOR_MUX_MAP[index];
+    mux.enable_bank(bank);
     mux.select(channel);
     Timer::after_micros(MUX_SETTLE_US).await;
     read_ads_single(i2c, ADS_MUX_AIN0_GND).await
@@ -687,189 +868,311 @@ async fn read_ads_single(i2c: &mut BoardI2c<'_>, mux_bits: u16) -> Option<i16> {
     Some(i16::from_be_bytes(read))
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn handle_command(
-    message: Message,
-    rtc: &mut Rtc,
-    rtc_provider: &RtcTimeProvider,
-    rtc_valid: &mut bool,
-    board_id: u64,
-    machine: &mut Machine,
-    hardware_pulse: &mut HardwarePulse<'_>,
-    i2c: &mut BoardI2c<'_>,
-    eeprom_wp: &mut Output<'_>,
-    fault_code: &mut u8,
-) -> CommandResponses {
+async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses {
+    let now_ms = Instant::now().as_millis();
     match message {
         Message::Query(command) => CommandResponses::query(
-            ack_message(
-                sap_flux_protocol::MSG_QUERY,
-                OK_RESULT,
-                command.command_nonce,
-                machine.run_id(),
-            ),
-            hello_message(board_id),
-            status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+            ctx.ack(sap_flux_protocol::MSG_QUERY, OK_RESULT, command.command_nonce),
+            hello_message(ctx.board_id),
+            ctx.status(),
+            ctx.field.field_mode.then(|| field_status_message(ctx)),
         ),
         Message::SetRtc(command) => {
-            // A sync can wait up to one second for a whole-second boundary.
-            // Only SafeIdle may pause command processing for that long.
-            let mut result = if machine.state() == State::SafeIdle {
-                set_rtc(rtc, command.unix_ms).await
+            let result = if ctx.field.last_set_rtc_nonce == Some(command.command_nonce) {
+                // Retry of a SetRtc already applied (its reply was lost):
+                // stepping again would apply a stale timestamp.
+                OK_RESULT
+            } else if matches!(ctx.machine.state(), State::SafeIdle | State::Cooldown)
+                && ctx.field.windows.recording().is_none()
+            {
+                // A sync waits up to one second for a whole-second boundary,
+                // so it is never applied during a window or a pulse.
+                apply_set_rtc(ctx, command.unix_ms).await
             } else {
                 rejection_result(Rejection::WrongState)
             };
             if result == OK_RESULT {
-                write_rtc_magic();
-                *rtc_valid = read_rtc_magic();
-                if !*rtc_valid {
-                    result = BACKUP_WRITE_FAILED_RESULT;
-                }
+                ctx.field.last_set_rtc_nonce = Some(command.command_nonce);
             }
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_SET_RTC,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_SET_RTC, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::StartBaseline(command) => {
-            let result = if *fault_code != 0 {
+            let result = if ctx.fault_code != 0 {
                 PERSISTENCE_FAILED_RESULT
             } else {
-                machine
+                ctx.machine
                     .start_baseline(
                         BaselineRequest {
                             run_id: command.run_id,
                             baseline_duration_ms: command.baseline_duration_ms,
                             recovery_duration_ms: command.recovery_duration_ms,
                             sample_hz: command.requested_sample_hz,
+                            require_rtc: true,
                         },
-                        Instant::now().as_millis(),
+                        now_ms,
                     )
                     .map(|_| OK_RESULT)
                     .unwrap_or_else(rejection_result)
             };
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_START_BASELINE,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_START_BASELINE, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::ArmPulse(command) => {
             let result = PulseDuration::from_ms(command.pulse_duration_ms)
                 .ok_or(Rejection::InvalidParameter)
-                .and_then(|duration| {
-                    machine.arm(command.run_id, duration, Instant::now().as_millis())
-                })
+                .and_then(|duration| ctx.machine.arm(command.run_id, duration, now_ms))
                 .map(|_| OK_RESULT)
                 .unwrap_or_else(rejection_result);
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_ARM_PULSE,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_ARM_PULSE, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::FirePulse(command) => {
-            let result = match machine.request_fire(
-                command.run_id,
-                command.command_nonce,
-                Instant::now().as_millis(),
-            ) {
-                Ok(Effect::PersistLockout) => {
-                    if persist_lockout(i2c, eeprom_wp, command.run_id, command.command_nonce).await
-                    {
-                        match machine.confirm_lockout_persisted(Instant::now().as_millis()) {
-                            Ok(Effect::StartHardwarePulse(duration)) => {
-                                hardware_pulse.start(duration);
-                                OK_RESULT
-                            }
-                            Ok(_) => INVALID_PARAMETER_RESULT,
-                            Err(rejection) => rejection_result(rejection),
-                        }
-                    } else {
-                        hardware_pulse.force_off();
-                        machine.persistence_failed();
-                        *fault_code = FAULT_PERSISTENCE;
-                        PERSISTENCE_FAILED_RESULT
-                    }
-                }
-                Ok(_) => INVALID_PARAMETER_RESULT,
-                Err(rejection) => rejection_result(rejection),
-            };
+            let result = fire_sequence(ctx, command.run_id, command.command_nonce).await;
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_FIRE_PULSE,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_FIRE_PULSE, result, command.command_nonce),
+                ctx.status(),
             )
         }
         Message::Abort(command) => {
-            let result = if machine.run_id() != command.run_id {
+            let result = if ctx.machine.run_id() != command.run_id {
                 rejection_result(Rejection::WrongRun)
             } else {
-                hardware_pulse.force_off();
-                machine.abort(Instant::now().as_millis());
+                ctx.hardware_pulse.force_off();
+                ctx.machine.abort(now_ms);
                 OK_RESULT
             };
             CommandResponses::ack_and_status(
-                ack_message(
-                    sap_flux_protocol::MSG_ABORT,
-                    result,
-                    command.command_nonce,
-                    machine.run_id(),
-                ),
-                status_message(machine, rtc_provider, *rtc_valid, *fault_code),
+                ctx.ack(sap_flux_protocol::MSG_ABORT, result, command.command_nonce),
+                ctx.status(),
             )
         }
-        Message::Hello(_)
-        | Message::Sample(_)
-        | Message::Status(_)
-        | Message::Ack(_)
-        | Message::Error(_) => CommandResponses::none(),
+        Message::SetSchedule(command) => {
+            let result = set_schedule(ctx, command.schedule, command.lease_until_unix_s).await;
+            CommandResponses::ack_and_status(
+                ctx.ack(sap_flux_protocol::MSG_SET_SCHEDULE, result, command.command_nonce),
+                field_status_message(ctx),
+            )
+        }
+        Message::GetFieldStatus(_) => CommandResponses::one(field_status_message(ctx)),
+        Message::GetWindow(command) => {
+            let reply = if command.chunk == sap_flux_protocol::CHUNK_HEADER {
+                ctx.field
+                    .windows
+                    .info(command.run_id)
+                    .map(Message::WindowInfo)
+            } else {
+                ctx.field
+                    .windows
+                    .chunk(command.run_id, command.chunk)
+                    .map(Message::WindowChunk)
+            };
+            CommandResponses::one(reply.unwrap_or_else(|| {
+                ack_message(
+                    sap_flux_protocol::MSG_GET_WINDOW,
+                    sap_flux_protocol::ACK_NOT_FOUND,
+                    command.command_nonce,
+                    command.run_id,
+                )
+            }))
+        }
+        Message::AckWindow(command) => {
+            let result = if ctx.field.windows.ack(command.run_id) {
+                OK_RESULT
+            } else {
+                sap_flux_protocol::ACK_NOT_FOUND
+            };
+            CommandResponses::one(ack_message(
+                sap_flux_protocol::MSG_ACK_WINDOW,
+                result,
+                command.command_nonce,
+                command.run_id,
+            ))
+        }
+        // Board-to-host messages and anything this firmware does not
+        // implement are ignored, exactly like unknown bytes.
+        _ => CommandResponses::none(),
     }
 }
 
-async fn service_pulse_state(
-    machine: &mut Machine,
-    hardware_pulse: &mut HardwarePulse<'_>,
-    i2c: &mut BoardI2c<'_>,
-    eeprom_wp: &mut Output<'_>,
-    fault_code: &mut u8,
-) {
+/// Validate, persist (only when it changed) and apply a schedule.
+///
+/// A schedule that cannot be persisted is not applied, except that a
+/// disable always takes effect in RAM: the heater must be stoppable even
+/// with a broken EEPROM. Both cases still report PERSISTENCE_FAILED.
+async fn set_schedule(ctx: &mut Ctx<'_>, schedule: Schedule, lease_until_unix_s: u32) -> u8 {
+    if schedule.validate(COOLDOWN_MS as u32).is_err() {
+        return INVALID_PARAMETER_RESULT;
+    }
+    let persisted = ctx.field.schedule_in_eeprom == Some(schedule)
+        || eeprom_write_verified(
+            &mut ctx.i2c,
+            &mut ctx.eeprom_wp,
+            records::SCHEDULE_ADDR,
+            &records::encode_schedule(&schedule),
+        )
+        .await;
+    if persisted {
+        ctx.field.schedule_in_eeprom = Some(schedule);
+    } else {
+        ctx.field.schedule_in_eeprom = None;
+    }
+    if persisted || !schedule.is_enabled() {
+        ctx.field
+            .planner
+            .set_schedule(schedule, Instant::now().as_millis());
+        ctx.field.planner.set_lease(lease_until_unix_s);
+        write_bkp(BKP_LEASE_UNTIL, lease_until_unix_s);
+    }
+    if persisted {
+        OK_RESULT
+    } else {
+        PERSISTENCE_FAILED_RESULT
+    }
+}
+
+/// Persist the lockout, then start the hardware one-pulse: the only path to
+/// the heater, shared by host FirePulse and the scheduler.
+async fn fire_sequence(ctx: &mut Ctx<'_>, run_id: u32, nonce: u64) -> u8 {
+    match ctx
+        .machine
+        .request_fire(run_id, nonce, Instant::now().as_millis())
+    {
+        Ok(Effect::PersistLockout) => {
+            if persist_lockout(&mut ctx.i2c, &mut ctx.eeprom_wp, run_id, nonce).await {
+                match ctx
+                    .machine
+                    .confirm_lockout_persisted(Instant::now().as_millis())
+                {
+                    Ok(Effect::StartHardwarePulse(duration)) => {
+                        ctx.hardware_pulse.start(duration);
+                        OK_RESULT
+                    }
+                    Ok(_) => INVALID_PARAMETER_RESULT,
+                    Err(rejection) => rejection_result(rejection),
+                }
+            } else {
+                ctx.hardware_pulse.force_off();
+                ctx.machine.persistence_failed();
+                ctx.fault_code = FAULT_PERSISTENCE;
+                PERSISTENCE_FAILED_RESULT
+            }
+        }
+        Ok(_) => INVALID_PARAMETER_RESULT,
+        Err(rejection) => rejection_result(rejection),
+    }
+}
+
+/// Execute the planner's actions for this frame through the same machine
+/// calls the host commands use. Up to three actions per frame so arm and
+/// fire land in the same frame.
+async fn run_scheduler(ctx: &mut Ctx<'_>) {
+    for _ in 0..3 {
+        let now_ms = Instant::now().as_millis();
+        let action = ctx.field.planner.poll(Inputs {
+            now_ms,
+            unix_ms: ctx.unix_ms(),
+            state: ctx.machine.state(),
+            machine_run_id: ctx.machine.run_id(),
+            hold: ctx.fault_code != 0,
+        });
+        match action {
+            Action::None => return,
+            Action::StartBaseline(request) => {
+                if ctx.machine.start_baseline(request, now_ms).is_err() {
+                    ctx.field.planner.start_rejected();
+                    return;
+                }
+                if let Some(run) = ctx.field.planner.active_run() {
+                    let start_rtc_ms = ctx.unix_ms().unwrap_or(-1);
+                    ctx.field.windows.begin(WindowParams {
+                        run_id: run.run_id,
+                        start_us: Instant::now().as_micros(),
+                        start_rtc_ms,
+                        bin_ms: run.schedule.bin_ms,
+                        sample_hz: run.schedule.sample_hz,
+                        pulse_duration_ms: run.schedule.pulse_duration_ms,
+                        time_invalid: run.time_invalid,
+                    });
+                }
+            }
+            Action::Arm { run_id, duration } => {
+                if ctx.machine.arm(run_id, duration, now_ms).is_err() {
+                    return;
+                }
+            }
+            Action::Fire { run_id, nonce } => {
+                if fire_sequence(ctx, run_id, nonce).await != OK_RESULT {
+                    return;
+                }
+                ctx.field.windows.note_heater_on(Instant::now().as_micros());
+            }
+            Action::Abort { .. } => {
+                ctx.hardware_pulse.force_off();
+                ctx.machine.abort(now_ms);
+            }
+        }
+    }
+}
+
+/// A window ends when its run leaves Baseline/Armed/Pulsing/Recovery:
+/// recovery done (normal), aborted before the pulse, or a fault.
+fn close_window_if_done(ctx: &mut Ctx<'_>) {
+    let Some(run_id) = ctx.field.windows.recording() else {
+        return;
+    };
+    if ctx.fault_code != 0 || ctx.machine.state() == State::Fault {
+        ctx.field.windows.add_flags(WINDOW_FLAG_HEATER_FAULT);
+    }
+    let running = ctx.machine.run_id() == run_id
+        && matches!(
+            ctx.machine.state(),
+            State::Baseline | State::Armed | State::Pulsing | State::Recovery
+        );
+    if !running {
+        let end_rtc_ms = ctx.unix_ms().unwrap_or(-1);
+        ctx.field
+            .windows
+            .finish(Instant::now().as_micros(), end_rtc_ms);
+    }
+}
+
+/// 25 Hz normally; a recording window uses its schedule's sample rate.
+fn frame_period(ctx: &Ctx<'_>) -> Duration {
+    match ctx.field.planner.active_run() {
+        Some(run) if ctx.field.windows.recording() == Some(run.run_id) => {
+            Duration::from_millis(1000 / run.schedule.sample_hz.max(1) as u64)
+        }
+        _ => FRAME_PERIOD,
+    }
+}
+
+async fn service_pulse_state(ctx: &mut Ctx<'_>) {
     let now_ms = Instant::now().as_millis();
-    if machine.state() == State::Pulsing && !hardware_pulse.is_running() {
-        hardware_pulse.force_off();
-        if machine.pulse_finished(now_ms).is_err() {
-            *fault_code = FAULT_PULSE_OVERRUN;
+    if ctx.machine.state() == State::Pulsing && !ctx.hardware_pulse.is_running() {
+        ctx.hardware_pulse.force_off();
+        if ctx.machine.pulse_finished(now_ms).is_err() {
+            ctx.fault_code = FAULT_PULSE_OVERRUN;
         }
     }
 
-    match machine.tick(now_ms) {
+    match ctx.machine.tick(now_ms) {
         Effect::ForceHeaterOff => {
-            hardware_pulse.force_off();
-            if machine.state() == State::Fault {
-                *fault_code = FAULT_PULSE_OVERRUN;
+            ctx.hardware_pulse.force_off();
+            if ctx.machine.state() == State::Fault {
+                ctx.fault_code = FAULT_PULSE_OVERRUN;
             }
         }
         Effect::ClearLockout => {
-            hardware_pulse.force_off();
-            if !clear_lockout(i2c, eeprom_wp).await {
-                *fault_code = FAULT_PERSISTENCE;
+            ctx.hardware_pulse.force_off();
+            if !clear_lockout(&mut ctx.i2c, &mut ctx.eeprom_wp).await {
+                ctx.fault_code = FAULT_PERSISTENCE;
             }
         }
         Effect::None | Effect::PersistLockout | Effect::StartHardwarePulse(_) => {}
@@ -935,6 +1238,47 @@ async fn eeprom_wait_ready(i2c: &mut BoardI2c<'_>) -> bool {
     false
 }
 
+fn eeprom_read<const N: usize>(i2c: &mut BoardI2c<'_>, addr: u16) -> Option<[u8; N]> {
+    let mut out = [0_u8; N];
+    i2c.blocking_write_read(EEPROM_ADDR, &addr.to_be_bytes(), &mut out)
+        .ok()?;
+    Some(out)
+}
+
+/// Write `data` within one EEPROM page and read it back. Never used for the
+/// lockout record, which keeps its own dedicated path.
+async fn eeprom_write_verified(
+    i2c: &mut BoardI2c<'_>,
+    wp: &mut Output<'_>,
+    addr: u16,
+    data: &[u8],
+) -> bool {
+    let page = EEPROM_PAGE_LEN as u16;
+    if data.is_empty()
+        || data.len() > EEPROM_PAGE_LEN
+        || addr / page != (addr + data.len() as u16 - 1) / page
+        || addr + data.len() as u16 > LOCKOUT_ADDR
+    {
+        return false;
+    }
+    let mut write = [0_u8; 2 + EEPROM_PAGE_LEN];
+    write[..2].copy_from_slice(&addr.to_be_bytes());
+    write[2..2 + data.len()].copy_from_slice(data);
+
+    wp.set_low();
+    Timer::after_millis(1).await;
+    let wrote = i2c.blocking_write(EEPROM_ADDR, &write[..2 + data.len()]).is_ok()
+        && eeprom_wait_ready(i2c).await;
+    wp.set_high();
+    if !wrote {
+        return false;
+    }
+    let mut verify = [0_u8; EEPROM_PAGE_LEN];
+    i2c.blocking_write_read(EEPROM_ADDR, &addr.to_be_bytes(), &mut verify[..data.len()])
+        .is_ok()
+        && verify[..data.len()] == *data
+}
+
 fn rejection_result(rejection: Rejection) -> u8 {
     match rejection {
         Rejection::WrongState => 0x10,
@@ -962,17 +1306,72 @@ fn board_state(state: State) -> BoardState {
     }
 }
 
-async fn set_rtc(rtc: &mut Rtc, unix_ms: i64) -> u8 {
+/// Step the RTC, then learn RTC_CALR from the correction.
+async fn apply_set_rtc(ctx: &mut Ctx<'_>, unix_ms: i64) -> u8 {
+    let (target_ms, old_ms) =
+        match set_rtc(&mut ctx.rtc, &ctx.rtc_provider, ctx.rtc_valid, unix_ms).await {
+            Ok(set) => set,
+            Err(result) => return result,
+        };
+    write_rtc_magic();
+    ctx.rtc_valid = read_rtc_magic();
+    if !ctx.rtc_valid {
+        return BACKUP_WRITE_FAILED_RESULT;
+    }
+
+    let step_ms = old_ms.map(|old| target_ms - old);
+    ctx.field.last_rtc_step_ms = step_ms
+        .unwrap_or(0)
+        .clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+    let mut learner = TrimLearner {
+        anchor_unix_s: read_bkp(BKP_TRIM_ANCHOR_UNIX_S),
+        steps_ms: read_bkp(BKP_TRIM_STEPS_MS) as i32,
+    };
+    let new_unix_s = (target_ms / 1_000).clamp(0, u32::MAX as i64) as u32;
+    let learned = learner.on_correction(
+        step_ms.is_some(),
+        new_unix_s,
+        step_ms.unwrap_or(0),
+        ctx.field.trim_ppb,
+    );
+    write_bkp(BKP_TRIM_ANCHOR_UNIX_S, learner.anchor_unix_s);
+    write_bkp(BKP_TRIM_STEPS_MS, learner.steps_ms as u32);
+    if let Some(ppb) = learned {
+        let calr = Calr::from_ppb(ppb);
+        if write_calr(calr) {
+            ctx.field.trim_ppb = calr.ppb();
+            // Best effort: the clock is set either way; a failed write only
+            // means the trim is re-learned after the next backup-domain loss.
+            let _ = eeprom_write_verified(
+                &mut ctx.i2c,
+                &mut ctx.eeprom_wp,
+                records::TRIM_ADDR,
+                &records::encode_trim(ctx.field.trim_ppb),
+            )
+            .await;
+        }
+    }
+    OK_RESULT
+}
+
+/// Set the RTC at the next whole second of `unix_ms`. Returns the time set
+/// and the RTC's own reading just before the step (None if it was invalid).
+async fn set_rtc(
+    rtc: &mut Rtc,
+    provider: &RtcTimeProvider,
+    rtc_valid: bool,
+    unix_ms: i64,
+) -> Result<(i64, Option<i64>), u8> {
     let fraction_ms = unix_ms.rem_euclid(1_000) as u64;
     let wait_ms = 1_000 - fraction_ms;
     let Some(target_ms) = unix_ms.checked_add(wait_ms as i64) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     let Some(value) = unix_ms_to_datetime(target_ms) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     let Some(day_of_week) = day_of_week(value.weekday) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     let Ok(value) = DateTime::from(
         value.year,
@@ -984,13 +1383,47 @@ async fn set_rtc(rtc: &mut Rtc, unix_ms: i64) -> u8 {
         value.second,
         value.millisecond as u32 * 1_000,
     ) else {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     };
     Timer::after_millis(wait_ms).await;
+    let old_ms = rtc_now_ms(provider, rtc_valid);
     if rtc.set_datetime(value).is_err() {
-        return INVALID_PARAMETER_RESULT;
+        return Err(INVALID_PARAMETER_RESULT);
     }
-    OK_RESULT
+    Ok((target_ms, old_ms))
+}
+
+/// Program RTC_CALR (32 s cycle). False if a previous recalibration is
+/// still pending, in which case the register is left unchanged.
+fn write_calr(calr: Calr) -> bool {
+    use pac::rtc::vals::{Calp, Key, Recalpf};
+    let rtc = pac::RTC;
+    rtc.wpr().write(|w| w.set_key(Key::DEACTIVATE1));
+    rtc.wpr().write(|w| w.set_key(Key::DEACTIVATE2));
+    // RECALPF clears within a few RTCCLK cycles after the previous write.
+    let mut ready = false;
+    for _ in 0..200_000 {
+        if rtc.icsr().read().recalpf() != Recalpf::PENDING {
+            ready = true;
+            break;
+        }
+    }
+    if ready {
+        rtc.calr().write(|w| {
+            w.set_calp(if calr.calp { Calp::INCREASE_FREQ } else { Calp::NO_CHANGE });
+            w.set_calm(calr.calm);
+        });
+    }
+    rtc.wpr().write(|w| w.set_key(Key::ACTIVATE));
+    ready
+}
+
+fn read_calr() -> Calr {
+    let calr = pac::RTC.calr().read();
+    Calr {
+        calp: calr.calp() == pac::rtc::vals::Calp::INCREASE_FREQ,
+        calm: calr.calm(),
+    }
 }
 
 fn rtc_now_ms(provider: &RtcTimeProvider, rtc_valid: bool) -> Option<i64> {
@@ -1038,6 +1471,59 @@ fn read_legacy_rtc_magic() -> bool {
 fn write_rtc_magic() {
     pac::TAMP.bkpr(0).write(|w| w.set_bkp(RTC_MAGIC));
     pac::TAMP.bkpr(1).write(|w| w.set_bkp(RTC_MAGIC_INVERSE));
+}
+
+fn read_bkp(index: usize) -> u32 {
+    pac::TAMP.bkpr(index).read().bkp()
+}
+
+fn write_bkp(index: usize, value: u32) {
+    pac::TAMP.bkpr(index).write(|w| w.set_bkp(value));
+}
+
+fn field_status_message(ctx: &Ctx<'_>) -> Message {
+    let now_ms = Instant::now().as_millis();
+    let unix_ms = ctx.unix_ms();
+    let planner = &ctx.field.planner;
+    let schedule = planner.schedule();
+    let mut flags = 0;
+    if schedule.is_enabled() {
+        flags |= FIELD_STATUS_ENABLED;
+    }
+    if schedule.requires_lease() {
+        flags |= FIELD_STATUS_REQUIRE_LEASE;
+    }
+    if planner.lease_valid(unix_ms) {
+        flags |= FIELD_STATUS_LEASE_VALID;
+    }
+    if unix_ms.is_some() {
+        flags |= FIELD_STATUS_RTC_VALID;
+    }
+    // Heater inhibited: persisted lockout/cooldown, a pulse in progress, or
+    // a latched fault.
+    if matches!(
+        ctx.machine.state(),
+        State::Pulsing | State::Recovery | State::Cooldown | State::Fault
+    ) || ctx.fault_code != 0
+    {
+        flags |= FIELD_STATUS_HEATER_LOCKOUT;
+    }
+    Message::FieldStatus(FieldStatus {
+        monotonic_us: Instant::now().as_micros(),
+        rtc_unix_ms: unix_ms.unwrap_or(-1),
+        next_pulse_unix_s: planner.next_pulse_unix_s(now_ms, unix_ms),
+        schedule_flags: flags,
+        windows_pending: ctx.field.windows.windows_pending() as u8,
+        windows_dropped: ctx.field.windows.windows_dropped(),
+        oldest_pending_run_id: ctx.field.windows.oldest_pending_run_id(),
+        last_run_id: ctx.field.windows.last_run_id(),
+        calr_ppb: ctx.field.trim_ppb,
+        last_rtc_step_ms: ctx.field.last_rtc_step_ms,
+        boot_count: ctx.field.boot_count as u16,
+        v24_raw: ctx.field.v24_raw,
+        flash_used_kib: 0,
+        schedule_crc: schedule.crc16(),
+    })
 }
 
 fn rtc_calendar_plausible(provider: &RtcTimeProvider) -> bool {

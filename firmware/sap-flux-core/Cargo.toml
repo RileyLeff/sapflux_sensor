@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 path = "src/lib.rs"
 
+[dependencies]
+# Wire types, Schedule limits, CRC-32 and window bin encoding.
+sap-flux-protocol = { path = "../../software/sap-flux-protocol" }
+
 [features]
 default = []
 dev-short-cooldown = []

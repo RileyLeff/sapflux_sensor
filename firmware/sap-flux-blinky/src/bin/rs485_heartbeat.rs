@@ -9,7 +9,7 @@ use panic_halt as _;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
+    let p = sap_flux_blinky::init(Default::default());
 
     let mut de = Output::new(p.PA1, Level::Low, Speed::Low);
     let mut n_re = Output::new(p.PA0, Level::Low, Speed::Low);

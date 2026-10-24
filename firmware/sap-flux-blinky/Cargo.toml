@@ -16,9 +16,14 @@ embassy-stm32 = { version = "0.6.0", features = [
   "memory-x",
   "stm32g0b1cb",
   "time",
-  "time-driver-tim2",
 ] }
-embassy-time = { version = "0.5.1", features = ["tick-hz-1_000_000"] }
+# Time base: LPTIM1 on the 32.768 kHz LSE through our own driver
+# (src/timebase.rs); embassy-stm32 0.6's time-driver-lptim1 does not build
+# for STM32G0.
+embassy-time = { version = "0.5.1", features = ["tick-hz-32_768"] }
+embassy-time-driver = "0.2.2"
+embassy-time-queue-utils = "0.3.2"
+critical-section = "1.2.0"
 heapless = "0.9.3"
 panic-halt = "1.0.0"
 stm32-metapac = { version = "21.0.0", features = ["stm32g0b1cb"] }

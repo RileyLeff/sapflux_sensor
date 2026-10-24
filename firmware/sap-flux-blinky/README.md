@@ -17,30 +17,97 @@ On the v0.1 assembled boards, the LED appears to be rotated 180 degrees:
 
 That note is historical: v0.2 has the corrected component orientations.
 
-## Heater monitor transports
+## Time base
 
-`heater_monitor` always exposes protocol v1 over the isolated RS-485 port at
-115200 8N1. It can additionally expose the same protocol on J6 via LPUART2:
+All binaries use `embassy-time` at 32 768 Hz on LPTIM1 clocked from the
+32.768 kHz LSE crystal (`src/timebase.rs`), so sample timing and
+`monotonic_us` are crystal-locked (30.5 µs ticks). Every binary must call
+`sap_flux_blinky::init(config)` instead of `embassy_stm32::init`, or time never
+advances. embassy-stm32 0.6's own `time-driver-lptim1` does not build for
+STM32G0. If the LSE does not start, the driver falls back to the LSI (time then
+runs about 2.3 % slow); the heater pulse width is timed by TIM1 on HSI16 either
+way.
 
-- J6 pin 2 / PA13: SapFlux RX (connect to Feather TX through 1 kΩ)
-- J6 pin 3 / PA14: SapFlux TX (connect to Feather RX through 1 kΩ)
-- J6 pin 4: common ground
-- do not connect J6 pin 1 / 3.3 V between the boards
+## Heater monitor (firmware 0.2.0)
 
-The mode is sampled once at boot from J4 pin 5 / PA6. Leave PA6 open for SWD,
-or jumper PA6 to either J4 ground pin before reset to select LPUART2. There is
-no hot switching. Before attaching ST-Link, return to SWD mode and make sure
-the Feather TX pin is high-impedance or physically disconnected.
+`heater_monitor` samples both probes (12 thermistors + excitation) every 40 ms
+and implements `docs/field-protocol.md` §1 on top of protocol v1.
 
-UART and RS-485 use the same COBS/CRC decoder and heater safety state machine.
-Samples and periodic status are sent on both configured transports; command
-ACK/Error traffic returns only on the transport that received the command.
-`FLAG_COMMAND_WINDOW` is only a half-duplex RS-485 rule. Full-duplex UART
-commands may arrive at any time, but gain no additional heater authority.
+Thermistor order in `Sample12` and windows is probe 1 T1..T6, then probe 2
+T1..T6. Probe 1 is J2 block A (mux A Y1, Y0, Y3, Y2, Y5, Y4, bench-verified).
+Probe 2 is J2 block B (p23..p28) on mux B with the same channel order, taken
+from `elec/adc.ato` and **not yet read on hardware**.
 
-In UART mode the board sends Hello at boot and every 30 seconds. Status is
-currently sent every second (meeting the field gateway's <=10 second idle and
-1 second active liveness requirements). `SetRtc` is accepted only in SafeIdle.
+### Link selection (J4 pin 5 / PA6, sampled once at boot)
+
+- **PA6 open: bench.** v1 over RS-485 at 115200 8N1. One `Sample12` per frame,
+  `Status` once a second, Hello + Status at boot. The last frame of each
+  1 s cycle carries `FLAG_COMMAND_WINDOW` and the next frame is silent
+  (about 45 ms quiet for one command). The legacy `Sample` is no longer sent.
+- **PA6 to ground before reset: field.** LPUART2 on J6 replies only:
+  - J6 p2 / PA13 is RX, from the Feather TX through 1 kΩ.
+  - J6 p3 / PA14 is TX, to the Feather RX through 1 kΩ.
+  - J6 p4 is ground. Do not connect J6 p1 / 3.3 V.
+
+  Nothing is sent unsolicited. PA14 stays analog between replies, and each
+  reply burst starts with `0x00` after a 200 µs idle-high. The SP3485 is held
+  in shutdown (~RE high, DE low) and USART2 is not configured. Commands that
+  arrive during the heater pulse are answered after it. There is no hot
+  switching. Before attaching an ST-Link, open PA6, reset, and disconnect the
+  Feather TX.
+
+### Autonomous schedule and windows
+
+`SetSchedule` validates the schedule, stores it in EEPROM and applies it.
+`GetFieldStatus` and `Query` report it. Scheduled runs go through the same
+heater state machine as host commands; there is no safety bypass. With the
+RTC invalid, a run starts one interval after boot or after the schedule
+change, and its window is flagged `TIME_INVALID`.
+
+Each run records one window: 500 ms bins of 13 channels plus v24. The board
+keeps 4 windows of up to 1000 bins (104 000 B of RAM). Longer windows are
+flagged `TRUNCATED`. When all 4 slots hold undelivered windows, a new run
+overwrites the oldest and `windows_dropped` counts it. Windows are served with
+`GetWindow` / `AckWindow`, and RAM windows are lost on reset.
+
+### Time
+
+`SetRtc` is accepted in SafeIdle and in Cooldown, never while a window
+records. It still steps on the next whole second, so its reply can take up
+to 1 s. A retried nonce is acknowledged without stepping again. Corrections
+at least 6 h apart update RTC_CALR (α = 0.5, ±200 ppm). The learning state is
+kept in TAMP bkpr3/4 and the trim in EEPROM; the trim is restored at boot.
+
+### EEPROM (CAT24C32) and watchdogs
+
+EEPROM layout:
+
+| address | record |
+|---|---|
+| `0x0000` | schedule |
+| `0x0020` | RTC trim |
+| `0x0040` | boot count |
+| `0x0FC0` | heater lockout (unchanged) |
+| `0x0FF0` | `board_test` scratch |
+
+Each record is magic + payload + CRC-32, all within one page.
+
+The IWDG (4 s timeout) runs alongside the TPL5010 external watchdog.
+
+### Bench checks before field use
+
+1. Probe 2 order: touch each probe-2 thermistor and confirm that P2T1..P2T6
+   respond in order (also confirm probe 1).
+2. Field strap:
+   - Confirm `sap-flux-field query` works.
+   - Confirm there is no traffic between commands.
+   - Measure current with the Feather RX idle (PA14 should draw no 330 µA).
+3. `sap-flux-field set-schedule` with a short interval:
+   - Confirm a window appears and `get-window` reconstructs it.
+   - Confirm `ack-window` frees it.
+4. Power-cycle and confirm that the schedule, the boot count (+1) and the
+   trim persist.
+5. Bench strap: confirm `sap-flux-monitor` still streams Sample12.
 
 Build the field firmware:
 
@@ -49,7 +116,7 @@ cargo build --release --bin heater_monitor
 ```
 
 The supervised bench build retains the intentionally short 30-second
-persistent cooldown and advertises firmware version 0.1.32:
+persistent cooldown and advertises firmware version 0.2.32:
 
 ```sh
 cargo build --release --bin heater_monitor --features dev-short-cooldown
