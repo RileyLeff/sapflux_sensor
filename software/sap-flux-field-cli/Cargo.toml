@@ -1,0 +1,15 @@
+[package]
+name = "sap-flux-field-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Bench CLI for the sap-flux board's field mode (schedule, RTC, window download) without the gateway"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "sap-flux-field"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive", "env"] }
+sap-flux-protocol = { path = "../sap-flux-protocol" }
+serialport = "4.9.0"

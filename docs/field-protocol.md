@@ -111,8 +111,10 @@ u32` (from window start), `pulse_duration_ms: u16`, `sample_hz: u16`,
 
 Window data: `n_bins` bins, each bin `channels` × `i16` in order
 probe-1 T1..T6, probe-2 T1..T6, excitation. Value =
-`clamp(round(16 × (bin_mean_raw − base_raw[c])), −32768, 32767)`, where
-`base_raw[c]` is the rounded mean raw count of channel `c` in the first bin.
+`clamp(round(16 × (bin_mean_raw − base_raw[c])), −32767, 32767)` (round
+half away from zero; −32768 is reserved for the missing sentinel), where
+`base_raw[c]` is the rounded mean raw count of channel `c` in the first bin,
+or 0 if that bin has no valid frames for the channel.
 A bin with no valid frames for a channel stores `−32768`. `data_crc32` is
 CRC-32 (protocol CRC) over the full data byte string. Bin `k` covers
 `[start + k·bin_ms, start + (k+1)·bin_ms)` on the monotonic clock.
@@ -169,8 +171,9 @@ gitignored file (never committed).
 | 20+n | 8 | HMAC-SHA256(key, bytes `0..20+n`) truncated to 8 bytes |
 
 The server drops datagrams with a bad MAC, and replays with `seq` ≤ the
-last seen for that `boot_id`. Replies echo `boot_id` and `seq` and are
-MAC'd with the same key.
+last seen for that `boot_id`, silently (no reply). A retry must therefore
+use a fresh `seq`. Replies echo `boot_id` and `seq` and are MAC'd with the
+same key.
 
 ### Types
 
@@ -200,7 +203,8 @@ The reassembled byte string is the `WindowInfo` frame (decoded v1 frame,
 
 `0x82 WindowAck` (server → gateway). Body: `board_id: u64`, `run_id: u32`,
 `complete: u8`, `reserved: u8`, `part_count: u16`, `received_bitmap:
-[u8; 32]` (bit `i` set = part `i` stored). The gateway resends missing
+[u8; 32]` (bit `i` set = part `i` stored; LSB-first, so part `i` is
+bit `i % 8` of byte `i / 8`). The gateway resends missing
 parts. After `complete = 1` it sends `AckWindow` to the board.
 
 `0x03 Event` (gateway → server). Body: `t_unix_ms: i64`, `code: u16`,

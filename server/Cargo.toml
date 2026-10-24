@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["sapflux-uplink"]
+members = ["sapflux-uplink", "sapflux-server"]
 
 [workspace.package]
 edition = "2021"
