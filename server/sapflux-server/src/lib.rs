@@ -1,11 +1,12 @@
 //! sap-flux field server: UDP ingest for the nRF9160 gateway
 //! (`docs/field-protocol.md` section 2), SQLite storage, an admin HTTP API,
-//! and an admin CLI (`sapflux`).
+//! an admin CLI (`sapflux`) and a gateway simulator.
 
 pub mod api;
 pub mod board;
 pub mod config;
 pub mod ingest;
+pub mod sim;
 pub mod store;
 pub mod window;
 
