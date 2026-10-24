@@ -845,19 +845,19 @@ async fn main(_spawner: Spawner) {
     }
 }
 
-/// Wake the flash and read its ID, then wait (bounded) for any program or
-/// erase that a reset interrupted on the MCU side to finish. Returns the
-/// JEDEC ID and whether the chip went idle.
+/// Wake the flash, wait (bounded) for any program or erase that a reset
+/// interrupted on the MCU side to finish, then read its ID. The ID comes
+/// second because the W25Q256 ignores 0x9F while busy. Returns the JEDEC
+/// ID (`None` if the chip never went idle) and whether it went idle.
 async fn flash_boot(w25q: &mut W25q<'_>, pet: &mut impl FnMut()) -> (Option<[u8; 3]>, bool) {
     w25q.release_power_down();
     Timer::after_millis(1).await;
-    let id = w25q.jedec_id();
     let start = Instant::now();
     loop {
         match w25q.busy() {
-            Some(false) => return (id, true),
+            Some(false) => return (w25q.jedec_id(), true),
             Some(true) if Instant::now() - start < Duration::from_millis(ERASE_TIMEOUT_MS) => {}
-            _ => return (id, false),
+            _ => return (None, false),
         }
         pet();
         Timer::after_millis(1).await;
