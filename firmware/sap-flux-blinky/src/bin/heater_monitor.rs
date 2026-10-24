@@ -17,6 +17,7 @@ use embassy_stm32::timer::low_level::{
 };
 use embassy_stm32::timer::simple_pwm::PwmPin;
 use embassy_stm32::timer::{Ch1, Channel};
+use embassy_stm32::wdg::IndependentWatchdog;
 use embassy_stm32::usart::{self, Config as UartConfig, RingBufferedUartRx, Uart, UartTx};
 use embassy_stm32::Peri;
 use embassy_time::{Duration, Instant, Timer};
@@ -101,6 +102,10 @@ const INVALID_ADC: i16 = i16::MIN;
 const UART_HELLO_PERIOD: Duration = Duration::from_secs(30);
 const FAULT_PERSISTENCE: u8 = 1;
 const FAULT_PULSE_OVERRUN: u8 = 2;
+// Internal watchdog (LSI, about +/-7 %). The longest deliberate stall is a
+// SetRtc wait for the next whole second (<= 1 s) plus EEPROM writes; a
+// reset forces the heater gate low through the pin reset state.
+const IWDG_TIMEOUT_US: u32 = 4_000_000;
 
 static RS485_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 static TTL_UART_RX_DMA_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
@@ -359,6 +364,8 @@ async fn main(_spawner: Spawner) {
         s2: Output::new(p.PD2, Level::Low, Speed::Low),
         s3: Output::new(p.PD3, Level::Low, Speed::Low),
     };
+    let mut iwdg = IndependentWatchdog::new(p.IWDG, IWDG_TIMEOUT_US);
+    iwdg.unleash();
     let mut watchdog_done = Output::new(p.PA5, Level::Low, Speed::Low);
     let watchdog_wake = Input::new(p.PA4, Pull::None);
     let pgood = Input::new(p.PC7, Pull::None);
@@ -472,6 +479,7 @@ async fn main(_spawner: Spawner) {
     let mut next_uart_hello_at = Instant::now() + UART_HELLO_PERIOD;
 
     loop {
+        iwdg.pet();
         service_pulse_state(
             &mut machine,
             &mut hardware_pulse,
@@ -602,6 +610,7 @@ async fn main(_spawner: Spawner) {
             if Instant::now() >= frame_deadline {
                 break;
             }
+            iwdg.pet();
             Timer::after_micros(250).await;
         }
     }
