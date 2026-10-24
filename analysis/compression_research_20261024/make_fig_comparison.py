@@ -22,7 +22,7 @@ import plotstyle as P
 warnings.filterwarnings("ignore")
 
 HRM_WINDOW = C.ALPHA_WINDOWS[1]  # (60, 80) s
-ROW_B = 64  # bytes per row in the packing diagram
+ROW_B = 32  # bytes per row in the zoomed field layouts
 
 # Information roles, one colour each (fixed order from the reference palette).
 RAW, CURVE, BASE, DERIVED = P.SERIES[0], P.SERIES[1], P.SERIES[2], P.SERIES[3]
@@ -97,7 +97,8 @@ def main() -> None:
     ax_imp = fig.add_axes([0.07, 0.46, 0.38, 0.12])
     ax_sfk = fig.add_axes([0.57, 0.505, 0.38, 0.075])
     ax_cof = fig.add_axes([0.57, 0.46, 0.38, 0.03])
-    ax_byt = fig.add_axes([0.07, 0.03, 0.88, 0.35])
+    ax_sq = fig.add_axes([0.07, 0.045, 0.40, 0.32])
+    ax_byt = fig.add_axes([0.55, 0.045, 0.40, 0.32])
 
     fig.text(0.07, 0.975, "One heat pulse, two ways to keep it", fontsize=18, weight="bold")
     fig.text(0.07, 0.958, "Real pulse from the board (soaked 4×4, Aug 24 2026), middle downstream thermistor. "
@@ -167,38 +168,65 @@ def main() -> None:
     ax_cof.grid(False)
     ax_cof.set_xlabel("the 16 coefficients, log |value|: most are tiny, so they cost a few bits each", fontsize=8.5)
 
-    # 4. Bytes
+    # 4. Bytes: squares with area = bytes, all at one scale
+    import matplotlib.patches as mp
+    from matplotlib.patches import ConnectionPatch
+
+    lossless_b = 35130
+    step(ax_sq, 4, "What gets stored or sent  ·  area = bytes, all at one scale",
+         "one pulse from a two-probe box; the small ones are zoomed on the right")
+    ax_sq.set_aspect("equal")
+    ax_sq.axis("off")
+    side = {k: float(np.sqrt(v)) for k, v in
+            (("raw", raw_b), ("lossless", lossless_b), ("sfk1", sfk1_b), ("sfa", 164), ("sc", 48))}
+    R = side["raw"]
+    ax_sq.add_patch(mp.Rectangle((0, 0), R, R, facecolor=RAW, edgecolor=P.SURFACE, linewidth=1.5))
+    L = side["lossless"]
+    ax_sq.add_patch(mp.Rectangle((0, 0), L, L, facecolor="#86b6ef", edgecolor=P.SURFACE, linewidth=1.5))
+    ax_sq.text(R / 2 + L / 4, R * 0.62, f"Raw 25 Hz samples\n{raw_b:,} B", ha="center", va="center",
+               fontsize=13, weight="bold", color=P.SURFACE)
+    ax_sq.text(R / 2 + L / 4, R * 0.62 - 50, f"{n_frames:,} frames × 13 channels × 16 bit", ha="center",
+               va="center", fontsize=9, color=P.SURFACE)
+    ax_sq.text(L / 2, L / 2, f"lossless\non flash\n{lossless_b:,} B", ha="center", va="center", fontsize=9.5,
+               color=P.INK)
+    small = (("sfk1", CURVE), ("sfa", DERIVED), ("sc", DERIVED))
+    sq_pos = {}
+    xs, ys = R + 18, R - 10
+    for k, col in small:
+        sd = side[k]
+        ys -= sd
+        ax_sq.add_patch(mp.Rectangle((xs, ys), sd, sd, facecolor=col, edgecolor="none"))
+        sq_pos[k] = (xs + sd, ys + sd / 2)
+        ys -= 26
+    ax_sq.set_xlim(-2, R + 50)
+    ax_sq.set_ylim(-2, R + 2)
+
+    # zoomed field layouts
     ax = ax_byt
     ax.set_xlim(-0.5, ROW_B + 0.5)
     ax.axis("off")
-    step(ax, 4, "What gets stored or sent  ·  width = bytes, 64 per row",
-         "every row is the same pulse from a two-probe box")
+    ax.text(0, -1.9, f"Zoomed: field layout, {ROW_B} bytes per row", fontsize=10, color=P.INK2)
     yrow = 0.0
+    anchors = {}
 
-    def label(title, nbytes, note):
+    def label(key, title, nbytes, note):
         nonlocal yrow
+        anchors[key] = yrow
         ax.text(0, yrow - 0.05, title, fontsize=10.5, weight="bold", va="bottom")
         ax.text(ROW_B, yrow - 0.05, f"{nbytes:,.0f} B", fontsize=10.5, weight="bold", ha="right", va="bottom")
-        ax.text(0, yrow + 0.75, note, fontsize=8.5, color=P.INK2, va="bottom")
-        yrow += 1.0
+        ax.text(0, yrow + 0.85, note, fontsize=8.2, color=P.INK2, va="bottom")
+        yrow += 1.1
 
-    label("Raw 25 Hz samples, uncompressed", raw_b,
-          f"{n_frames:,} frames × (excitation + 12 thermistors) × 16 bit  ·  lossless-compressed for flash: 35,130 B")
-    frame = [(2, RAW, "exc")] + [(2, RAW, f"T{k}") for k in range(1, 13)]
-    yrow = strip(ax, yrow, frame * 8, max_rows=3)
-    ax.text(ROW_B / 2, yrow + 0.3, f"… {raw_b / ROW_B - 3:,.0f} more rows like these", ha="center",
-            fontsize=9, color=P.MUTED, style="italic")
-    yrow += 1.5
+    label("raw", "Raw: one 25 Hz frame", 26, f"excitation + 12 thermistors, 16 bit each; ×{n_frames:,} frames")
+    yrow = strip(ax, yrow, [(2, RAW, "exc")] + [(2, RAW, f"T{k}") for k in range(1, 13)]) + 0.9
 
-    label("SFK1", sfk1_b, "6 B header, then per thermistor: 12 baseline means (Rice-coded deltas) + "
-          "16 curve coefficients  ·  sizes measured on this pulse's channels")
+    label("sfk1", "SFK1", sfk1_b, "6 B header; per thermistor: 12 baseline means + 16 curve coefficients")
     sf = [(6, META, "hdr")]
     for k in range(1, 13):
         sf += [(base_b, BASE, f"T{k} base"), (coef_b, CURVE, f"T{k} curve")]
     yrow = strip(ax, yrow, sf) + 0.9
 
-    label("Implexx → Campbell, SapFlowAll table (sapflux_programs)", 164,
-          "battery + panel T (FP2, 2 B each), then 20 derived values per probe as IEEE4 floats (4 B each)")
+    label("sfa", "Implexx → Campbell: SapFlowAll", 164, "battery + panel T (FP2), 20 derived values per probe (IEEE4)")
     sa = [(2, META, "bat"), (2, META, "pnl")]
     for _ in (1, 2):
         sa += [(4, DERIVED, n) for n in ("αO", "αI", "βO", "βI", "tMO", "tMI")]
@@ -206,21 +234,26 @@ def main() -> None:
         sa += [(4, DERIVED, "tMU"), (4, DERIVED, "tMU")]
     yrow = strip(ax, yrow, sa) + 0.9
 
-    label("Implexx → Campbell, ShortCut table (one per probe)", 48,
-          "battery, id, SDI address, then 9 derived values (flow, Vh, α, β, tMax), all FP2 (2 B, ~4 digits)")
+    label("sc", "Implexx → Campbell: ShortCut", 48, "battery, id, SDI, then 9 derived values per probe (FP2)")
     sc = []
     for _ in (1, 2):
         sc += [(2, META, n) for n in ("bat", "id", "SDI")]
         sc += [(2, DERIVED, n) for n in ("flow", "VhO", "VhI", "αO", "αI", "βO", "βI", "tMO", "tMI")]
     yrow = strip(ax, yrow, sc)
-    ax.set_ylim(yrow + 1.6, -0.6)
+    ax.set_ylim(yrow + 0.4, -2.3)
+
+    for k in ("sfk1", "sfa", "sc"):
+        fig.add_artist(ConnectionPatch(sq_pos[k], (-0.5, anchors[k] - 0.4), coordsA="data", coordsB="data",
+                                       axesA=ax_sq, axesB=ax, color=P.MUTED, linewidth=0.9))
+    fig.add_artist(ConnectionPatch((R, R), (-0.5, anchors["raw"] - 0.4), coordsA="data", coordsB="data",
+                                   axesA=ax_sq, axesB=ax, color=P.MUTED, linewidth=0.9))
 
     handles = [Patch(color=RAW, label="raw ADC samples"), Patch(color=BASE, label="baseline means"),
                Patch(color=CURVE, label="curve coefficients"),
                Patch(color=DERIVED, label="derived numbers (curve discarded)"),
                Patch(color=META, label="header / logger fields")]
-    ax.legend(handles=handles, loc="lower center", ncols=5, fontsize=9, bbox_to_anchor=(0.5, 0.0),
-              handlelength=1.2, columnspacing=1.4)
+    fig.legend(handles=handles, loc="lower center", ncols=5, fontsize=9, bbox_to_anchor=(0.5, 0.012),
+               handlelength=1.2, columnspacing=1.4, frameon=False)
     fig.text(0.95, 0.008, "Implexx: 4 thermistors per probe; East30 on our board: 6 per probe. "
              "3a markers are illustrative, not Implexx's exact on-probe algorithm.",
              fontsize=8, color=P.MUTED, ha="right")
