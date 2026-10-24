@@ -246,6 +246,15 @@ impl Machine {
         Effect::ForceHeaterOff
     }
 
+    /// Allowed lateness of the hardware pulse end before declaring a fault.
+    /// The pulse is timed by TIM1 on HSI16 (up to ~2.75% slow over
+    /// temperature) while `now_ms` runs on the LSE crystal, and pulse end is
+    /// only seen between ADC acquisitions (~25 ms), so allow 5% + 40 ms.
+    fn overrun_tolerance_ms(&self) -> u64 {
+        let pulse_ms = self.pulse_duration.as_ms() as u64;
+        pulse_ms / 20 + 40
+    }
+
     pub fn pulse_finished(&mut self, now_ms: u64) -> Result<Effect, Rejection> {
         if self.state != State::Pulsing {
             return Err(Rejection::WrongState);
@@ -274,7 +283,7 @@ impl Machine {
 
     pub fn tick(&mut self, now_ms: u64) -> Effect {
         match self.state {
-            State::Pulsing if now_ms > self.pulse_deadline_ms.saturating_add(10) => {
+            State::Pulsing if now_ms > self.pulse_deadline_ms.saturating_add(self.overrun_tolerance_ms()) => {
                 self.state = State::Fault;
                 Effect::ForceHeaterOff
             }
@@ -526,8 +535,24 @@ mod tests {
         machine.arm(7, PulseDuration::Ms500, 60_000).unwrap();
         machine.request_fire(7, 123, 60_000).unwrap();
         machine.confirm_lockout_persisted(60_000).unwrap();
-        assert_eq!(machine.tick(60_510), Effect::None);
-        assert_eq!(machine.tick(60_511), Effect::ForceHeaterOff);
+        // 500 ms pulse: tolerance is 500 / 20 + 40 = 65 ms.
+        assert_eq!(machine.tick(60_565), Effect::None);
+        assert_eq!(machine.tick(60_566), Effect::ForceHeaterOff);
         assert_eq!(machine.state(), State::Fault);
+    }
+
+    #[test]
+    fn slow_hsi_pulse_end_is_not_a_fault() {
+        // TIM1 runs on HSI16, which can be ~2.75% slow when cold, so a
+        // 1500 ms pulse can end ~1542 ms after it started on the LSE clock.
+        let mut machine = Machine::boot(0, false);
+        baseline(&mut machine, 0);
+        machine.update_health(healthy(60_000));
+        machine.arm(7, PulseDuration::Ms1500, 60_000).unwrap();
+        machine.request_fire(7, 123, 60_000).unwrap();
+        machine.confirm_lockout_persisted(60_000).unwrap();
+        assert_eq!(machine.tick(61_543), Effect::None);
+        assert_eq!(machine.pulse_finished(61_543), Ok(Effect::ForceHeaterOff));
+        assert_eq!(machine.state(), State::Recovery);
     }
 }
