@@ -360,7 +360,7 @@ fn wrong_version_rejected() {
 
 #[test]
 fn unknown_message_type_rejected() {
-    for t in [0x00u8, 0x07, 0x0F, 0x15, 0x77, 0xFF] {
+    for t in [0x00u8, 0x0B, 0x0F, 0x19, 0x77, 0xFF] {
         let raw = build_raw_frame(1, t, 4, 0, &[1, 2, 3, 4]);
         let mut dec = Decoder::new();
         let results = feed(&mut dec, &to_wire(&raw));

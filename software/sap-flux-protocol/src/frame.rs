@@ -65,6 +65,8 @@ pub enum DecodeError {
     },
     /// `state` byte is not a valid [`BoardState`](crate::BoardState).
     InvalidState(u8),
+    /// `WindowChunk.len` exceeds 100.
+    ChunkLength(u16),
 }
 
 /// Encode `message` as a complete on-wire frame (COBS + trailing `0x00`
@@ -72,18 +74,8 @@ pub enum DecodeError {
 ///
 /// `out` must be at least [`MAX_ENCODED_LEN`] bytes to hold any message.
 pub fn encode(message: &Message, sequence: u32, out: &mut [u8]) -> Result<usize, EncodeError> {
-    let payload_len = message.payload_len();
-    let frame_len = HEADER_LEN + payload_len + CRC_LEN;
-    debug_assert!(frame_len <= MAX_FRAME_LEN);
-
     let mut frame = [0u8; MAX_FRAME_LEN];
-    frame[0] = PROTOCOL_VERSION;
-    frame[1] = message.message_type();
-    frame[2..4].copy_from_slice(&(payload_len as u16).to_le_bytes());
-    frame[4..8].copy_from_slice(&sequence.to_le_bytes());
-    message.write_payload(&mut frame[HEADER_LEN..HEADER_LEN + payload_len]);
-    let crc = crc32(&frame[..HEADER_LEN + payload_len]);
-    frame[HEADER_LEN + payload_len..frame_len].copy_from_slice(&crc.to_le_bytes());
+    let frame_len = encode_frame(message, sequence, &mut frame)?;
 
     let encoded = cobs::encode(&frame[..frame_len], out).ok_or(EncodeError::BufferTooSmall)?;
     if encoded >= out.len() {
@@ -91,6 +83,35 @@ pub fn encode(message: &Message, sequence: u32, out: &mut [u8]) -> Result<usize,
     }
     out[encoded] = 0x00;
     Ok(encoded + 1)
+}
+
+/// Encode `message` as a decoded (un-stuffed) frame — header, payload and
+/// CRC, no COBS, no delimiter — into `out`, returning its length.
+///
+/// This is the byte string the gateway forwards to the server (CheckIn
+/// `board_frames`, the `WindowInfo` prefix of a `WindowPart`). `out` must be
+/// at least `HEADER_LEN + payload_len + CRC_LEN` bytes ([`MAX_FRAME_LEN`]
+/// always suffices).
+pub fn encode_frame(
+    message: &Message,
+    sequence: u32,
+    out: &mut [u8],
+) -> Result<usize, EncodeError> {
+    let payload_len = message.payload_len();
+    let frame_len = HEADER_LEN + payload_len + CRC_LEN;
+    debug_assert!(frame_len <= MAX_FRAME_LEN);
+    if out.len() < frame_len {
+        return Err(EncodeError::BufferTooSmall);
+    }
+    let frame = &mut out[..frame_len];
+    frame[0] = PROTOCOL_VERSION;
+    frame[1] = message.message_type();
+    frame[2..4].copy_from_slice(&(payload_len as u16).to_le_bytes());
+    frame[4..8].copy_from_slice(&sequence.to_le_bytes());
+    message.write_payload(&mut frame[HEADER_LEN..HEADER_LEN + payload_len]);
+    let crc = crc32(&frame[..HEADER_LEN + payload_len]);
+    frame[HEADER_LEN + payload_len..].copy_from_slice(&crc.to_le_bytes());
+    Ok(frame_len)
 }
 
 /// Validate and parse one decoded (COBS-unstuffed) frame.
