@@ -87,13 +87,13 @@ pub fn convert_channel(exc_raw: i16, mid_raw: i16) -> ChannelReading {
     }
 }
 
-/// Convert all six channels of a sample. `adc_error` forces every channel
-/// invalid (raw values are preserved for logging).
-pub fn convert_sample(
+/// Convert every channel of a sample (6 or 12). `adc_error` forces every
+/// channel invalid (raw values are preserved for logging).
+pub fn convert_sample<const N: usize>(
     exc_raw: i16,
-    thermistor_raw: &[i16; 6],
+    thermistor_raw: &[i16; N],
     adc_error: bool,
-) -> [ChannelReading; 6] {
+) -> [ChannelReading; N] {
     thermistor_raw.map(|mid| {
         if adc_error {
             ChannelReading::invalid(mid)

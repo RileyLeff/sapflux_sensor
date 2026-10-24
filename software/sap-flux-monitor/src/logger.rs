@@ -6,8 +6,10 @@
 //! - `raw.cobs` — exact received serial bytes, append-only (bytes that
 //!   arrived before the first valid frame are kept in a bounded backlog and
 //!   written at session start);
-//! - `samples.csv` — one row per successfully decoded Sample;
-//! - `events.csv` — everything else: Hello/Status/Ack/Error, connection
+//! - `samples.csv` — one row per successfully decoded Sample or Sample12
+//!   (probe-2 columns are empty for 6-channel `Sample` frames);
+//! - `events.csv` — everything else: Hello/Status/Ack/Error/FieldStatus/
+//!   WindowInfo/WindowChunk, connection
 //!   transitions, parser errors, sequence gaps, outbound commands;
 //! - `metadata.json` — app/protocol versions, port settings, board info,
 //!   channel labels, conversion coefficients, session times, final counters.
@@ -53,6 +55,7 @@ pub struct LoggerConfig {
 #[derive(Serialize)]
 struct ChannelMeta {
     id: &'static str,
+    probe: u8,
     wire_color: &'static str,
     position: &'static str,
     known_broken: bool,
@@ -243,7 +246,13 @@ impl Logger {
             ps.exc_valid as u8,
             smp.v24_raw,
         );
-        for r in &ps.readings {
+        let _ = write!(row, ",{}", ps.channel_count());
+        for (i, r) in ps.readings.iter().enumerate() {
+            if i >= ps.channel_count() {
+                // Channel not carried by this frame type.
+                row.push_str(",,,,");
+                continue;
+            }
             let _ = write!(row, ",{}", r.raw);
             match r.resistance_ohm {
                 Some(res) => {
@@ -337,6 +346,7 @@ impl Logger {
                 .iter()
                 .map(|c| ChannelMeta {
                     id: c.id,
+                    probe: c.probe,
                     wire_color: c.wire_color,
                     position: c.position,
                     known_broken: !self.cfg.simulated && c.known_broken,
@@ -454,7 +464,8 @@ fn samples_csv_header() -> String {
     let mut h = String::from(
         "host_receive_unix_ns,sequence,monotonic_us,rtc_unix_ms,run_id,flags,\
          heater_active,rtc_valid,pgood,excitation_active,adc_error,\
-         state,state_name,sample_valid,excitation_raw,excitation_valid,v24_raw",
+         state,state_name,sample_valid,excitation_raw,excitation_valid,v24_raw,\
+         channel_count",
     );
     for c in &CHANNELS {
         let id = c.id.to_lowercase();
@@ -489,7 +500,10 @@ mod tests {
     #[test]
     fn header_has_expected_column_count() {
         let header = samples_csv_header();
-        // 17 fixed columns + 4 per channel.
-        assert_eq!(header.trim_end().split(',').count(), 17 + 6 * 4);
+        // 18 fixed columns + 4 per channel (probe 1 T1..T6, probe 2 T1..T6).
+        assert_eq!(header.trim_end().split(',').count(), 18 + 12 * 4);
+        assert!(header.contains(",channel_count,t1_raw,"));
+        assert!(header.contains(",t6_valid,p2t1_raw,"));
+        assert!(header.trim_end().ends_with(",p2t6_valid"));
     }
 }

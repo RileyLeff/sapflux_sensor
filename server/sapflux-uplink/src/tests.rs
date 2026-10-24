@@ -30,7 +30,7 @@ fn hdr(msg_type: u8) -> Header {
 
 fn default_sched() -> Schedule {
     Schedule {
-        enabled: true,
+        enabled: 1,
         ..Schedule::FACTORY_DEFAULT
     }
 }
@@ -83,12 +83,12 @@ fn schedule_bytes_and_crc() {
 #[test]
 fn schedule_limits() {
     let ok = default_sched();
-    assert!(ok.validate().is_ok());
-    assert!(Schedule::FACTORY_DEFAULT.validate().is_ok());
+    assert!(validate_schedule(&ok).is_ok());
+    assert!(validate_schedule(&Schedule::FACTORY_DEFAULT).is_ok());
     let bad = |f: fn(&mut Schedule), e: ScheduleError| {
         let mut s = ok;
         f(&mut s);
-        assert_eq!(s.validate(), Err(e));
+        assert_eq!(validate_schedule(&s), Err(e));
     };
     bad(|s| s.pulse_duration_ms = 750, ScheduleError::PulseDuration);
     bad(|s| s.interval_s = 599, ScheduleError::Interval);
@@ -100,10 +100,11 @@ fn schedule_limits() {
     bad(|s| s.bin_ms = 200, ScheduleError::BinMs);
     bad(|s| s.flags = 2, ScheduleError::Flags);
     // 60 + 180 + 600 = 840: interval 840 is too tight, 841 passes.
-    bad(|s| s.interval_s = 840, ScheduleError::TooTight);
+    bad(|s| s.interval_s = 840, ScheduleError::Timing);
+    bad(|s| s.enabled = 2, ScheduleError::Enabled);
     let mut s = ok;
     s.interval_s = 841;
-    assert!(s.validate().is_ok());
+    assert!(validate_schedule(&s).is_ok());
 }
 
 #[test]
