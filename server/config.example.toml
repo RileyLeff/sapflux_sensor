@@ -1,0 +1,42 @@
+# sap-flux ingest server config. Copy to /etc/sapflux/server.toml
+# (owner sapflux, mode 0600): it holds device keys and must never be committed.
+# Generate a device entry with:  sapflux keygen --name box1 --device-id <IMEI>
+
+[server]
+# Public UDP ingest (the gateway sends here). Open this port in ufw.
+udp_bind = "0.0.0.0:47800"
+# Admin HTTP API. NO AUTHENTICATION: bind to 127.0.0.1 or the VPS's
+# tailnet address (100.x.y.z), never 0.0.0.0.
+api_bind = "127.0.0.1:8470"
+data_dir = "/var/lib/sapflux"
+# "json" (one JSON object per line, for journald/jq) or "text"
+log_format = "json"
+
+# Config a device gets the first time the server sees it. After that the
+# database is authoritative: change it with `sapflux on/off/schedule`.
+#
+# CAREFUL: on the first check-in the gateway pushes this schedule to the
+# board if the board's schedule_crc differs. With enabled = false a board
+# that was set up and enabled on the bench is switched off. These values are
+# the first-deployment defaults from docs/field-protocol.md section 3.
+[defaults]
+enabled = true
+require_lease = false
+pulse_duration_ms = 1000
+interval_s = 3600
+phase_s = 0
+baseline_s = 60
+recovery_s = 180
+sample_hz = 25
+bin_ms = 500
+lease_s = 10800          # only matters with require_lease = true
+wake_interval_s = 3600   # gateway check-in period
+send_windows = true
+
+[[device]]
+name = "box1"
+# u64 from the gateway's IMEI (integer, or "0x..." string)
+device_id = 352656100000001
+# 32 random bytes as 64 hex digits. The all-zero key is a placeholder and
+# the server refuses to start with it.
+key = "0000000000000000000000000000000000000000000000000000000000000000"

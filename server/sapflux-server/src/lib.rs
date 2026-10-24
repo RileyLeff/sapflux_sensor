@@ -1,7 +1,17 @@
-//! sap-flux field server: board-frame and science-window decoding.
+//! sap-flux field server: UDP ingest for the nRF9160 gateway
+//! (`docs/field-protocol.md` section 2), SQLite storage, an admin HTTP API,
+//! and an admin CLI (`sapflux`).
 
+pub mod api;
 pub mod board;
+pub mod config;
+pub mod ingest;
+pub mod store;
 pub mod window;
+
+use anyhow::{bail, Context, Result};
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 /// Wall clock, Unix milliseconds.
 pub fn now_ms() -> i64 {
@@ -34,6 +44,76 @@ pub fn fmt_utc(ms: i64) -> String {
         sod / 60 % 60,
         sod % 60
     )
+}
+
+/// Set up `tracing` (JSON lines or text) on stderr; `RUST_LOG` overrides
+/// the default `info` level.
+pub fn init_logging(format: &str) {
+    use tracing_subscriber::EnvFilter;
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let ansi = std::io::IsTerminal::is_terminal(&std::io::stderr());
+    let b = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .with_ansi(ansi);
+    let _ = if format == "json" {
+        b.json().flatten_event(true).with_current_span(false).try_init()
+    } else {
+        b.try_init()
+    };
+}
+
+/// A running server.
+pub struct Running {
+    pub udp_addr: SocketAddr,
+    pub api_addr: SocketAddr,
+    pub store: Arc<Mutex<store::Store>>,
+    pub udp_task: tokio::task::JoinHandle<std::io::Result<()>>,
+    pub api_task: tokio::task::JoinHandle<std::io::Result<()>>,
+}
+
+/// Refuse obviously unsafe production configs.
+pub fn check_production(cfg: &config::Config) -> Result<()> {
+    for d in cfg.devices() {
+        if d.key.iter().all(|&b| b == 0) {
+            bail!(
+                "device {:?} still has the all-zero placeholder key; run `sapflux keygen`",
+                d.name
+            );
+        }
+    }
+    if cfg.devices.is_empty() {
+        tracing::warn!("no [[device]] entries: every datagram will be dropped");
+    }
+    Ok(())
+}
+
+/// Open storage, bind both sockets and spawn the ingest and API tasks.
+pub async fn start(cfg: &config::Config) -> Result<Running> {
+    let store = store::Store::open(&cfg.server.data_dir)?;
+    store.sync_devices(cfg)?;
+    let store = Arc::new(Mutex::new(store));
+    let sock = tokio::net::UdpSocket::bind(cfg.server.udp_bind)
+        .await
+        .with_context(|| format!("binding UDP {}", cfg.server.udp_bind))?;
+    let udp_addr = sock.local_addr()?;
+    let listener = tokio::net::TcpListener::bind(cfg.server.api_bind)
+        .await
+        .with_context(|| format!("binding API {}", cfg.server.api_bind))?;
+    let api_addr = listener.local_addr()?;
+    let ingest = Arc::new(ingest::Ingest::new(cfg.devices(), store.clone()));
+    let udp_task = tokio::spawn(ingest::run(sock, ingest));
+    let app = api::router(store.clone());
+    let api_task = tokio::spawn(async move { axum::serve(listener, app).await });
+    tracing::info!(%udp_addr, %api_addr, data_dir = %cfg.server.data_dir.display(),
+                   devices = cfg.devices.len(), "sapflux-server listening");
+    Ok(Running {
+        udp_addr,
+        api_addr,
+        store,
+        udp_task,
+        api_task,
+    })
 }
 
 #[cfg(test)]
