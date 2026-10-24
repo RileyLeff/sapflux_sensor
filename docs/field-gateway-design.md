@@ -60,19 +60,23 @@ Caveats for J6:
 
 ## Who runs the schedule, and the remote off switch
 
-Proposed: **the board runs the pulse schedule, and permission to heat comes
-from a lease the gateway renews.**
+Decided (2026-10-24): **the board runs the pulse schedule by itself and
+keeps pulsing on its last stored schedule when the gateway or server is
+unreachable.** Wire format: `SetSchedule` in `docs/field-protocol.md`.
 
 - The board already owns heater safety: the pulse state machine, EEPROM
-  lockout, cooldown, TPL5010 and the SCR latch. The scheduler adds one more
-  input: `auto_enabled_until` (RTC time).
-- The server holds `{enabled, interval, offset, pulse_ms, baseline_s,
-  recovery_s}` for the board. Every uplink returns the current config. The
-  gateway forwards it and, if `enabled`, renews the lease (for example
-  `now + 6 h`).
-- If you turn it off on the server, it stops at the next uplink. If the
-  cellular link, gateway or server dies, the board stops pulsing by itself
-  when the lease runs out. Losing comms fails safe.
+  lockout, cooldown, TPL5010 and the SCR latch. The scheduler drives the
+  same state machine the host commands use.
+- The server holds `{enabled, interval, phase, pulse_ms, baseline_s,
+  recovery_s, sample_hz, bin_ms}` for the board. Every check-in returns it;
+  the gateway pushes it to the board when the board's `schedule_crc`
+  differs. The board stores it in EEPROM.
+- If you turn it off on the server, it stops at the next check-in. If the
+  cellular link, gateway or server dies, the board keeps its schedule and
+  its best internal time (crystal RTC, learned RTC_CALR trim, CR2032
+  backup). A strict lease (stop when not renewed) exists as an opt-in flag.
+- Set the schedule on the bench before deployment. A blank EEPROM means
+  disabled.
 - Data keeps logging to the board's 32 MB flash whether or not the gateway
   is up.
 - Both probes fire together, because their heaters are in parallel on J3.
