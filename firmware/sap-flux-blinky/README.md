@@ -28,7 +28,7 @@ STM32G0. If the LSE does not start, the driver falls back to the LSI (time then
 runs about 2.3 % slow); the heater pulse width is timed by TIM1 on HSI16 either
 way.
 
-## Heater monitor (firmware 0.3.0)
+## Heater monitor (firmware 0.4.0)
 
 `heater_monitor` samples both probes (12 thermistors + excitation) every 40 ms
 and implements `docs/field-protocol.md` §1 on top of protocol v1.
@@ -175,7 +175,7 @@ cargo build --release --bin heater_monitor
 ```
 
 The supervised bench build retains the intentionally short 30-second
-persistent cooldown and advertises firmware version 0.3.32:
+persistent cooldown and advertises firmware version 0.4.32:
 
 ```sh
 cargo build --release --bin heater_monitor --features dev-short-cooldown
