@@ -551,7 +551,7 @@ mod owned {
 
     use super::{DecodeError, Decoder};
     use crate::header::{Header, Layout};
-    use crate::{East30K12, East30K16, East30Offset, Profile};
+    use crate::{East30Extreme, East30K12, East30K16, East30Offset, East30Wide, Profile};
 
     /// A decoded record (feature `alloc`).
     #[derive(Debug, Clone, PartialEq)]
@@ -638,8 +638,9 @@ mod owned {
     }
 
     /// Decode a record of any built-in profile ([`East30K12`] or
-    /// [`East30K16`], compact or extended header, or [`East30Offset`]),
-    /// whatever its channel count (feature `alloc`). For a custom profile use
+    /// [`East30K16`], compact or extended header, or [`East30Wide`],
+    /// [`East30Extreme`] or [`East30Offset`]), whatever its channel count
+    /// (feature `alloc`). For a custom profile use
     /// [`Decoder::<P>::new`](Decoder::new) and
     /// [`to_decoded`](Decoder::to_decoded).
     ///
@@ -661,10 +662,17 @@ mod owned {
             Ok(Decoder::<East30K12>::new(record)?.to_decoded())
         } else if super::profile_matches::<East30K16>(layout) {
             Ok(Decoder::<East30K16>::new(record)?.to_decoded())
+        } else if super::profile_matches::<East30Wide>(layout) {
+            Ok(Decoder::<East30Wide>::new(record)?.to_decoded())
+        } else if super::profile_matches::<East30Extreme>(layout) {
+            Ok(Decoder::<East30Extreme>::new(record)?.to_decoded())
         } else if super::profile_matches::<East30Offset>(layout) {
             Ok(Decoder::<East30Offset>::new(record)?.to_decoded())
         } else {
-            Err(DecodeError::WrongProfile { found: layout, expected: "East30K12, East30K16 or East30Offset" })
+            Err(DecodeError::WrongProfile {
+                found: layout,
+                expected: "a built-in profile (East30K12, East30K16, East30Wide, East30Extreme or East30Offset)",
+            })
         }
     }
 }
