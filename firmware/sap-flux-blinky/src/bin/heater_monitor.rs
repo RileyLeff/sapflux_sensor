@@ -810,11 +810,15 @@ async fn main(_spawner: Spawner) {
                 .await;
         }
 
-        // Fixed-rate frames; after an overrun, restart the grid from now
-        // (missed frames are simply absent; every frame carries its own time).
-        next_frame_at += frame_period(&ctx);
-        if next_frame_at < Instant::now() {
-            next_frame_at = Instant::now();
+        // Fixed-rate frames on a grid that never slips: a late frame is
+        // followed at once by the next one, and a stall of a whole period or
+        // more skips those slots (absent frames; every frame carries its own
+        // time). The mean rate stays exact, as SFK1's fixed grid assumes.
+        let period = frame_period(&ctx);
+        next_frame_at += period;
+        let now = Instant::now();
+        while next_frame_at + period <= now {
+            next_frame_at += period;
         }
         let frame_deadline = next_frame_at;
         loop {
