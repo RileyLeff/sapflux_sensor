@@ -146,6 +146,11 @@ out, the schedule is held, and FieldStatus shows `eeprom_fault` (bit 6).
    confirm it stays delivered (`windows_pending` drops).
 9. EEPROM fault (spare board, EEPROM not fitted): confirm `status` shows
    `eeprom_fault|heater_lockout` right after boot and that no run starts.
+10. SFK1 windows: `sap-flux-field set-schedule --sfk1 --probe1 east30`
+    (plus `--probe2` if a second probe is fitted). After a run, confirm
+    `get-window` lists one record per probe and writes the frame CSV. Then
+    `get-raw` the same run and confirm the decoded curves track the raw
+    frames within a few counts, including the first seconds after the pulse.
 
 Build the field firmware:
 
