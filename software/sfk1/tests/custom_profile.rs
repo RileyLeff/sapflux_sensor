@@ -11,7 +11,7 @@ struct Probe48;
 
 impl Profile for Probe48 {
     const NAME: &'static str = "probe48 10 Hz";
-    const SAMPLE_RATE_HZ: u16 = 10;
+    const FRAME_PERIOD_US: u32 = 100_000;
     const BIN_FRAMES: u16 = 50;
     type Bins = [i32; 12];
     const POST_FRAMES: u16 = 1811;
@@ -102,4 +102,52 @@ fn probe48_round_trip() {
     }
     #[cfg(not(feature = "decode"))]
     let _ = (rec, truth);
+}
+
+/// Probe48's tables on a 0.4 Hz grid (2.5 s frames), as a large multiplexed
+/// array might run. The spline basis lives in frames, so only the time axis
+/// and the id change.
+struct Probe48Slow;
+
+impl Profile for Probe48Slow {
+    const NAME: &'static str = "probe48 0.4 Hz";
+    const FRAME_PERIOD_US: u32 = 2_500_000;
+    const BIN_FRAMES: u16 = Probe48::BIN_FRAMES;
+    type Bins = [i32; 12];
+    const POST_FRAMES: u16 = Probe48::POST_FRAMES;
+    const T0_FRAMES: u32 = Probe48::T0_FRAMES;
+    const KNOTS: u8 = Probe48::KNOTS;
+    type Acc = [i64; 16];
+    const KF_Q28: i64 = Probe48::KF_Q28;
+    const MQ: &'static [i32] = Probe48::MQ;
+    const D: &'static [f64] = Probe48::D;
+    const K_TABLE: &'static [u8] = Probe48::K_TABLE;
+}
+
+/// A record of the same 48 frame-indexed rises, on profile `P`'s grid.
+fn record<P: Profile>() -> Vec<u8> {
+    let mut enc = Encoder::<48, P>::new(&[0xff; 6], 12).unwrap();
+    for n in 0..enc.frames_expected() {
+        let k = f64::from(n) - f64::from(enc.onset_frame());
+        let therm: [i16; 48] = core::array::from_fn(|c| (9_000.0 + rise(c, k)) as i16);
+        enc.push(20_000, &therm).unwrap();
+    }
+    let mut out = vec![0u8; 4096];
+    let len = enc.finish(&mut out).unwrap().len;
+    out.truncate(len);
+    out
+}
+
+#[test]
+fn a_sub_hertz_grid_changes_only_the_time_axis() {
+    assert_eq!(Probe48Slow::validate(), Ok(()));
+    assert_ne!(Probe48Slow::ID, Probe48::ID);
+    let (fast, slow) = (record::<Probe48>(), record::<Probe48Slow>());
+    let fast = sfk1::Decoder::<Probe48>::new(&fast).unwrap();
+    let slow = sfk1::Decoder::<Probe48Slow>::new(&slow).unwrap();
+    let onset = slow.onset_frame();
+    assert_eq!((slow.time_s(onset + 1), slow.time_s(onset - 2), fast.time_s(onset + 1)), (2.5, -5.0, 0.1));
+    for (f, s) in fast.channels().zip(slow.channels()) {
+        assert_eq!((f.coefs(), f.bins()), (s.coefs(), s.bins()));
+    }
 }

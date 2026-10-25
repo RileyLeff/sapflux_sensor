@@ -214,7 +214,7 @@ impl<'a, P: Profile> Decoder<'a, P> {
     #[must_use]
     #[allow(clippy::cast_precision_loss)]
     pub fn time_s(&self, i: usize) -> f64 {
-        (i as f64 - self.onset_frame() as f64) / f64::from(P::SAMPLE_RATE_HZ)
+        P::frame_time_s(i as f64 - self.onset_frame() as f64)
     }
 
     /// The record's channels, in channel order.
@@ -327,7 +327,7 @@ impl<P: Profile> fmt::Debug for ChannelCoefs<P> {
 #[allow(clippy::cast_precision_loss)]
 fn bin_centre<P: Profile>(i: usize, n_bins: usize) -> f64 {
     let bf = f64::from(P::BIN_FRAMES);
-    (bf * i as f64 + (bf - 1.0) / 2.0 - bf * n_bins as f64) / f64::from(P::SAMPLE_RATE_HZ)
+    P::frame_time_s(bf * i as f64 + (bf - 1.0) / 2.0 - bf * n_bins as f64)
 }
 
 impl<P: Profile> ChannelCoefs<P> {
@@ -386,8 +386,8 @@ impl<P: Profile> ChannelCoefs<P> {
         for (j, wj) in w.iter_mut().enumerate().take(nc) {
             *wj = (0..nc).map(|k| P::D[j * nc + k] * f64::from(self.coefs[k]) * P::STEP).sum();
         }
-        let t0 = f64::from(P::T0_FRAMES) / f64::from(P::SAMPLE_RATE_HZ);
-        let t_end = f64::from(P::POST_FRAMES - 1) / f64::from(P::SAMPLE_RATE_HZ);
+        let t0 = P::frame_time_s(f64::from(P::T0_FRAMES));
+        let t_end = P::frame_time_s(f64::from(P::POST_FRAMES - 1));
         let u0 = libm::log(t0);
         let u1 = libm::log(t_end + t0) + 1e-9;
         Samples { ch: self, line: self.line(), w, t0, u0, u1, frame: 0 }
@@ -478,7 +478,7 @@ impl<P: Profile> Iterator for Samples<'_, P> {
         }
         let onset = usize::from(self.ch.n_bins) * usize::from(P::BIN_FRAMES);
         #[allow(clippy::cast_precision_loss)]
-        let t = (self.frame as f64 - onset as f64) / f64::from(P::SAMPLE_RATE_HZ);
+        let t = P::frame_time_s(self.frame as f64 - onset as f64);
         let v = if self.frame < onset { self.pre_onset(t) } else { self.post_onset(t) };
         self.frame += 1;
         Some(v)
@@ -516,8 +516,8 @@ mod owned {
         pub e_ref: u16,
         /// Baseline bins before onset.
         pub n_bins: u8,
-        /// Frame rate, Hz.
-        pub sample_rate_hz: u16,
+        /// Period of the sampling grid, microseconds.
+        pub frame_period_us: u32,
         /// Frame index of heater onset.
         pub onset_frame: usize,
         /// One entry per live channel, in channel order.
@@ -546,7 +546,7 @@ mod owned {
         #[allow(clippy::cast_precision_loss)]
         pub fn times(&self) -> Vec<f64> {
             let n = self.channels.first().map_or(0, |c| c.samples.len());
-            (0..n).map(|i| (i as f64 - self.onset_frame as f64) / f64::from(self.sample_rate_hz)).collect()
+            (0..n).map(|i| (i as f64 - self.onset_frame as f64) * f64::from(self.frame_period_us) / 1e6).collect()
         }
 
         /// The channel numbered `c`, if it is in the record.
@@ -567,7 +567,7 @@ mod owned {
                 n_channels: h.n_channels(),
                 e_ref: h.e_ref(),
                 n_bins: h.n_bins(),
-                sample_rate_hz: P::SAMPLE_RATE_HZ,
+                frame_period_us: P::FRAME_PERIOD_US,
                 onset_frame: self.onset_frame(),
                 channels: self
                     .channels()

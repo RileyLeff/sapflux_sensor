@@ -126,7 +126,7 @@ East30:
 cd analysis/compression_research_20261024
 uv run --with numpy --with scipy --with pandas --with matplotlib \
     python ../../software/sfk1/tools/generate.py \
-    --profile probe48_10hz --rate 10 --post-s 181 --t0 2 --knots 12
+    --profile probe48_10hz --period-us 100000 --post-s 181 --t0 2 --knots 12
 ```
 
 This writes `tests/profiles/probe48_10hz.rs`. Include it and implement the
@@ -137,7 +137,7 @@ trait; the crate docs and `tests/custom_profile.rs` have the full example (a
 struct Probe48;
 impl sfk1::Profile for Probe48 {
     const NAME: &'static str = "probe48 10 Hz";
-    const SAMPLE_RATE_HZ: u16 = 10;
+    const FRAME_PERIOD_US: u32 = 100_000; // 10 Hz
     const BIN_FRAMES: u16 = 50;
     type Bins = [i32; 12];
     const POST_FRAMES: u16 = 1811;
@@ -208,7 +208,7 @@ async fn ingest(body: Bytes) -> Result<Json<sfk1::Decoded>, (StatusCode, String)
 
 `Decoded` carries:
 
-* `layout`, `profile`, `n_channels`, `e_ref`, `n_bins`, `sample_rate_hz`
+* `layout`, `profile`, `n_channels`, `e_ref`, `n_bins`, `frame_period_us`
   and `onset_frame`;
 * one `DecodedChannel { channel, bins, coefs, samples }` per live channel;
 * `times()`, which gives each sample's time in seconds from onset.

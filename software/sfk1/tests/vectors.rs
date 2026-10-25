@@ -222,7 +222,7 @@ fn alloc_decode_agrees_with_core() {
     for v in vectors() {
         for r in &v.records {
             let owned = sfk1::decode(&r.bytes).unwrap();
-            assert_eq!((owned.n_channels, owned.n_bins, owned.sample_rate_hz), (12, v.n_bins, 25));
+            assert_eq!((owned.n_channels, owned.n_bins, owned.frame_period_us), (12, v.n_bins, 40_000));
             assert_eq!(owned.times().len(), v.frames.len());
             let want = if r.knots == 12 { core::<East30K12>(&r.bytes) } else { core::<East30K16>(&r.bytes) };
             let got: Vec<_> = owned.channels.iter().map(|c| (c.channel, c.samples.clone())).collect();

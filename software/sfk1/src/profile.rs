@@ -94,8 +94,10 @@ pub trait Profile: Sized + 'static {
     /// profile, so any change to a table changes the id.
     const ID: u32 = fingerprint::<Self>();
 
-    /// Frame rate of the fixed sampling grid, Hz.
-    const SAMPLE_RATE_HZ: u16 = 25;
+    /// Period of the fixed sampling grid, microseconds (`40_000` is
+    /// 25 Hz). Any whole number of microseconds works, so a large
+    /// multiplexed array can sample each channel well below 1 Hz.
+    const FRAME_PERIOD_US: u32 = 40_000;
     /// Frames per baseline bin (`1..=4096`).
     const BIN_FRAMES: u16 = 125;
     /// Baseline bins a standard window uses (`2..=MAX_BINS`).
@@ -143,6 +145,19 @@ pub trait Profile: Sized + 'static {
     const ESCAPE_BITS: u32 = 20;
     /// Bits of the first baseline bin (`1..=23`), unsigned 1/8 counts.
     const B0_BITS: u32 = 19;
+
+    /// Seconds spanned by `frames` frames of the grid (fractional frames
+    /// allowed). When the rate divides 1 MHz (25 Hz is 40 000 µs), whole
+    /// and half frames give exactly `frames / rate`, to the last bit.
+    ///
+    /// ```
+    /// use sfk1::{East30K12, Profile};
+    /// assert_eq!(East30K12::frame_time_s(50.0), 2.0);
+    /// ```
+    #[must_use]
+    fn frame_time_s(frames: f64) -> f64 {
+        frames * f64::from(Self::FRAME_PERIOD_US) / 1e6
+    }
 
     /// Coefficients per channel, `KNOTS + 4`.
     #[must_use]
@@ -194,7 +209,7 @@ pub enum ProfileError {
     /// The window (`MAX_BINS * BIN_FRAMES + POST_FRAMES`) exceeds 65535
     /// frames, or `POST_FRAMES < 2`.
     WindowLength,
-    /// `T0_FRAMES` outside `1..=65536`, or `SAMPLE_RATE_HZ` is 0.
+    /// `T0_FRAMES` outside `1..=65536`, or `FRAME_PERIOD_US` is 0.
     TimeAxis,
     /// `KF_Q28` is not positive.
     KnotScale,
@@ -224,7 +239,7 @@ impl ProfileError {
             }
             Self::BinFrames => "Profile::BIN_FRAMES must be in 1..=4096",
             Self::WindowLength => "Profile: MAX_BINS * BIN_FRAMES + POST_FRAMES must be <= 65535 and POST_FRAMES >= 2",
-            Self::TimeAxis => "Profile::T0_FRAMES must be in 1..=65536 and SAMPLE_RATE_HZ must be > 0",
+            Self::TimeAxis => "Profile::T0_FRAMES must be in 1..=65536 and FRAME_PERIOD_US must be > 0",
             Self::KnotScale => "Profile::KF_Q28 must be > 0 (see its docs for the formula)",
             Self::MqShift => "Profile::MQ_SHIFT must be in 1..=62",
             Self::FieldWidths => "Profile: need 1 <= B0_BITS <= 23, B0_BITS < ESCAPE_BITS <= 24, 1 <= ESCAPE_Q <= 31",
@@ -280,7 +295,7 @@ pub(crate) const fn check<P: Profile>() -> Result<(), ProfileError> {
     if P::POST_FRAMES < 2 || max_bins * P::BIN_FRAMES as usize + P::POST_FRAMES as usize > 65_535 {
         return Err(ProfileError::WindowLength);
     }
-    if P::T0_FRAMES < 1 || P::T0_FRAMES > 65_536 || P::SAMPLE_RATE_HZ == 0 {
+    if P::T0_FRAMES < 1 || P::T0_FRAMES > 65_536 || P::FRAME_PERIOD_US == 0 {
         return Err(ProfileError::TimeAxis);
     }
     if P::KF_Q28 <= 0 {
@@ -326,8 +341,8 @@ const fn fnv(mut h: u32, bytes: &[u8]) -> u32 {
 }
 
 /// FNV-1a (32-bit) over the big-endian bytes of everything in `P` that
-/// changes the bitstream or its meaning, in this order: `SAMPLE_RATE_HZ`
-/// (u16), `BIN_FRAMES` (u16), `POST_FRAMES` (u16), `T0_FRAMES` (u32),
+/// changes the bitstream or its meaning, in this order: `FRAME_PERIOD_US`
+/// (u32), `BIN_FRAMES` (u16), `POST_FRAMES` (u16), `T0_FRAMES` (u32),
 /// `KNOTS` (u8), `KF_Q28` (i64), `MQ_SHIFT`, `OFFSET_BITS`, `ESCAPE_Q`,
 /// `ESCAPE_BITS`, `B0_BITS` (u32 each), `OFFSET_MIN` (i32), `STEP` (f64
 /// bits), `K_TABLE` (u8 each), `MQ` (i32 each), `D` (f64 bits each).
@@ -340,7 +355,7 @@ const fn fnv(mut h: u32, bytes: &[u8]) -> u32 {
 #[must_use]
 pub const fn fingerprint<P: Profile>() -> u32 {
     let mut h = FNV_OFFSET;
-    h = fnv(h, &P::SAMPLE_RATE_HZ.to_be_bytes());
+    h = fnv(h, &P::FRAME_PERIOD_US.to_be_bytes());
     h = fnv(h, &P::BIN_FRAMES.to_be_bytes());
     h = fnv(h, &P::POST_FRAMES.to_be_bytes());
     h = fnv(h, &P::T0_FRAMES.to_be_bytes());

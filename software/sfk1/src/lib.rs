@@ -79,7 +79,7 @@
 //!
 //! A profile is a unit struct implementing [`Profile`]. Override what your
 //! sensor changes from the East30 defaults and fill the trained tables from
-//! `tools/generate.py --profile NAME --rate HZ --post-s S --t0 S --knots K`,
+//! `tools/generate.py --profile NAME --period-us US --post-s S --t0 S --knots K`,
 //! which writes `MQ`, `D`, `K_TABLE` and `KF_Q28` for the new grid. Here is a
 //! 48-thermistor probe sampled at 10 Hz:
 //!
@@ -93,7 +93,7 @@
 //! struct Probe48;
 //! impl Profile for Probe48 {
 //!     const NAME: &'static str = "probe48 10 Hz";
-//!     const SAMPLE_RATE_HZ: u16 = 10;
+//!     const FRAME_PERIOD_US: u32 = 100_000; // 10 Hz
 //!     const BIN_FRAMES: u16 = 50; // 5 s bins
 //!     type Bins = [i32; 12];
 //!     const POST_FRAMES: u16 = 1811; // 181 s
