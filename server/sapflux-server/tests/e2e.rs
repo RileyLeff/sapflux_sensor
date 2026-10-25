@@ -317,6 +317,34 @@ async fn admin_api() {
     let (st, _) = call("GET", "/api/devices/nope", None).await;
     assert_eq!(st, 404);
 
+    // SFK1 needs a probe kind; the kinds and SFK1 travel in schedule flags,
+    // the orientation only in server settings.
+    let (st, _) = call("PUT", "/api/devices/box1/schedule", Some(r#"{"sfk1": true}"#)).await;
+    assert_eq!(st, 422);
+    let (st, body) = call(
+        "PUT",
+        "/api/devices/box1/schedule",
+        Some(r#"{"sfk1": true, "probe1": "east30", "probe2": "east30_offset", "probe2_flipped": true}"#),
+    )
+    .await;
+    assert_eq!(st, 200, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!((v["probe2"].as_str(), v["probe2_flipped"].as_bool()), (Some("east30_offset"), Some(true)));
+    let s = r.store.lock().unwrap().settings(DEVICE).unwrap();
+    let wire = s.schedule();
+    assert!(wire.sfk1());
+    assert_eq!(wire.probe(0), sap_flux_protocol::ProbeKind::East30);
+    assert_eq!(wire.probe(1), sap_flux_protocol::ProbeKind::East30Offset);
+    let (st, _) = call("PUT", "/api/devices/box1/schedule", Some(r#"{"probe1": "rubber"}"#)).await;
+    assert_eq!(st, 422);
+    let (st, _) = call(
+        "PUT",
+        "/api/devices/box1/schedule",
+        Some(r#"{"sfk1": false, "probe1": "none", "probe2": "none", "probe2_flipped": false}"#),
+    )
+    .await;
+    assert_eq!(st, 200);
+
     let (st, body) = call("GET", "/api/windows", None).await;
     assert_eq!(st, 200);
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -331,5 +359,6 @@ async fn admin_api() {
     let c = gw.check_in(&mut brd).await.unwrap();
     assert_eq!(c.reply.schedule.interval_s, 1800);
     assert_eq!(c.reply.schedule.phase_s, 900);
-    assert_eq!(c.reply.config_version, 4);
+    assert_eq!(c.reply.config_version, 6); // two more for the SFK1 round trip
+    assert_eq!(c.reply.schedule.flags, 0);
 }

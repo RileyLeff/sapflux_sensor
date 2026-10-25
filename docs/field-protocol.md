@@ -285,8 +285,9 @@ board's schedule alone and retries next wake. Windows stay on the board.
 ## 3. Defaults for the first deployment
 
 - Pulse 1000 ms every 3600 s, phase 0, baseline 60 s, recovery 180 s,
-  25 Hz, 500 ms bins. SFK1 (`flags` bit 1, plus each probe's kind) once the
-  server decodes it.
+  25 Hz, SFK1 (`flags` bit 1) with each installed probe's kind; the server
+  config sets them per board (`sfk1`, `probe1`, `probe2`) and keeps which
+  way up each probe is.
 - Gateway check-in every 3600 s plus the post-window wake.
 - Uplink ≈ 12.6 kB per binned pulse window (about 0.25 kB with SFK1) plus
   about 0.3 kB per check-in.

@@ -2,11 +2,12 @@
 //! state and window reassembly, plus one set of files per completed window.
 
 use crate::board::{self, BoardMsg, FieldStatus};
-use crate::config::{Config, Defaults};
+use crate::config::{schedule_flags, Config, Defaults, ProbeType};
 use crate::window;
 use anyhow::{anyhow, bail, Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
 use sapflux_uplink::{crc32, Schedule, WindowAck, WindowPart, SCHEDULE_FLAG_REQUIRE_LEASE};
+use sap_flux_protocol::SCHEDULE_FLAG_SFK1;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS device_config (
     wake_interval_s   INTEGER NOT NULL,
     send_windows      INTEGER NOT NULL,
     reboot_from_boot  INTEGER,
+    probe_flipped     INTEGER NOT NULL DEFAULT 0,
     updated_ms        INTEGER NOT NULL,
     updated_by        TEXT NOT NULL
 );
@@ -163,6 +165,11 @@ pub struct Settings {
     pub recovery_s: u16,
     pub sample_hz: u16,
     pub bin_ms: u16,
+    pub sfk1: bool,
+    pub probe1: ProbeType,
+    pub probe2: ProbeType,
+    pub probe1_flipped: bool,
+    pub probe2_flipped: bool,
     pub config_version: u32,
     pub lease_s: u32,
     pub wake_interval_s: u32,
@@ -178,7 +185,7 @@ impl Settings {
     pub fn schedule(&self) -> Schedule {
         Schedule {
             enabled: self.enabled as u8,
-            flags: if self.require_lease { SCHEDULE_FLAG_REQUIRE_LEASE } else { 0 },
+            flags: schedule_flags(self.require_lease, self.sfk1, [self.probe1, self.probe2]),
             pulse_duration_ms: self.pulse_duration_ms,
             interval_s: self.interval_s,
             phase_s: self.phase_s,
@@ -188,6 +195,10 @@ impl Settings {
             bin_ms: self.bin_ms,
         }
     }
+}
+
+fn flipped_bits(probe1: bool, probe2: bool) -> u8 {
+    probe1 as u8 | (probe2 as u8) << 1
 }
 
 /// Partial update of [`Settings`] (API `PUT .../schedule`, CLI).
@@ -203,6 +214,11 @@ pub struct SettingsPatch {
     pub recovery_s: Option<u16>,
     pub sample_hz: Option<u16>,
     pub bin_ms: Option<u16>,
+    pub sfk1: Option<bool>,
+    pub probe1: Option<ProbeType>,
+    pub probe2: Option<ProbeType>,
+    pub probe1_flipped: Option<bool>,
+    pub probe2_flipped: Option<bool>,
     pub lease_s: Option<u32>,
     pub wake_interval_s: Option<u32>,
     pub send_windows: Option<bool>,
@@ -312,6 +328,13 @@ impl Store {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.execute_batch(SCHEMA)?;
+        // databases from before the column
+        let has_flipped = conn
+            .prepare("SELECT 1 FROM pragma_table_info('device_config') WHERE name = 'probe_flipped'")?
+            .exists([])?;
+        if !has_flipped {
+            conn.execute_batch("ALTER TABLE device_config ADD COLUMN probe_flipped INTEGER NOT NULL DEFAULT 0")?;
+        }
         Ok(Store {
             conn,
             data_dir: data_dir.to_path_buf(),
@@ -360,8 +383,8 @@ impl Store {
         self.conn.execute(
             "INSERT INTO device_config (device_id, enabled, flags, pulse_duration_ms, interval_s,
                 phase_s, baseline_s, recovery_s, sample_hz, bin_ms, config_version, lease_s,
-                wake_interval_s, send_windows, reboot_from_boot, updated_ms, updated_by)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, NULL, ?14, 'config-defaults')",
+                wake_interval_s, send_windows, reboot_from_boot, updated_ms, updated_by, probe_flipped)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, NULL, ?14, 'config-defaults', ?15)",
             params![
                 device_id as i64,
                 s.enabled,
@@ -376,7 +399,8 @@ impl Store {
                 d.lease_s,
                 d.wake_interval_s,
                 d.send_windows,
-                now_ms()
+                now_ms(),
+                flipped_bits(d.probe1_flipped, d.probe2_flipped)
             ],
         )?;
         self.log_config(device_id, "config-defaults")?;
@@ -445,11 +469,13 @@ impl Store {
                 "SELECT c.enabled, c.flags, c.pulse_duration_ms, c.interval_s, c.phase_s, c.baseline_s,
                         c.recovery_s, c.sample_hz, c.bin_ms, c.config_version, c.lease_s,
                         c.wake_interval_s, c.send_windows, c.reboot_from_boot, c.updated_ms,
-                        c.updated_by, d.name
+                        c.updated_by, d.name, c.probe_flipped
                  FROM device_config c JOIN devices d USING (device_id) WHERE device_id = ?1",
                 [device_id as i64],
                 |r| {
                     let flags: u8 = r.get(1)?;
+                    let flipped: u8 = r.get(17)?;
+                    let wire = Schedule { flags, ..Schedule::FACTORY_DEFAULT };
                     let mut s = Settings {
                         device_id,
                         name: r.get(16)?,
@@ -462,6 +488,11 @@ impl Store {
                         recovery_s: r.get(6)?,
                         sample_hz: r.get(7)?,
                         bin_ms: r.get(8)?,
+                        sfk1: flags & SCHEDULE_FLAG_SFK1 != 0,
+                        probe1: ProbeType::from_kind(wire.probe(0)),
+                        probe2: ProbeType::from_kind(wire.probe(1)),
+                        probe1_flipped: flipped & 1 != 0,
+                        probe2_flipped: flipped & 2 != 0,
                         config_version: r.get(9)?,
                         lease_s: r.get(10)?,
                         wake_interval_s: r.get(11)?,
@@ -489,7 +520,8 @@ impl Store {
         }
         apply!(
             enabled, require_lease, pulse_duration_ms, interval_s, phase_s, baseline_s, recovery_s,
-            sample_hz, bin_ms, lease_s, wake_interval_s, send_windows
+            sample_hz, bin_ms, sfk1, probe1, probe2, probe1_flipped, probe2_flipped, lease_s,
+            wake_interval_s, send_windows
         );
         sapflux_uplink::validate_schedule(&s.schedule())
             .map_err(|e| anyhow!("schedule rejected: {}", sapflux_uplink::schedule_error_text(e)))?;
@@ -504,7 +536,8 @@ impl Store {
             "UPDATE device_config SET enabled = ?2, flags = ?3, pulse_duration_ms = ?4, interval_s = ?5,
                 phase_s = ?6, baseline_s = ?7, recovery_s = ?8, sample_hz = ?9, bin_ms = ?10,
                 lease_s = ?11, wake_interval_s = ?12, send_windows = ?13,
-                config_version = config_version + 1, updated_ms = ?14, updated_by = ?15
+                config_version = config_version + 1, updated_ms = ?14, updated_by = ?15,
+                probe_flipped = ?16
              WHERE device_id = ?1",
             params![
                 device_id as i64,
@@ -521,7 +554,8 @@ impl Store {
                 s.wake_interval_s,
                 s.send_windows,
                 now_ms(),
-                actor
+                actor,
+                flipped_bits(s.probe1_flipped, s.probe2_flipped)
             ],
         )?;
         let new = self.settings(device_id)?;
@@ -994,6 +1028,13 @@ impl Store {
                 js["board_id"] = board.into();
                 js["device_id"] = device_id.into();
                 js["generation"] = generation.into();
+                // installation as configured when the window arrived
+                if let Ok(c) = self.settings(device_id) {
+                    js["probes"] = serde_json::json!([
+                        {"probe": 1, "kind": c.probe1, "flipped": c.probe1_flipped},
+                        {"probe": 2, "kind": c.probe2, "flipped": c.probe2_flipped},
+                    ]);
+                }
                 write_atomic(&stem.with_extension("json"), serde_json::to_string_pretty(&js)?.as_bytes())?;
                 ("ok", None)
             }

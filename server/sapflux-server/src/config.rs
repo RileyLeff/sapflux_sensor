@@ -2,7 +2,8 @@
 
 use anyhow::{bail, Context, Result};
 use sapflux_uplink::Schedule;
-use serde::Deserialize;
+use sap_flux_protocol::{ProbeKind, SCHEDULE_FLAG_SFK1};
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -59,9 +60,63 @@ pub struct Defaults {
     pub recovery_s: u16,
     pub sample_hz: u16,
     pub bin_ms: u16,
+    /// Windows as SFK1 records (needs a probe kind) instead of bins.
+    pub sfk1: bool,
+    pub probe1: ProbeType,
+    pub probe2: ProbeType,
+    /// Installed upside down (heater-side needle order reversed). The board
+    /// doesn't care; window files record it for the fit.
+    pub probe1_flipped: bool,
+    pub probe2_flipped: bool,
     pub lease_s: u32,
     pub wake_interval_s: u32,
     pub send_windows: bool,
+}
+
+/// Probe on a board port. It picks the SFK1 profile the board encodes with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+#[value(rename_all = "snake_case")]
+pub enum ProbeType {
+    #[default]
+    None,
+    /// East30, both needles 6 mm from the heater.
+    East30,
+    /// East30 offset probe, needles 10 mm and 5 mm from the heater.
+    East30Offset,
+}
+
+impl ProbeType {
+    /// The wire kind.
+    pub fn kind(self) -> ProbeKind {
+        match self {
+            ProbeType::None => ProbeKind::None,
+            ProbeType::East30 => ProbeKind::East30,
+            ProbeType::East30Offset => ProbeKind::East30Offset,
+        }
+    }
+
+    /// From the wire kind.
+    pub fn from_kind(k: ProbeKind) -> Self {
+        match k {
+            ProbeKind::None => ProbeType::None,
+            ProbeKind::East30 => ProbeType::East30,
+            ProbeKind::East30Offset => ProbeType::East30Offset,
+        }
+    }
+}
+
+/// Schedule `flags` from the server's settings.
+pub fn schedule_flags(require_lease: bool, sfk1: bool, probes: [ProbeType; 2]) -> u8 {
+    let mut s = Schedule {
+        flags: if require_lease { sapflux_uplink::SCHEDULE_FLAG_REQUIRE_LEASE } else { 0 }
+            | if sfk1 { SCHEDULE_FLAG_SFK1 } else { 0 },
+        ..Schedule::FACTORY_DEFAULT
+    };
+    for (port, p) in probes.into_iter().enumerate() {
+        s = s.with_probe(port, p.kind());
+    }
+    s.flags
 }
 
 impl Default for Defaults {
@@ -77,6 +132,11 @@ impl Default for Defaults {
             recovery_s: s.recovery_s,
             sample_hz: s.sample_hz,
             bin_ms: s.bin_ms,
+            sfk1: false,
+            probe1: ProbeType::None,
+            probe2: ProbeType::None,
+            probe1_flipped: false,
+            probe2_flipped: false,
             lease_s: 3 * 3600,
             wake_interval_s: 3600,
             send_windows: true,
@@ -89,11 +149,7 @@ impl Defaults {
     pub fn schedule(&self) -> Schedule {
         Schedule {
             enabled: self.enabled as u8,
-            flags: if self.require_lease {
-                sapflux_uplink::SCHEDULE_FLAG_REQUIRE_LEASE
-            } else {
-                0
-            },
+            flags: schedule_flags(self.require_lease, self.sfk1, [self.probe1, self.probe2]),
             pulse_duration_ms: self.pulse_duration_ms,
             interval_s: self.interval_s,
             phase_s: self.phase_s,
