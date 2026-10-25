@@ -35,7 +35,8 @@ use sap_flux_core::rawlog::{Geometry, RawLog, CHUNK_LEN};
 use sap_flux_core::records;
 use sap_flux_core::schedule::{next_boot_count, Action, Inputs, Planner};
 use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
-use sap_flux_core::window::{WindowParams, WindowStore, BIN_BYTES};
+use sap_flux_core::sfk1win::Sfk1Window;
+use sap_flux_core::window::{Sfk1Params, WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_core::winlog::WindowLog;
 use sap_flux_protocol::raw::RawFrame;
 use sap_flux_protocol::{
@@ -154,6 +155,9 @@ const WINDOW_MAX_BINS: usize = 1000;
 type Windows = WindowStore<WINDOW_SLOTS, { WINDOW_MAX_BINS * BIN_BYTES }>;
 // All-zero when empty, so this lands in .bss rather than flash.
 static mut WINDOWS: Windows = Windows::new();
+/// SFK1 encoders for the window being recorded (not all-zero, so not in
+/// `WINDOWS`, which lives in `.bss`).
+static SFK1_WINDOW: StaticCell<Sfk1Window> = StaticCell::new();
 
 // Raw 25 Hz frame log: the lower 24 MiB of the W25Q256 (sap_flux_core::flash
 // layout), two sectors kept erased ahead of the head (a 1.5 s pulse needs at
@@ -711,8 +715,12 @@ async fn main(_spawner: Spawner) {
             schedule_in_eeprom,
             boot_count,
             v24_raw: 0,
-            // SAFETY: the only reference to WINDOWS, taken once in main.
-            windows: unsafe { &mut *core::ptr::addr_of_mut!(WINDOWS) },
+            windows: {
+                // SAFETY: the only reference to WINDOWS, taken once in main.
+                let windows: &'static mut Windows = unsafe { &mut *core::ptr::addr_of_mut!(WINDOWS) };
+                windows.attach_sfk1(SFK1_WINDOW.init_with(Sfk1Window::new));
+                windows
+            },
             trim_ppb,
             last_rtc_step_ms: 0,
             last_set_rtc_nonce: None,
@@ -1357,6 +1365,14 @@ async fn run_scheduler(ctx: &mut Ctx<'_>) {
                         sample_hz: run.schedule.sample_hz,
                         pulse_duration_ms: run.schedule.pulse_duration_ms,
                         time_invalid: run.time_invalid,
+                        sfk1: if run.schedule.sfk1() {
+                            Sfk1Params {
+                                probes: [run.schedule.probe(0), run.schedule.probe(1)],
+                                baseline_s: run.schedule.baseline_s,
+                            }
+                        } else {
+                            Sfk1Params::OFF
+                        },
                     });
                 }
             }

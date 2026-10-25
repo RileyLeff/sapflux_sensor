@@ -33,3 +33,12 @@ sap-flux-core = { path = "../sap-flux-core" }
 sap-flux-protocol = { path = "../../software/sap-flux-protocol" }
 static_cell = "2.1.1"
 portable-atomic = { version = "1.13.1", features = ["critical-section"] }
+
+# The SFK1 encoders (two profiles, generic code instantiated in
+# sap-flux-core) add 24 kB of text at opt-level 3, leaving under 4 kB of the
+# 128 kB flash; at "s" they add about 11 kB.
+[profile.release.package.sfk1]
+opt-level = "s"
+
+[profile.release.package.sap-flux-core]
+opt-level = "s"
