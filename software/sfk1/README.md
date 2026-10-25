@@ -33,6 +33,71 @@ They are byte-exact with the Python reference's firmware mode,
 `encoder_spec.decode` to 6e-11 counts. Golden vectors in `tests/vectors`
 check both.
 
+## Choosing a preset
+
+The crate bundles 24 pretrained East30 presets: two probe geometries, four
+knot counts and three training priors. Pick the row by the fastest sap
+flow you expect, then the column by how often flow gets that fast. Each
+cell is the type, then the bytes of a 6-thermistor record (one probe) at
+0–20 cm/h / at the row's top flow:
+
+Classic East30 probe (needles 6 mm downstream and upstream):
+
+| fastest flow | rarely fast (slow tables) | sometimes fast (mixed) | often fast (fast) |
+|---|---|---|---|
+| 70 cm/h | `East30K12` 103 / 151 | `East30K12Mixed` 108 / 130 | `East30K12Fast` 114 / 118 |
+| 120 cm/h | `East30K16` 108 / 224 | `East30K16Mixed` 118 / 162 | `East30K16Fast` 131 / 133 |
+| 165 cm/h | `East30K20` 115 / 258 | `East30K20Mixed` 126 / 167 | `East30K20Fast` 146 / 146 |
+| 200 cm/h | `East30K24` 119 / 264 | `East30K24Mixed` 134 / 197 | `East30K24Fast` 156 / 157 |
+
+Offset East30 probe (10 mm downstream, 5 mm upstream):
+
+| fastest flow | rarely fast (slow tables) | sometimes fast (mixed) | often fast (fast) |
+|---|---|---|---|
+| 70 cm/h | `East30Offset` 114 / 143 | `East30OffsetK12Mixed` 116 / 136 | `East30OffsetK12Fast` 124 / 124 |
+| 110 cm/h | `East30OffsetK16` 119 / 210 | `East30OffsetK16Mixed` 126 / 150 | `East30OffsetK16Fast` 140 / 136 |
+| 150 cm/h | `East30OffsetK20` 124 / 260 | `East30OffsetK20Mixed` 135 / 157 | `East30OffsetK20Fast` 153 / 147 |
+| 200 cm/h | `East30OffsetK24` 128 / 312 | `East30OffsetK24Mixed` 142 / 180 | `East30OffsetK24Fast` 168 / 158 |
+
+If bandwidth is tight, take the slow column. Its records are smallest
+while flow stays below about 30 cm/h, and going down a row there costs
+only 4–7 B at typical flows (8–17 B in the other columns), so cover your
+fastest trees rather than save bytes on the row. If you have bandwidth to spare, take the fast column: it costs
+about the same at every flow. Mixed sits in between. The lossless 25 Hz
+raw stays on the logger's flash whichever you pick.
+
+Rows are knot counts (12, 16, 20, 24, all with `t0` = 2 s). A row decides
+what decodes accurately, and the column only changes record size. RMS
+error against the true curve at high flow, in counts:
+
+| knots | East30 at 100 / 150 / 200 cm/h | offset at 100 / 150 / 200 cm/h |
+|---|---|---|
+| 12 | 0.94 / 3.0 / 6.0 | 1.25 / 3.9 / 18 |
+| 16 | 0.24 / 0.74 / 1.9 | 0.30 / 1.1 / 3.5 |
+| 20 | 0.14 / 0.27 / 0.65 | 0.16 / 0.36 / 0.95 |
+| 24 | 0.14 / 0.17 / 0.29 | 0.14 / 0.19 / 0.39 |
+
+Raw noise is 1.53 counts RMS. Accurate means a full-curve RMS error of at
+most 0.5 counts and no sample more than 5 counts off, from −60 cm/h to the
+top. Each stated top is the highest flow, on a 10–15 cm/h grid, that stays
+within 0.45 and 4.5 averaged over three seeds, so it holds on any one
+pulse. Past its range a preset misses mostly 5–12 s after onset.
+Simulated pulses: k = 0.0025 cm²/s, 1 s pulse, 350 counts at the no-flow
+6 mm peak. The tables:
+
+* slow: uniform over −4 to 32 cm/h;
+* mixed: 85 % of the curves at N(5, 6) cm/h and 15 % uniform over −20 cm/h
+  to the row's top (`generate.py --v-typical 5 6 0.85`);
+* fast: uniform over −20 cm/h to the row's top.
+
+A 12-thermistor record is about twice the size, less one header. Only
+`East30K12` and `East30K16` have the 6-byte compact header for 12
+channels; every other record carries the extended one. `sfk1::BUNDLED`
+lists every preset as a `PresetInfo` (type, name, id, geometry, knots,
+`t0`, prior, ranges and sizes), and `PresetInfo::by_id` finds one.
+`sfk1::decode` decodes all of them, and `tests/flow_range.rs` checks each
+range.
+
 ## Byte layout
 
 A record is a header, then a bitstream with one block per live channel in
@@ -64,8 +129,8 @@ count or profile:
 | 9+M | `NB` | baseline bins |
 
 A decoder refuses a record whose version byte, or profile id, is not its
-profile's (`DecodeError::WrongProfile`). The East30 ids are `0xc6c86f9c`
-(K12) and `0x1cbba4f7` (K16). A 1-channel East30 record therefore has an
+profile's (`DecodeError::WrongProfile`). The East30 ids are `0x378617c1`
+(K12) and `0x5e61db72` (K16); `sfk1::BUNDLED` has every preset's. A 1-channel East30 record therefore has an
 11-byte extended header, and a 20-channel one has a 13-byte header.
 
 ### Per-channel block
@@ -204,9 +269,9 @@ mod east30_1cm { include!("profiles/east30_1cm.rs"); }
 let enc = sfk1::Encoder::<12, east30_1cm::East30At1cm>::new(&[0x0f, 0xff], 12)?;
 ```
 
-The crate bundles `East30Offset` for the offset East30 probes (10 mm above the heater, 5 mm below;
-`--positions='1,0 -0.5,0'`, file `src/profiles/east30_offset.rs`), and
-`sfk1::decode` recognises it. Use one profile per probe type: on simulated
+The [presets](#choosing-a-preset) include `East30Offset` and its siblings
+for the offset East30 probes (10 mm above the heater, 5 mm below;
+`--positions='1,0 -0.5,0'`, file `src/profiles/east30_offset.rs`). Use one profile per probe type: on simulated
 6-thermistor pulses an offset probe takes 122 B with it vs 153 B with the
 East30 tables (121 B vs 148 B installed upside down, which still decodes
 the same curve), while a classic 6 mm probe is better on `East30K12`
@@ -285,6 +350,7 @@ Encoder RAM, `size_of`:
 | `Encoder16` | 3 128 |
 | `Encoder<64, East30K12>` | 14 336 |
 | `Encoder<256, East30K12>` | 57 152 |
+| `Encoder<6, P>`, 12 / 16 / 20 / 24 knots | 1 408 / 1 600 / 1 792 / 1 984 |
 
 That is about 220 B per channel. A few hundred channels are fine on a host,
 but too much RAM for the STM32G0B1 next to the firmware; split large arrays
@@ -309,6 +375,14 @@ that way can give just this crate `opt-level = "s"`:
 opt-level = "s"
 ```
 
+A firmware links only the presets it uses. Each adds its encoder tables
+to .rodata: 1.0 / 1.6 / 2.3 / 3.1 kB at 12 / 16 / 20 / 24 knots. A knot
+count the firmware does not use yet also adds a copy of the encoder code,
+about 4 kB of .text at `"s"`, while presets with the same knot count share
+it. Measured in `heater_monitor`: swapping its `East30Offset` encoder for
+`East30OffsetK16`, `K20` or `K24` adds 4.0 kB of .text plus 0.6, 1.3 or
+2.2 kB of .rodata.
+
 Records are about 20 B per live channel plus the header: 78-287 B for the
 vector windows. `MAX_RECORD_LEN` (2090 B) bounds any `Encoder12` or
 `Encoder16` record. Every encoder has its own `Encoder::MAX_RECORD_LEN`.
@@ -321,7 +395,7 @@ vector windows. `MAX_RECORD_LEN` (2090 B) bounds any `Encoder12` or
 | `alloc` | | `decode()`, `Decoded` |
 | `std` | | implies `alloc` |
 | `defmt` | | `defmt::Format` on public types and errors |
-| `serde` | | `Serialize`/`Deserialize` on `Layout`, `Line`, `Decoded` |
+| `serde` | | `Serialize`/`Deserialize` on `Layout`, `Line`, `Decoded`, `Geometry`, `Prior`; `Serialize` on `PresetInfo` |
 
 The MSRV is 1.87.
 

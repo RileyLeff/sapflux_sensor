@@ -19,7 +19,7 @@
 //!   a caller buffer.
 //! * [`Decoder<P>`](Decoder) (feature `decode`, on by default) parses a
 //!   record of any channel count and rebuilds each channel's curve. With
-//!   `alloc`, [`decode()`] picks the bundled profile from the header and
+//!   `alloc`, [`decode()`] picks the bundled preset from the header and
 //!   returns it all in [`Vec`](alloc::vec::Vec)s. [`Curve`] evaluates a
 //!   channel between frames, for front ends that sample channels at fixed
 //!   offsets ([sample timing](Curve#sample-timing)).
@@ -29,6 +29,44 @@
 //! firmware mode, `encoder_spec.encode(w, fixed_point="firmware")`, and the
 //! decoder matches the reference decoder; both are checked against golden
 //! vectors in `tests/vectors`.
+//!
+//! # Choosing a preset
+//!
+//! The crate bundles 24 pretrained East30 presets, listed in [`BUNDLED`].
+//! Pick the row by the fastest sap flow you expect, then the column by how
+//! often flow gets that fast. Each cell is the type, then the bytes of a
+//! 6-thermistor record (one probe) at 0–20 cm/h / at the row's top flow.
+//!
+//! Classic East30 probe (6 mm downstream and upstream):
+//!
+//! | fastest flow | rarely fast (slow tables) | sometimes fast (mixed) | often fast (fast) |
+//! |---|---|---|---|
+//! | 70 cm/h | [`East30K12`] 103 / 151 | [`East30K12Mixed`] 108 / 130 | [`East30K12Fast`] 114 / 118 |
+//! | 120 cm/h | [`East30K16`] 108 / 224 | [`East30K16Mixed`] 118 / 162 | [`East30K16Fast`] 131 / 133 |
+//! | 165 cm/h | [`East30K20`] 115 / 258 | [`East30K20Mixed`] 126 / 167 | [`East30K20Fast`] 146 / 146 |
+//! | 200 cm/h | [`East30K24`] 119 / 264 | [`East30K24Mixed`] 134 / 197 | [`East30K24Fast`] 156 / 157 |
+//!
+//! Offset East30 probe (10 mm downstream, 5 mm upstream):
+//!
+//! | fastest flow | rarely fast (slow tables) | sometimes fast (mixed) | often fast (fast) |
+//! |---|---|---|---|
+//! | 70 cm/h | [`East30Offset`] 114 / 143 | [`East30OffsetK12Mixed`] 116 / 136 | [`East30OffsetK12Fast`] 124 / 124 |
+//! | 110 cm/h | [`East30OffsetK16`] 119 / 210 | [`East30OffsetK16Mixed`] 126 / 150 | [`East30OffsetK16Fast`] 140 / 136 |
+//! | 150 cm/h | [`East30OffsetK20`] 124 / 260 | [`East30OffsetK20Mixed`] 135 / 157 | [`East30OffsetK20Fast`] 153 / 147 |
+//! | 200 cm/h | [`East30OffsetK24`] 128 / 312 | [`East30OffsetK24Mixed`] 142 / 180 | [`East30OffsetK24Fast`] 168 / 158 |
+//!
+//! If bandwidth is tight, take the slow column: its records are smallest
+//! while flow stays below about 30 cm/h. With bandwidth to spare, take the
+//! fast column, which costs about the same at every flow. The lossless
+//! 25 Hz raw stays on the logger's flash whichever you pick.
+//!
+//! Rows are knot counts (12, 16, 20, 24; `t0` = 2 s) and set what decodes
+//! accurately: a full-curve RMS error of at most 0.5 counts and no sample
+//! more than 5 counts off the noise-free curve (raw noise 1.53 counts RMS),
+//! from −60 cm/h to the top. Columns are the training prior (see [`Prior`])
+//! and only change record size. The crate README has the error past each
+//! range and how the ranges were measured. [`decode()`] decodes every
+//! preset, and [`PresetInfo::by_id`] looks one up.
 //!
 //! # Example
 //!
@@ -141,7 +179,7 @@
 //! | `alloc` | | [`decode()`], [`Decoded`] |
 //! | `std` | | implies `alloc` |
 //! | `defmt` | | `defmt::Format` on public types and errors |
-//! | `serde` | | `Serialize`/`Deserialize` on [`Layout`], [`Line`] and the decoded types |
+//! | `serde` | | `Serialize`/`Deserialize` on [`Layout`], [`Line`], the decoded types, [`Geometry`] and [`Prior`]; `Serialize` on [`PresetInfo`] |
 //!
 //! Firmware uses `default-features = false` (plus `defmt` if wanted) and
 //! links only the integer encoder and its profile's tables.
