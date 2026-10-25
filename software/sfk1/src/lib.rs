@@ -166,7 +166,7 @@ mod tables;
 #[cfg(feature = "alloc")]
 pub use decode::{decode, Decoded, DecodedChannel};
 #[cfg(feature = "decode")]
-pub use decode::{ChannelCoefs, Channels, DecodeError, Decoder, Line, Samples, MAX_DECODE_BINS};
+pub use decode::{ChannelCoefs, Channels, Curve, DecodeError, Decoder, Line, Samples, MAX_DECODE_BINS};
 pub use encoder::{EncodeError, Encoder, Encoder12, Encoder16, Finished};
 #[cfg(feature = "decode")]
 pub use header::{Header, Layout};

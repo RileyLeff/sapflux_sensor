@@ -381,6 +381,13 @@ impl<P: Profile> ChannelCoefs<P> {
     /// (counts at `E_ref`).
     #[must_use]
     pub fn samples(&self) -> Samples<'_, P> {
+        Samples { curve: self.curve(), frame: 0 }
+    }
+
+    /// The reconstruction as a function of continuous time, for evaluating
+    /// between or off the frame instants (see [`Curve::at`]).
+    #[must_use]
+    pub fn curve(&self) -> Curve<'_, P> {
         let nc = P::n_coefs();
         let mut w = [0.0f64; MAX_COEFS];
         for (j, wj) in w.iter_mut().enumerate().take(nc) {
@@ -390,7 +397,7 @@ impl<P: Profile> ChannelCoefs<P> {
         let t_end = P::frame_time_s(f64::from(P::POST_FRAMES - 1));
         let u0 = libm::log(t0);
         let u1 = libm::log(t_end + t0) + 1e-9;
-        Samples { ch: self, line: self.line(), w, t0, u0, u1, frame: 0 }
+        Curve { ch: self, line: self.line(), w, t0, u0, u1 }
     }
 
     /// Write the reconstruction into `out`, which must be
@@ -412,18 +419,57 @@ impl<P: Profile> ChannelCoefs<P> {
     }
 }
 
-/// Iterator over a channel's reconstruction, from [`ChannelCoefs::samples`].
-pub struct Samples<'c, P: Profile> {
+/// A channel's reconstruction as a function of time, from
+/// [`ChannelCoefs::curve`].
+///
+/// # Sample timing
+///
+/// The record stores each channel on the frame grid: frame `i` is at
+/// [`Decoder::time_s`]`(i)`. A multiplexed front end reads channels one
+/// after another, so channel `c` is really sampled some `δ_c` seconds after
+/// its frame instant (its place in the scan, less the heater's own offset
+/// within the onset frame). The format does not store `δ_c`; it is a fixed
+/// property of the hardware. To account for it, either relabel (sample `i`
+/// of channel `c` is at `time_s(i) + δ_c`) or resample onto a common time
+/// base with `curve.at(t - δ_c)`, the channel's value at time `t` from
+/// heater onset. Both are exact up to the spline's own resolution, which is
+/// set by `T0_FRAMES`; keep `δ_c` well below it.
+pub struct Curve<'c, P: Profile> {
     ch: &'c ChannelCoefs<P>,
     line: Line,
     w: [f64; MAX_COEFS],
     t0: f64,
     u0: f64,
     u1: f64,
-    frame: usize,
 }
 
-impl<P: Profile> Samples<'_, P> {
+impl<P: Profile> Clone for Curve<'_, P> {
+    fn clone(&self) -> Self {
+        Self { ch: self.ch, line: self.line, w: self.w, t0: self.t0, u0: self.u0, u1: self.u1 }
+    }
+}
+
+impl<P: Profile> fmt::Debug for Curve<'_, P> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Curve").field("channel", &self.ch.channel).finish_non_exhaustive()
+    }
+}
+
+impl<P: Profile> Curve<'_, P> {
+    /// The reconstruction at `t` seconds from heater onset, on the grid's
+    /// time axis (negative before onset), in counts at `E_ref`. At a frame
+    /// instant it equals that frame's sample. Before the first baseline bin
+    /// centre the first bin is held; past the window end the last spline
+    /// piece is extended.
+    #[must_use]
+    pub fn at(&self, t: f64) -> f64 {
+        if t < 0.0 {
+            self.pre_onset(t)
+        } else {
+            self.post_onset(t)
+        }
+    }
+
     fn pre_onset(&self, t: f64) -> f64 {
         let nb = usize::from(self.ch.n_bins);
         let centre = |i| bin_centre::<P>(i, nb);
@@ -469,23 +515,29 @@ impl<P: Profile> Samples<'_, P> {
     }
 }
 
+/// Iterator over a channel's reconstruction, from [`ChannelCoefs::samples`].
+pub struct Samples<'c, P: Profile> {
+    curve: Curve<'c, P>,
+    frame: usize,
+}
+
 impl<P: Profile> Iterator for Samples<'_, P> {
     type Item = f64;
 
     fn next(&mut self) -> Option<f64> {
-        if self.frame >= self.ch.n_frames() {
+        if self.frame >= self.curve.ch.n_frames() {
             return None;
         }
-        let onset = usize::from(self.ch.n_bins) * usize::from(P::BIN_FRAMES);
+        let onset = usize::from(self.curve.ch.n_bins) * usize::from(P::BIN_FRAMES);
         #[allow(clippy::cast_precision_loss)]
         let t = P::frame_time_s(self.frame as f64 - onset as f64);
-        let v = if self.frame < onset { self.pre_onset(t) } else { self.post_onset(t) };
+        let v = if self.frame < onset { self.curve.pre_onset(t) } else { self.curve.post_onset(t) };
         self.frame += 1;
         Some(v)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let left = self.ch.n_frames() - self.frame;
+        let left = self.curve.ch.n_frames() - self.frame;
         (left, Some(left))
     }
 }
@@ -541,7 +593,10 @@ mod owned {
     }
 
     impl Decoded {
-        /// Time of each sample in seconds from heater onset.
+        /// Time of each frame instant in seconds from heater onset. A
+        /// channel sampled `δ` s after its frame instant (a multiplexed
+        /// front end) has sample `i` at `times()[i] + δ`; see
+        /// [`Curve`](crate::Curve#sample-timing).
         #[must_use]
         #[allow(clippy::cast_precision_loss)]
         pub fn times(&self) -> Vec<f64> {
