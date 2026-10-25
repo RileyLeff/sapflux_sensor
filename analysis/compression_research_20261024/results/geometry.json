@@ -1,0 +1,1902 @@
+{
+ "config": {
+  "knots": 12,
+  "step_counts": 3.0,
+  "sigma_counts": 1.5,
+  "fs_hz": 25,
+  "pulse_s": 1.0,
+  "n_train_per_geometry": 800,
+  "n_test_per_geometry": 500,
+  "geometries_cm": {
+   "ax_dn_0.5": [
+    0.5,
+    0.0
+   ],
+   "ax_dn_0.6": [
+    0.6,
+    0.0
+   ],
+   "ax_dn_0.75": [
+    0.75,
+    0.0
+   ],
+   "ax_dn_1": [
+    1.0,
+    0.0
+   ],
+   "ax_up_0.5": [
+    -0.5,
+    0.0
+   ],
+   "ax_up_0.6": [
+    -0.6,
+    0.0
+   ],
+   "ax_up_0.75": [
+    -0.75,
+    0.0
+   ],
+   "ax_up_1": [
+    -1.0,
+    0.0
+   ],
+   "tan_0.6": [
+    0.0,
+    0.6
+   ],
+   "diag45_dn_0.6": [
+    0.4242640687119285,
+    0.4242640687119285
+   ],
+   "diag45_up_0.6": [
+    -0.4242640687119285,
+    0.4242640687119285
+   ]
+  },
+  "physics": "k U(0.0016,0.0034) cm2/s, v U(-4,32) cm/h, radial spacing error U(-10,10) %, lateral offset U(-0.03,0.03) cm, 0.6 cm v=0 peak U(280,420) counts, drift U(-40,40) mK/min + curvature U(-2,2) mK/min2, white noise 1.5 counts"
+ },
+ "sanity": {
+  "line_source_vs_finite_pulse_max_rel_err": 4.733989104103251e-16,
+  "rice_vectorised_mismatches": 0,
+  "unquantised_projection_max_abs_diff_across_V_counts": 1.0459189070388675e-11,
+  "rmse_per_curve_max_abs_diff_vs_A_counts": 0.0582823880360388
+ },
+ "k_tables": {
+  "A": [
+   12,
+   9,
+   7,
+   5,
+   3,
+   2,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "A'": [
+   12,
+   9,
+   7,
+   5,
+   3,
+   2,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "B": [
+   12,
+   9,
+   7,
+   6,
+   5,
+   3,
+   2,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "spacing_class_k_tables": {
+  "0.5": [
+   13,
+   9,
+   8,
+   6,
+   4,
+   2,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "0.6": [
+   12,
+   9,
+   7,
+   5,
+   3,
+   2,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "0.75": [
+   12,
+   8,
+   7,
+   5,
+   3,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "1": [
+   11,
+   7,
+   6,
+   4,
+   2,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "geometry": {
+  "ax_dn_0.5": {
+   "peak_counts_median": 713.7637484834265,
+   "peak_counts_p10_p90": [
+    471.26514957180643,
+    1041.445674549783
+   ],
+   "k_tables": {
+    "Ak": [
+     13,
+     11,
+     9,
+     8,
+     5,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     13,
+     11,
+     9,
+     7,
+     6,
+     4,
+     3,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     13,
+     9,
+     8,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     13,
+     10,
+     9,
+     6,
+     5,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 115.278,
+     "coef_bits_p95": 244.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.19679877357595954,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 112.678,
+     "coef_bits_p95": 235.04999999999995,
+     "delta_vs_A_bits_mean": -2.6,
+     "delta_vs_A_bits_sem": 0.24399809454231514,
+     "delta_vs_A_B_per_12ch_record": -3.9000000000000004,
+     "rmse_vs_noisefree_mean": 0.19712986186304857,
+     "rmse_max_abs_diff_vs_A": 0.027603091849039058
+    },
+    "Ak": {
+     "coef_bits_mean": 96.246,
+     "coef_bits_p95": 151.04999999999995,
+     "delta_vs_A_bits_mean": -19.032,
+     "delta_vs_A_bits_sem": 1.1959508974444546,
+     "delta_vs_A_B_per_12ch_record": -28.548000000000002,
+     "rmse_vs_noisefree_mean": 0.19679877357595954,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 97.198,
+     "coef_bits_p95": 115.0,
+     "delta_vs_A_bits_mean": -18.08,
+     "delta_vs_A_bits_sem": 1.9379149177548827,
+     "delta_vs_A_B_per_12ch_record": -27.119999999999997,
+     "rmse_vs_noisefree_mean": 0.19657251459299488,
+     "rmse_max_abs_diff_vs_A": 0.03887995683537149
+    },
+    "C": {
+     "coef_bits_mean": 91.52,
+     "coef_bits_p95": 107.04999999999995,
+     "delta_vs_A_bits_mean": -23.758,
+     "delta_vs_A_bits_sem": 2.005047456447156,
+     "delta_vs_A_B_per_12ch_record": -35.637,
+     "rmse_vs_noisefree_mean": 0.19657251459299488,
+     "rmse_max_abs_diff_vs_A": 0.03887995683537149
+    },
+    "S": {
+     "coef_bits_mean": 83.226,
+     "coef_bits_p95": 98.0,
+     "delta_vs_A_bits_mean": -32.052,
+     "delta_vs_A_bits_sem": 2.222231134339733,
+     "delta_vs_A_B_per_12ch_record": -48.078,
+     "rmse_vs_noisefree_mean": 0.19704391175364794,
+     "rmse_max_abs_diff_vs_A": 0.040333916351013716
+    },
+    "D": {
+     "coef_bits_mean": 81.324,
+     "coef_bits_p95": 94.04999999999995,
+     "delta_vs_A_bits_mean": -33.954,
+     "delta_vs_A_bits_sem": 2.2286330740517863,
+     "delta_vs_A_B_per_12ch_record": -50.931,
+     "rmse_vs_noisefree_mean": 0.19696947816621793,
+     "rmse_max_abs_diff_vs_A": 0.050180670323808046
+    }
+   }
+  },
+  "ax_dn_0.6": {
+   "peak_counts_median": 511.0690127610763,
+   "peak_counts_p10_p90": [
+    333.9292790928317,
+    782.9344191724477
+   ],
+   "k_tables": {
+    "Ak": [
+     13,
+     10,
+     8,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     13,
+     9,
+     7,
+     7,
+     5,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     13,
+     9,
+     8,
+     6,
+     4,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 80.858,
+     "coef_bits_p95": 101.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.13517026502154106,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 81.936,
+     "coef_bits_p95": 100.0,
+     "delta_vs_A_bits_mean": 1.078,
+     "delta_vs_A_bits_sem": 0.12658546425051748,
+     "delta_vs_A_B_per_12ch_record": 1.617,
+     "rmse_vs_noisefree_mean": 0.13392110459842974,
+     "rmse_max_abs_diff_vs_A": 0.03520104187749183
+    },
+    "Ak": {
+     "coef_bits_mean": 77.878,
+     "coef_bits_p95": 95.0,
+     "delta_vs_A_bits_mean": -2.98,
+     "delta_vs_A_bits_sem": 0.11345900533577565,
+     "delta_vs_A_B_per_12ch_record": -4.47,
+     "rmse_vs_noisefree_mean": 0.13517026502154106,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 88.79,
+     "coef_bits_p95": 107.0,
+     "delta_vs_A_bits_mean": 7.932,
+     "delta_vs_A_bits_sem": 0.24063782979876736,
+     "delta_vs_A_B_per_12ch_record": 11.898,
+     "rmse_vs_noisefree_mean": 0.13436567052134815,
+     "rmse_max_abs_diff_vs_A": 0.03732577416603268
+    },
+    "C": {
+     "coef_bits_mean": 87.582,
+     "coef_bits_p95": 107.0,
+     "delta_vs_A_bits_mean": 6.724,
+     "delta_vs_A_bits_sem": 0.23822920540651019,
+     "delta_vs_A_B_per_12ch_record": 10.086,
+     "rmse_vs_noisefree_mean": 0.13436567052134815,
+     "rmse_max_abs_diff_vs_A": 0.03732577416603268
+    },
+    "S": {
+     "coef_bits_mean": 81.936,
+     "coef_bits_p95": 100.0,
+     "delta_vs_A_bits_mean": 1.078,
+     "delta_vs_A_bits_sem": 0.12658546425051748,
+     "delta_vs_A_B_per_12ch_record": 1.617,
+     "rmse_vs_noisefree_mean": 0.13392110459842974,
+     "rmse_max_abs_diff_vs_A": 0.03520104187749183
+    },
+    "D": {
+     "coef_bits_mean": 79.024,
+     "coef_bits_p95": 92.04999999999995,
+     "delta_vs_A_bits_mean": -1.834,
+     "delta_vs_A_bits_sem": 0.21068855530063643,
+     "delta_vs_A_B_per_12ch_record": -2.7510000000000003,
+     "rmse_vs_noisefree_mean": 0.13493974562761263,
+     "rmse_max_abs_diff_vs_A": 0.039364936479117055
+    }
+   }
+  },
+  "ax_dn_0.75": {
+   "peak_counts_median": 376.8928260071102,
+   "peak_counts_p10_p90": [
+    208.77764792436844,
+    578.514222568184
+   ],
+   "k_tables": {
+    "Ak": [
+     12,
+     10,
+     8,
+     6,
+     4,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     12,
+     10,
+     8,
+     6,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     8,
+     7,
+     5,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     12,
+     9,
+     8,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 90.336,
+     "coef_bits_p95": 142.04999999999995,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.1158494569942514,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 92.024,
+     "coef_bits_p95": 143.24999999999977,
+     "delta_vs_A_bits_mean": 1.688,
+     "delta_vs_A_bits_sem": 0.12140341667003576,
+     "delta_vs_A_B_per_12ch_record": 2.532,
+     "rmse_vs_noisefree_mean": 0.11562265309720919,
+     "rmse_max_abs_diff_vs_A": 0.03811780051679964
+    },
+    "Ak": {
+     "coef_bits_mean": 85.082,
+     "coef_bits_p95": 121.04999999999995,
+     "delta_vs_A_bits_mean": -5.254,
+     "delta_vs_A_bits_sem": 0.37698701093383263,
+     "delta_vs_A_B_per_12ch_record": -7.880999999999999,
+     "rmse_vs_noisefree_mean": 0.1158494569942514,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 90.136,
+     "coef_bits_p95": 109.04999999999995,
+     "delta_vs_A_bits_mean": -0.2,
+     "delta_vs_A_bits_sem": 0.8596359391601723,
+     "delta_vs_A_B_per_12ch_record": -0.30000000000000004,
+     "rmse_vs_noisefree_mean": 0.11583089752415429,
+     "rmse_max_abs_diff_vs_A": 0.046313632599540466
+    },
+    "C": {
+     "coef_bits_mean": 87.972,
+     "coef_bits_p95": 108.0,
+     "delta_vs_A_bits_mean": -2.364,
+     "delta_vs_A_bits_sem": 0.8790269533805769,
+     "delta_vs_A_B_per_12ch_record": -3.546,
+     "rmse_vs_noisefree_mean": 0.11583089752415429,
+     "rmse_max_abs_diff_vs_A": 0.046313632599540466
+    },
+    "S": {
+     "coef_bits_mean": 78.452,
+     "coef_bits_p95": 95.0,
+     "delta_vs_A_bits_mean": -11.884,
+     "delta_vs_A_bits_sem": 1.0117095434959589,
+     "delta_vs_A_B_per_12ch_record": -17.826,
+     "rmse_vs_noisefree_mean": 0.11568191998352481,
+     "rmse_max_abs_diff_vs_A": 0.040225951884801936
+    },
+    "D": {
+     "coef_bits_mean": 76.544,
+     "coef_bits_p95": 90.04999999999995,
+     "delta_vs_A_bits_mean": -13.792,
+     "delta_vs_A_bits_sem": 1.0409960699422791,
+     "delta_vs_A_B_per_12ch_record": -20.688,
+     "rmse_vs_noisefree_mean": 0.11608285827006667,
+     "rmse_max_abs_diff_vs_A": 0.044762401588869696
+    }
+   }
+  },
+  "ax_dn_1": {
+   "peak_counts_median": 229.86255962766433,
+   "peak_counts_p10_p90": [
+    119.37666648480284,
+    384.77176825343236
+   ],
+   "k_tables": {
+    "Ak": [
+     12,
+     11,
+     8,
+     7,
+     7,
+     4,
+     4,
+     2,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     12,
+     11,
+     9,
+     7,
+     5,
+     4,
+     2,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     11,
+     7,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 122.272,
+     "coef_bits_p95": 219.0999999999999,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.11085902650723227,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 124.302,
+     "coef_bits_p95": 227.04999999999995,
+     "delta_vs_A_bits_mean": 2.03,
+     "delta_vs_A_bits_sem": 0.15690582805541517,
+     "delta_vs_A_B_per_12ch_record": 3.045,
+     "rmse_vs_noisefree_mean": 0.11131489163666133,
+     "rmse_max_abs_diff_vs_A": 0.045710742762173434
+    },
+    "Ak": {
+     "coef_bits_mean": 97.632,
+     "coef_bits_p95": 126.04999999999995,
+     "delta_vs_A_bits_mean": -24.64,
+     "delta_vs_A_bits_sem": 1.2134701560562908,
+     "delta_vs_A_B_per_12ch_record": -36.96,
+     "rmse_vs_noisefree_mean": 0.11085902650723227,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 93.542,
+     "coef_bits_p95": 115.0,
+     "delta_vs_A_bits_mean": -28.73,
+     "delta_vs_A_bits_sem": 1.3632928279241179,
+     "delta_vs_A_B_per_12ch_record": -43.095,
+     "rmse_vs_noisefree_mean": 0.11046391590147889,
+     "rmse_max_abs_diff_vs_A": 0.04740853582296424
+    },
+    "C": {
+     "coef_bits_mean": 88.756,
+     "coef_bits_p95": 114.0,
+     "delta_vs_A_bits_mean": -33.516,
+     "delta_vs_A_bits_sem": 1.3606919022709776,
+     "delta_vs_A_B_per_12ch_record": -50.274,
+     "rmse_vs_noisefree_mean": 0.11046391590147889,
+     "rmse_max_abs_diff_vs_A": 0.04740853582296424
+    },
+    "S": {
+     "coef_bits_mean": 74.802,
+     "coef_bits_p95": 92.04999999999995,
+     "delta_vs_A_bits_mean": -47.47,
+     "delta_vs_A_bits_sem": 1.6003488472410416,
+     "delta_vs_A_B_per_12ch_record": -71.205,
+     "rmse_vs_noisefree_mean": 0.11032475707184902,
+     "rmse_max_abs_diff_vs_A": 0.05048748790039197
+    },
+    "D": {
+     "coef_bits_mean": 70.404,
+     "coef_bits_p95": 83.0,
+     "delta_vs_A_bits_mean": -51.868,
+     "delta_vs_A_bits_sem": 1.6540583332941678,
+     "delta_vs_A_B_per_12ch_record": -77.802,
+     "rmse_vs_noisefree_mean": 0.1102806740858692,
+     "rmse_max_abs_diff_vs_A": 0.04903240962787213
+    }
+   }
+  },
+  "ax_up_0.5": {
+   "peak_counts_median": 330.1086402026166,
+   "peak_counts_p10_p90": [
+    164.79848261274563,
+    534.3901071022399
+   ],
+   "k_tables": {
+    "Ak": [
+     12,
+     10,
+     8,
+     6,
+     4,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     12,
+     9,
+     8,
+     6,
+     4,
+     3,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     13,
+     9,
+     8,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 91.258,
+     "coef_bits_p95": 148.19999999999982,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.13233933914592994,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 90.174,
+     "coef_bits_p95": 145.04999999999995,
+     "delta_vs_A_bits_mean": -1.084,
+     "delta_vs_A_bits_sem": 0.14328625160775055,
+     "delta_vs_A_B_per_12ch_record": -1.6260000000000001,
+     "rmse_vs_noisefree_mean": 0.1331629357522338,
+     "rmse_max_abs_diff_vs_A": 0.032921360369056324
+    },
+    "Ak": {
+     "coef_bits_mean": 86.242,
+     "coef_bits_p95": 130.04999999999995,
+     "delta_vs_A_bits_mean": -5.016,
+     "delta_vs_A_bits_sem": 0.3651988889042706,
+     "delta_vs_A_B_per_12ch_record": -7.524,
+     "rmse_vs_noisefree_mean": 0.13233933914592994,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 82.456,
+     "coef_bits_p95": 98.0,
+     "delta_vs_A_bits_mean": -8.802,
+     "delta_vs_A_bits_sem": 1.0149886679130875,
+     "delta_vs_A_B_per_12ch_record": -13.203,
+     "rmse_vs_noisefree_mean": 0.13243029256126324,
+     "rmse_max_abs_diff_vs_A": 0.0582823880360388
+    },
+    "C": {
+     "coef_bits_mean": 82.19,
+     "coef_bits_p95": 98.0,
+     "delta_vs_A_bits_mean": -9.068,
+     "delta_vs_A_bits_sem": 1.0273059266517774,
+     "delta_vs_A_B_per_12ch_record": -13.602,
+     "rmse_vs_noisefree_mean": 0.13243029256126324,
+     "rmse_max_abs_diff_vs_A": 0.0582823880360388
+    },
+    "S": {
+     "coef_bits_mean": 72.096,
+     "coef_bits_p95": 83.0,
+     "delta_vs_A_bits_mean": -19.162,
+     "delta_vs_A_bits_sem": 1.2869156210223196,
+     "delta_vs_A_B_per_12ch_record": -28.743,
+     "rmse_vs_noisefree_mean": 0.13195283498315782,
+     "rmse_max_abs_diff_vs_A": 0.04593312311284915
+    },
+    "D": {
+     "coef_bits_mean": 71.348,
+     "coef_bits_p95": 81.0,
+     "delta_vs_A_bits_mean": -19.91,
+     "delta_vs_A_bits_sem": 1.3190251911581596,
+     "delta_vs_A_B_per_12ch_record": -29.865000000000002,
+     "rmse_vs_noisefree_mean": 0.1328521222505651,
+     "rmse_max_abs_diff_vs_A": 0.04198986917603094
+    }
+   }
+  },
+  "ax_up_0.6": {
+   "peak_counts_median": 206.9371722494099,
+   "peak_counts_p10_p90": [
+    92.63194619911101,
+    367.665697792763
+   ],
+   "k_tables": {
+    "Ak": [
+     12,
+     8,
+     7,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     12,
+     8,
+     6,
+     5,
+     4,
+     2,
+     1,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     12,
+     8,
+     7,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 67.962,
+     "coef_bits_p95": 81.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.10790391788586959,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 68.626,
+     "coef_bits_p95": 82.0,
+     "delta_vs_A_bits_mean": 0.664,
+     "delta_vs_A_bits_sem": 0.10709410017636438,
+     "delta_vs_A_B_per_12ch_record": 0.996,
+     "rmse_vs_noisefree_mean": 0.10707864345269254,
+     "rmse_max_abs_diff_vs_A": 0.041551067095116245
+    },
+    "Ak": {
+     "coef_bits_mean": 69.524,
+     "coef_bits_p95": 85.0,
+     "delta_vs_A_bits_mean": 1.562,
+     "delta_vs_A_bits_sem": 0.09595168289770535,
+     "delta_vs_A_B_per_12ch_record": 2.343,
+     "rmse_vs_noisefree_mean": 0.10790391788586959,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 74.022,
+     "coef_bits_p95": 86.0,
+     "delta_vs_A_bits_mean": 6.06,
+     "delta_vs_A_bits_sem": 0.1911068907375523,
+     "delta_vs_A_B_per_12ch_record": 9.09,
+     "rmse_vs_noisefree_mean": 0.10740131952106122,
+     "rmse_max_abs_diff_vs_A": 0.0480851733015661
+    },
+    "C": {
+     "coef_bits_mean": 76.064,
+     "coef_bits_p95": 90.0,
+     "delta_vs_A_bits_mean": 8.102,
+     "delta_vs_A_bits_sem": 0.21778441657797373,
+     "delta_vs_A_B_per_12ch_record": 12.153,
+     "rmse_vs_noisefree_mean": 0.10740131952106122,
+     "rmse_max_abs_diff_vs_A": 0.0480851733015661
+    },
+    "S": {
+     "coef_bits_mean": 68.626,
+     "coef_bits_p95": 82.0,
+     "delta_vs_A_bits_mean": 0.664,
+     "delta_vs_A_bits_sem": 0.10709410017636438,
+     "delta_vs_A_B_per_12ch_record": 0.996,
+     "rmse_vs_noisefree_mean": 0.10707864345269254,
+     "rmse_max_abs_diff_vs_A": 0.041551067095116245
+    },
+    "D": {
+     "coef_bits_mean": 68.314,
+     "coef_bits_p95": 80.04999999999995,
+     "delta_vs_A_bits_mean": 0.352,
+     "delta_vs_A_bits_sem": 0.17065297206245045,
+     "delta_vs_A_B_per_12ch_record": 0.528,
+     "rmse_vs_noisefree_mean": 0.10690703301839312,
+     "rmse_max_abs_diff_vs_A": 0.049296154810100704
+    }
+   }
+  },
+  "ax_up_0.75": {
+   "peak_counts_median": 114.09332117408857,
+   "peak_counts_p10_p90": [
+    41.9630063421592,
+    239.68237633808877
+   ],
+   "k_tables": {
+    "Ak": [
+     11,
+     8,
+     6,
+     5,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     11,
+     9,
+     6,
+     5,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     8,
+     7,
+     5,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     11,
+     7,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 69.742,
+     "coef_bits_p95": 93.04999999999995,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.10153140672324762,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 70.806,
+     "coef_bits_p95": 94.09999999999991,
+     "delta_vs_A_bits_mean": 1.064,
+     "delta_vs_A_bits_sem": 0.09312977133343145,
+     "delta_vs_A_B_per_12ch_record": 1.596,
+     "rmse_vs_noisefree_mean": 0.10207904931676287,
+     "rmse_max_abs_diff_vs_A": 0.03597021684755561
+    },
+    "Ak": {
+     "coef_bits_mean": 70.8,
+     "coef_bits_p95": 97.0,
+     "delta_vs_A_bits_mean": 1.058,
+     "delta_vs_A_bits_sem": 0.08915811988081267,
+     "delta_vs_A_B_per_12ch_record": 1.5870000000000002,
+     "rmse_vs_noisefree_mean": 0.10153140672324762,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 72.426,
+     "coef_bits_p95": 88.0,
+     "delta_vs_A_bits_mean": 2.684,
+     "delta_vs_A_bits_sem": 0.31773290102346274,
+     "delta_vs_A_B_per_12ch_record": 4.026,
+     "rmse_vs_noisefree_mean": 0.10248833862345924,
+     "rmse_max_abs_diff_vs_A": 0.043679895153839715
+    },
+    "C": {
+     "coef_bits_mean": 73.54,
+     "coef_bits_p95": 90.0,
+     "delta_vs_A_bits_mean": 3.798,
+     "delta_vs_A_bits_sem": 0.3333476162604632,
+     "delta_vs_A_B_per_12ch_record": 5.697,
+     "rmse_vs_noisefree_mean": 0.10248833862345924,
+     "rmse_max_abs_diff_vs_A": 0.043679895153839715
+    },
+    "S": {
+     "coef_bits_mean": 64.224,
+     "coef_bits_p95": 77.0,
+     "delta_vs_A_bits_mean": -5.518,
+     "delta_vs_A_bits_sem": 0.429105599159998,
+     "delta_vs_A_B_per_12ch_record": -8.277,
+     "rmse_vs_noisefree_mean": 0.10163853489972519,
+     "rmse_max_abs_diff_vs_A": 0.05213511877728175
+    },
+    "D": {
+     "coef_bits_mean": 63.238,
+     "coef_bits_p95": 76.0,
+     "delta_vs_A_bits_mean": -6.504,
+     "delta_vs_A_bits_sem": 0.38704984584202157,
+     "delta_vs_A_B_per_12ch_record": -9.756,
+     "rmse_vs_noisefree_mean": 0.10215548317680896,
+     "rmse_max_abs_diff_vs_A": 0.04812728186676184
+    }
+   }
+  },
+  "ax_up_1": {
+   "peak_counts_median": 49.01375544203536,
+   "peak_counts_p10_p90": [
+    12.14995194785552,
+    124.88018585974453
+   ],
+   "k_tables": {
+    "Ak": [
+     10,
+     9,
+     6,
+     5,
+     4,
+     2,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     10,
+     9,
+     7,
+     4,
+     3,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     11,
+     7,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     10,
+     6,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 78.14,
+     "coef_bits_p95": 98.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.1016559498171762,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 80.11,
+     "coef_bits_p95": 100.0,
+     "delta_vs_A_bits_mean": 1.97,
+     "delta_vs_A_bits_sem": 0.07868024632857124,
+     "delta_vs_A_B_per_12ch_record": 2.955,
+     "rmse_vs_noisefree_mean": 0.10199031730822522,
+     "rmse_max_abs_diff_vs_A": 0.03859394347693286
+    },
+    "Ak": {
+     "coef_bits_mean": 74.176,
+     "coef_bits_p95": 94.0,
+     "delta_vs_A_bits_mean": -3.964,
+     "delta_vs_A_bits_sem": 0.11359231676859892,
+     "delta_vs_A_B_per_12ch_record": -5.946,
+     "rmse_vs_noisefree_mean": 0.1016559498171762,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 71.018,
+     "coef_bits_p95": 89.0,
+     "delta_vs_A_bits_mean": -7.122,
+     "delta_vs_A_bits_sem": 0.22767939699417528,
+     "delta_vs_A_B_per_12ch_record": -10.683,
+     "rmse_vs_noisefree_mean": 0.10188760693413285,
+     "rmse_max_abs_diff_vs_A": 0.04924301547573644
+    },
+    "C": {
+     "coef_bits_mean": 71.294,
+     "coef_bits_p95": 91.0,
+     "delta_vs_A_bits_mean": -6.846,
+     "delta_vs_A_bits_sem": 0.25623403317966764,
+     "delta_vs_A_B_per_12ch_record": -10.269,
+     "rmse_vs_noisefree_mean": 0.10188760693413285,
+     "rmse_max_abs_diff_vs_A": 0.04924301547573644
+    },
+    "S": {
+     "coef_bits_mean": 57.884,
+     "coef_bits_p95": 72.0,
+     "delta_vs_A_bits_mean": -20.256,
+     "delta_vs_A_bits_sem": 0.3566332886947185,
+     "delta_vs_A_B_per_12ch_record": -30.384,
+     "rmse_vs_noisefree_mean": 0.10042090928866833,
+     "rmse_max_abs_diff_vs_A": 0.04465675378281654
+    },
+    "D": {
+     "coef_bits_mean": 56.892,
+     "coef_bits_p95": 71.0,
+     "delta_vs_A_bits_mean": -21.248,
+     "delta_vs_A_bits_sem": 0.4312783254326328,
+     "delta_vs_A_B_per_12ch_record": -31.872,
+     "rmse_vs_noisefree_mean": 0.10121656799252729,
+     "rmse_max_abs_diff_vs_A": 0.043988716124229374
+    }
+   }
+  },
+  "tan_0.6": {
+   "peak_counts_median": 321.4769262733769,
+   "peak_counts_p10_p90": [
+    245.2518188258731,
+    409.862452819705
+   ],
+   "k_tables": {
+    "Ak": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     12,
+     9,
+     7,
+     6,
+     5,
+     3,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 72.454,
+     "coef_bits_p95": 85.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.1135434987125982,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 73.12,
+     "coef_bits_p95": 84.0,
+     "delta_vs_A_bits_mean": 0.666,
+     "delta_vs_A_bits_sem": 0.11579163789675671,
+     "delta_vs_A_B_per_12ch_record": 0.9990000000000001,
+     "rmse_vs_noisefree_mean": 0.11276323316819427,
+     "rmse_max_abs_diff_vs_A": 0.03006104707892146
+    },
+    "Ak": {
+     "coef_bits_mean": 72.454,
+     "coef_bits_p95": 85.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.1135434987125982,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 79.742,
+     "coef_bits_p95": 88.0,
+     "delta_vs_A_bits_mean": 7.288,
+     "delta_vs_A_bits_sem": 0.20428798094434392,
+     "delta_vs_A_B_per_12ch_record": 10.932,
+     "rmse_vs_noisefree_mean": 0.11294127673762494,
+     "rmse_max_abs_diff_vs_A": 0.039285084996138045
+    },
+    "C": {
+     "coef_bits_mean": 79.742,
+     "coef_bits_p95": 88.0,
+     "delta_vs_A_bits_mean": 7.288,
+     "delta_vs_A_bits_sem": 0.20428798094434392,
+     "delta_vs_A_B_per_12ch_record": 10.932,
+     "rmse_vs_noisefree_mean": 0.11294127673762494,
+     "rmse_max_abs_diff_vs_A": 0.039285084996138045
+    },
+    "S": {
+     "coef_bits_mean": 73.12,
+     "coef_bits_p95": 84.0,
+     "delta_vs_A_bits_mean": 0.666,
+     "delta_vs_A_bits_sem": 0.11579163789675671,
+     "delta_vs_A_B_per_12ch_record": 0.9990000000000001,
+     "rmse_vs_noisefree_mean": 0.11276323316819427,
+     "rmse_max_abs_diff_vs_A": 0.03006104707892146
+    },
+    "D": {
+     "coef_bits_mean": 71.934,
+     "coef_bits_p95": 86.0,
+     "delta_vs_A_bits_mean": -0.52,
+     "delta_vs_A_bits_sem": 0.12823450462474095,
+     "delta_vs_A_B_per_12ch_record": -0.78,
+     "rmse_vs_noisefree_mean": 0.11266345100552733,
+     "rmse_max_abs_diff_vs_A": 0.038265843929362234
+    }
+   }
+  },
+  "diag45_dn_0.6": {
+   "peak_counts_median": 457.94670951134526,
+   "peak_counts_p10_p90": [
+    330.5285278512992,
+    620.5730176686575
+   ],
+   "k_tables": {
+    "Ak": [
+     13,
+     9,
+     8,
+     5,
+     4,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     13,
+     9,
+     7,
+     7,
+     5,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     13,
+     9,
+     8,
+     5,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 78.316,
+     "coef_bits_p95": 95.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.12863000826347565,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 79.268,
+     "coef_bits_p95": 93.0,
+     "delta_vs_A_bits_mean": 0.952,
+     "delta_vs_A_bits_sem": 0.12342552296603355,
+     "delta_vs_A_B_per_12ch_record": 1.428,
+     "rmse_vs_noisefree_mean": 0.12813204944609424,
+     "rmse_max_abs_diff_vs_A": 0.03361820777144675
+    },
+    "Ak": {
+     "coef_bits_mean": 76.848,
+     "coef_bits_p95": 92.04999999999995,
+     "delta_vs_A_bits_mean": -1.468,
+     "delta_vs_A_bits_sem": 0.07422243555610229,
+     "delta_vs_A_B_per_12ch_record": -2.202,
+     "rmse_vs_noisefree_mean": 0.12863000826347565,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 85.822,
+     "coef_bits_p95": 99.0,
+     "delta_vs_A_bits_mean": 7.506,
+     "delta_vs_A_bits_sem": 0.2391784703550107,
+     "delta_vs_A_B_per_12ch_record": 11.259,
+     "rmse_vs_noisefree_mean": 0.12853764640018617,
+     "rmse_max_abs_diff_vs_A": 0.034335719955510005
+    },
+    "C": {
+     "coef_bits_mean": 84.782,
+     "coef_bits_p95": 98.0,
+     "delta_vs_A_bits_mean": 6.466,
+     "delta_vs_A_bits_sem": 0.23218420922626942,
+     "delta_vs_A_B_per_12ch_record": 9.699,
+     "rmse_vs_noisefree_mean": 0.12853764640018617,
+     "rmse_max_abs_diff_vs_A": 0.034335719955510005
+    },
+    "S": {
+     "coef_bits_mean": 79.268,
+     "coef_bits_p95": 93.0,
+     "delta_vs_A_bits_mean": 0.952,
+     "delta_vs_A_bits_sem": 0.12342552296603355,
+     "delta_vs_A_B_per_12ch_record": 1.428,
+     "rmse_vs_noisefree_mean": 0.12813204944609424,
+     "rmse_max_abs_diff_vs_A": 0.03361820777144675
+    },
+    "D": {
+     "coef_bits_mean": 77.074,
+     "coef_bits_p95": 90.0,
+     "delta_vs_A_bits_mean": -1.242,
+     "delta_vs_A_bits_sem": 0.14110525641085644,
+     "delta_vs_A_B_per_12ch_record": -1.863,
+     "rmse_vs_noisefree_mean": 0.12812701806848917,
+     "rmse_max_abs_diff_vs_A": 0.044234430978850256
+    }
+   }
+  },
+  "diag45_up_0.6": {
+   "peak_counts_median": 249.27837012027737,
+   "peak_counts_p10_p90": [
+    125.6750955234018,
+    382.41310156278456
+   ],
+   "k_tables": {
+    "Ak": [
+     12,
+     8,
+     7,
+     4,
+     3,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "C": [
+     12,
+     8,
+     7,
+     5,
+     4,
+     3,
+     1,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "S": [
+     12,
+     9,
+     7,
+     5,
+     3,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "D": [
+     12,
+     8,
+     7,
+     4,
+     2,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "strategies": {
+    "A": {
+     "coef_bits_mean": 69.186,
+     "coef_bits_p95": 83.0,
+     "delta_vs_A_bits_mean": 0.0,
+     "delta_vs_A_bits_sem": 0.0,
+     "delta_vs_A_B_per_12ch_record": 0.0,
+     "rmse_vs_noisefree_mean": 0.10817549988989011,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "A'": {
+     "coef_bits_mean": 69.922,
+     "coef_bits_p95": 83.0,
+     "delta_vs_A_bits_mean": 0.736,
+     "delta_vs_A_bits_sem": 0.11920161933507534,
+     "delta_vs_A_B_per_12ch_record": 1.104,
+     "rmse_vs_noisefree_mean": 0.10828201935866913,
+     "rmse_max_abs_diff_vs_A": 0.03586337446746332
+    },
+    "Ak": {
+     "coef_bits_mean": 70.462,
+     "coef_bits_p95": 87.0,
+     "delta_vs_A_bits_mean": 1.276,
+     "delta_vs_A_bits_sem": 0.09090751538077262,
+     "delta_vs_A_B_per_12ch_record": 1.9140000000000001,
+     "rmse_vs_noisefree_mean": 0.10817549988989011,
+     "rmse_max_abs_diff_vs_A": 0.0
+    },
+    "B": {
+     "coef_bits_mean": 75.7,
+     "coef_bits_p95": 87.0,
+     "delta_vs_A_bits_mean": 6.514,
+     "delta_vs_A_bits_sem": 0.21203189157787605,
+     "delta_vs_A_B_per_12ch_record": 9.771,
+     "rmse_vs_noisefree_mean": 0.10888227215033885,
+     "rmse_max_abs_diff_vs_A": 0.0417221328201864
+    },
+    "C": {
+     "coef_bits_mean": 77.554,
+     "coef_bits_p95": 91.0,
+     "delta_vs_A_bits_mean": 8.368,
+     "delta_vs_A_bits_sem": 0.2661556493094194,
+     "delta_vs_A_B_per_12ch_record": 12.552,
+     "rmse_vs_noisefree_mean": 0.10888227215033885,
+     "rmse_max_abs_diff_vs_A": 0.0417221328201864
+    },
+    "S": {
+     "coef_bits_mean": 69.922,
+     "coef_bits_p95": 83.0,
+     "delta_vs_A_bits_mean": 0.736,
+     "delta_vs_A_bits_sem": 0.11920161933507534,
+     "delta_vs_A_B_per_12ch_record": 1.104,
+     "rmse_vs_noisefree_mean": 0.10828201935866913,
+     "rmse_max_abs_diff_vs_A": 0.03586337446746332
+    },
+    "D": {
+     "coef_bits_mean": 69.908,
+     "coef_bits_p95": 81.0,
+     "delta_vs_A_bits_mean": 0.722,
+     "delta_vs_A_bits_sem": 0.1687435354658751,
+     "delta_vs_A_B_per_12ch_record": 1.083,
+     "rmse_vs_noisefree_mean": 0.10807309211757996,
+     "rmse_max_abs_diff_vs_A": 0.04068330826143095
+    }
+   }
+  }
+ },
+ "all_geometries_mean": {
+  "A": 85.07290909090909,
+  "A'": 85.72418181818183,
+  "Ak": 79.75854545454544,
+  "B": 82.80472727272728,
+  "C": 81.90872727272726,
+  "S": 73.05054545454547,
+  "D": 71.45490909090908
+ },
+ "east30_0.6_mean": {
+  "A": 74.41,
+  "A'": 75.281,
+  "Ak": 73.701,
+  "B": 81.406,
+  "C": 81.823,
+  "S": 75.281,
+  "D": 73.669
+ },
+ "east30_set_by_spacing": {
+  "0.5": {
+   "coef_bits_per_ch": {
+    "A": 103.268,
+    "A'": 101.426,
+    "Ak": 91.244,
+    "B": 89.827,
+    "C": 86.85499999999999,
+    "S": 77.661,
+    "D": 76.336
+   },
+   "delta_vs_A_B_per_12ch_record": {
+    "A": 0.0,
+    "A'": -2.762999999999998,
+    "Ak": -18.036,
+    "B": -20.161500000000004,
+    "C": -24.619500000000016,
+    "S": -38.4105,
+    "D": -40.398
+   }
+  },
+  "0.6": {
+   "coef_bits_per_ch": {
+    "A": 74.41,
+    "A'": 75.281,
+    "Ak": 73.701,
+    "B": 81.406,
+    "C": 81.823,
+    "S": 75.281,
+    "D": 73.669
+   },
+   "delta_vs_A_B_per_12ch_record": {
+    "A": 0.0,
+    "A'": 1.306500000000014,
+    "Ak": -1.0635000000000048,
+    "B": 10.494000000000014,
+    "C": 11.119499999999995,
+    "S": 1.306500000000014,
+    "D": -1.1114999999999995
+   }
+  },
+  "0.75": {
+   "coef_bits_per_ch": {
+    "A": 80.039,
+    "A'": 81.41499999999999,
+    "Ak": 77.941,
+    "B": 81.281,
+    "C": 80.756,
+    "S": 71.338,
+    "D": 69.89099999999999
+   },
+   "delta_vs_A_B_per_12ch_record": {
+    "A": 0.0,
+    "A'": 2.063999999999986,
+    "Ak": -3.1469999999999985,
+    "B": 1.8630000000000067,
+    "C": 1.0754999999999981,
+    "S": -13.051500000000011,
+    "D": -15.222000000000016
+   }
+  },
+  "1": {
+   "coef_bits_per_ch": {
+    "A": 100.206,
+    "A'": 102.206,
+    "Ak": 85.904,
+    "B": 82.28,
+    "C": 80.025,
+    "S": 66.343,
+    "D": 63.647999999999996
+   },
+   "delta_vs_A_B_per_12ch_record": {
+    "A": 0.0,
+    "A'": 3.0,
+    "Ak": -21.45300000000001,
+    "B": -26.889000000000003,
+    "C": -30.271499999999996,
+    "S": -50.7945,
+    "D": -54.83700000000001
+   }
+  }
+ }
+}

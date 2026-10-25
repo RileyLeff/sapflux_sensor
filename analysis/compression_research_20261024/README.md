@@ -341,6 +341,109 @@ to trigger the on-request raw pull.
 * Radio energy numbers are assumptions. Measure one LTE-M wake on the actual
   nRF9160 + SIM and update ASSUME.
 
+## 11. Thermistor geometry and table classes (exp_geometry.py → results/geometry.json)
+
+**Question.** SFK1's KLT rotation V and its Rice k-table were trained on
+East30 0.6 cm axial curves. Would other thermistor positions need their own
+tables (per-channel "geometry classes"), or is one shared set enough?
+
+**Method.**
+* **Curves.** An isotropic 2D moving finite line source, with flow along
+  the axis. On the axis it equals `fit_4x4_pulse.finite_pulse_response`
+  (max relative difference 5e-16).
+* **Positions.** Axial downstream and upstream at 0.5, 0.6, 0.75 and
+  1.0 cm; tangential at 0.6 cm; 45° diagonals, downstream and upstream, at
+  0.6 cm.
+* **Physics,** drawn as `klt_rotation` does: k 0.0016–0.0034 cm²/s,
+  v −4..32 cm/h, ±10 % radial spacing error plus ±0.03 cm lateral offset,
+  and a 1 s pulse.
+* **Amplitudes are physical.** The peak goes as about 1/r², and a 0.6 cm
+  curve at v = 0 peaks at 280–420 counts.
+* **Test windows.** Full 60 + 181 s windows with ±40 mK/min drift, ±2
+  mK/min² curvature and 1.5-count white noise at 25 Hz. The line is fitted
+  from the twelve Q3 baseline bins, as in SFK1.
+* **Coding.** Quantization step 3 counts, Rice coding with the K-table plus
+  the 2-bit offset, exactly as SFK1 does.
+* **Draws.** 800 training curves and 500 independent test curves per
+  geometry.
+
+**Strategies:**
+* A: the shipped tables.
+* A′: the same training procedure on this simulator, using East30 0.6 cm
+  up + down only.
+* Ak: the shipped V with a per-geometry k-table.
+* B: one V + k-table trained on all geometries.
+* C: B's V with a per-geometry k-table.
+* S: a per-spacing class, with V + k-table trained on up + down at that
+  distance (tangential and diagonal positions use the 0.6 cm class).
+* D: a per-geometry V + k-table.
+
+Coefficient bits per channel (including the 2-bit offset; baseline bits
+are the same in every strategy), test mean:
+
+| geometry | peak (counts, median) | A | A′ | Ak | B | C | S | D |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| ax_dn_0.5 | 714 | 115.3 | 112.7 | 96.2 | 97.2 | 91.5 | 83.2 | 81.3 |
+| ax_dn_0.6 | 511 | 80.9 | 81.9 | 77.9 | 88.8 | 87.6 | 81.9 | 79.0 |
+| ax_dn_0.75 | 377 | 90.3 | 92.0 | 85.1 | 90.1 | 88.0 | 78.5 | 76.5 |
+| ax_dn_1 | 230 | 122.3 | 124.3 | 97.6 | 93.5 | 88.8 | 74.8 | 70.4 |
+| ax_up_0.5 | 330 | 91.3 | 90.2 | 86.2 | 82.5 | 82.2 | 72.1 | 71.3 |
+| ax_up_0.6 | 207 | 68.0 | 68.6 | 69.5 | 74.0 | 76.1 | 68.6 | 68.3 |
+| ax_up_0.75 | 114 | 69.7 | 70.8 | 70.8 | 72.4 | 73.5 | 64.2 | 63.2 |
+| ax_up_1 | 49 | 78.1 | 80.1 | 74.2 | 71.0 | 71.3 | 57.9 | 56.9 |
+| tan_0.6 | 321 | 72.5 | 73.1 | 72.5 | 79.7 | 79.7 | 73.1 | 71.9 |
+| diag45_dn_0.6 | 458 | 78.3 | 79.3 | 76.8 | 85.8 | 84.8 | 79.3 | 77.1 |
+| diag45_up_0.6 | 249 | 69.2 | 69.9 | 70.5 | 75.7 | 77.6 | 69.9 | 69.9 |
+| **mean, all** | | **85.1** | **85.7** | **79.8** | **82.8** | **81.9** | **73.1** | **71.5** |
+
+The standard error of each difference from A is at most 2.2 bits (largest
+at 0.5 cm downstream) and usually 0.1–0.4 bits.
+
+Change in bytes per 12-channel record for a whole East30-style set
+(6 downstream, 6 upstream) at one spacing, against A. A typical SFK1 record
+is about 250 B.
+
+| set spacing | A′ | Ak | B | C | S | D |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.5 cm | −2.8 | −18.0 | −20.2 | −24.6 | **−38.4** | −40.4 |
+| 0.6 cm | +1.3 | −1.1 | +10.5 | +11.1 | +1.3 | −1.1 |
+| 0.75 cm | +2.1 | −3.1 | +1.9 | +1.1 | **−13.1** | −15.2 |
+| 1.0 cm | +3.0 | −21.5 | −26.9 | −30.3 | **−50.8** | −54.8 |
+
+**Sanity check.**
+* The unquantized projection is identical under every V (maximum
+  difference 1e-11 counts).
+* Reconstruction RMSE against the noise-free curve agrees across all
+  strategies to 3 decimals for every geometry (0.10–0.20 counts).
+* Per curve, RMSE differs by at most 0.06 counts, because the
+  quantization lattice is rotated.
+* The tables cost only bits. A′ reproduces the shipped k-table exactly,
+  and its bits are within 3 bits/channel of A, so the simulator matches the
+  one the shipped tables were trained on.
+
+**Conclusion.**
+* **The rotation is what matters, and the class key is the
+  thermistor–heater distance.** At 0.5 and 1.0 cm, the shipped V costs
+  about 20–47 bits/channel. A per-spacing V + k-table (S) comes within 0–4.4
+  bits of a per-geometry optimum (D). That saves 38 B (0.5 cm), 13 B
+  (0.75 cm) and 51 B (1.0 cm) per record, i.e. 5–20 % of 250 B.
+* **Per-class k-tables alone (Ak, C) recover only about half of that at
+  0.5/1.0 cm and a quarter at 0.75 cm.** The 2-bit offset already
+  absorbs amplitude. The loss comes from the curve shifting in ln t, by
+  ln(r²/0.36), which pushes energy into indices whose k is 0.
+* **One shared table set over all geometries (B) is a poor compromise.**
+  It costs every 0.6 cm set 10.5 B per record and still leaves 1.0 cm about
+  24 B worse than S.
+* **Tangential and diagonal at 0.6 cm, and up versus downstream, need no
+  class of their own.** D beats the 0.6 cm tables by ≤ 3 bits/channel
+  (≤ 0.4 B) there.
+* **Recommendation:** one (V, K) set per probe spacing, i.e. 0.5, 0.6,
+  0.75 and 1.0 cm. Each costs ≈ 1 kB of flash (16×16 i32 M, plus 16 B of
+  k-table). The record must name its class, e.g. one class id per probe;
+  a per-channel id is not needed.
+* **Caveat:** simulated white noise and pure Marshall shapes. The real
+  misfit and coloured noise of §10 add bits under every strategy alike.
+
 ## Reproduce
 
 ```sh
@@ -354,6 +457,7 @@ $R exp_sequence.py    # inter-pulse prediction
 $R exp_anomaly.py     # anomaly flags
 $R exp_idle.py        # idle summaries
 $R exp_budget.py      # flash / MB / energy
+$R exp_geometry.py    # thermistor geometry vs trained tables -> results/geometry.json
 $R make_figures.py    # fig_tradeoff.png, fig_reconstruction.png
 ```
 
