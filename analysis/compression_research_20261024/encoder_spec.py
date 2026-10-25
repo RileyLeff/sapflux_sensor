@@ -145,7 +145,9 @@ def line_fit(tc: np.ndarray, b: np.ndarray, n: np.ndarray) -> tuple[float, float
     return float(a), float(bs)
 
 
-def encode(w: C.Window, fixed_point: bool = False, knots: int = KNOTS) -> tuple[bytes, dict]:
+def encode(w: C.Window, fixed_point: bool | str = False, knots: int = KNOTS) -> tuple[bytes, dict]:
+    if fixed_point == "firmware":  # the Rust crate's integer arithmetic, see fw_encode
+        return fw_encode(*fw_frames(w), knots=knots)
     t = w.t
     post = t >= 0
     tp = t[post]
@@ -241,6 +243,307 @@ def spec_encoder(w: C.Window, fixed_point: bool = False, knots: int = KNOTS) -> 
                      {"payload_B_actual": len(data), "bits_per_channel": per_ch})
 
 
+# --------------------------------------------------------------------------
+# Firmware mode: encode(w, fixed_point="firmware") mirrors, operation for
+# operation, the integer arithmetic of the Rust `sfk1` crate
+# (software/sfk1/src/encoder.rs).  Same wire format; its bytes are the
+# crate's golden vectors (software/sfk1/tools/generate.py).  Differences from
+# the float reference above, all invisible to the decoder:
+#
+# * The window is the nominal 25 Hz grid: n_bins * 125 frames before onset,
+#   N_POST from onset.  Frames are placed by round(25 t); empty slots are
+#   *missing* frames (real captures run at ~24 Hz, so they have ~4.5 %).
+#   A missing frame is left out of the excitation boxcar and of its baseline
+#   bin; after onset its thermistor counts are interpolated from the frames
+#   around it (the board looks 6 frames ahead anyway, for exc13), or held
+#   when none is near, so the projection still sees every sample.
+# * The ratio is kept unrounded as p = raw / exc13 in Q24; E_ref is applied
+#   only at the end (bins) or at onset (line), so nothing waits on E_ref.
+# * The baseline line is known at onset, so r = y - line is formed per
+#   sample and G = B^T r accumulates directly (no H1/Ht).
+# * u = ln(t + 2 s) comes from an integer log2 (degree-8 polynomial, Q30);
+#   the B-spline pieces are exact integers / 12, evaluated by Horner in Q24
+#   and stored as B * 12 * 2^16.
+# * M is i32, scaled by 2^36 / 576; all accumulators are i64 with bounds
+#   that hold for any i16 input (see the Rust sources for the proofs).
+# * Results are clamped to the field widths: b to [0, 2^19), ci to
+#   [-2^19, 2^19).
+
+FW_BIN = 125  # frames per 5 s baseline bin
+FW_MAX_BINS = 12
+FW_HALF = 6  # exc13 = frames k-6 .. k+6
+FW_P_MAX = 1 << 30  # |p| clamp (ratio < 64)
+FW_RECIP_SHIFT = 40  # recip = (cnt << 40) // sum ; p = raw * recip >> 16
+I32_MIN, I32_MAX = -(1 << 31), (1 << 31) - 1
+FW_CI_MIN, FW_CI_MAX = -(1 << 19), (1 << 19) - 1
+FW_B_MAX = (1 << B0_BITS) - 1
+# log2(1 + f), f in [0, 1) as Q30; degree-8 fit at Chebyshev nodes, max
+# error 5.7e-8 on the encoder's domain (v = n + 50, n = 1 .. 4525), Horner
+# products < 2^60.  Lowest power first.
+FW_LOG2_POLY = (61, 1549072137, -774270685, 513438044, -370901926, 255595634, -142965425, 53078675, -9304724)
+# s = K ln((n+50)/50) / (ln 183 + 1e-9 - ln 2) = log2((n+50)/50) * KF;  KF in Q28
+FW_KF_Q28 = {12: 535577300, 16: 700370315}
+# Cubic B-spline pieces on the clamped uniform knot vector, times 12, in the
+# local coordinate x in [0, 1] of an interval (lowest power first).  Row m
+# is basis function i+m on interval i.  Five interval types: first, second,
+# interior, second-last, last.
+FW_BASIS_C12 = (
+    ((12, -36, 36, -12), (0, 36, -54, 21), (0, 0, 18, -11), (0, 0, 0, 2)),
+    ((3, -9, 9, -3), (7, 3, -15, 7), (2, 6, 6, -6), (0, 0, 0, 2)),
+    ((2, -6, 6, -2), (8, 0, -12, 6), (2, 6, 6, -6), (0, 0, 0, 2)),
+    ((2, -6, 6, -2), (8, 0, -12, 6), (2, 6, 6, -7), (0, 0, 0, 3)),
+    ((2, -6, 6, -2), (7, -3, -15, 11), (3, 9, 9, -21), (0, 0, 0, 12)),
+)
+FW_M_SHIFT = 36  # c = sum(Mq * gx) >> 36,  Mq = round(M * 2^36 / 576)
+
+
+def _fw_round_div(x: int, d: int) -> int:
+    """round(x / d), halves up, for d > 0 (floor division, as Rust div_euclid)."""
+    return (2 * x + d) // (2 * d)
+
+
+def fw_log2_q30(v: int) -> int:
+    e = v.bit_length() - 1
+    f = (v << (30 - e)) - (1 << 30)
+    acc = FW_LOG2_POLY[-1]
+    for c in reversed(FW_LOG2_POLY[:-1]):
+        acc = ((acc * f) >> 30) + c
+    return (e << 30) + acc
+
+
+@functools.lru_cache(maxsize=2)
+def fw_basis(knots: int = KNOTS) -> tuple[np.ndarray, np.ndarray]:
+    """(first index i, (N_POST, 4) values) of the integer basis: value m at
+    post sample n is B_{i+m}(t_n) * 12 * 2^16 (n = 0 has no basis)."""
+    nint = knots + 1
+    l50 = fw_log2_q30(50)
+    first = np.zeros(N_POST, np.int64)
+    vals = np.zeros((N_POST, 4), np.int64)
+    for n in range(1, N_POST):
+        s = ((fw_log2_q30(n + 50) - l50) * FW_KF_Q28[knots] + (1 << 33)) >> 34  # Q24 knot intervals
+        i, x = s >> 24, s & 0xFFFFFF
+        if i >= nint:  # the last sample sits on the end knot
+            i, x = nint - 1, s - ((nint - 1) << 24)
+        kind = 0 if i == 0 else 1 if i == 1 else 4 if i == nint - 1 else 3 if i == nint - 2 else 2
+        first[n] = i
+        for m in range(4):
+            c = FW_BASIS_C12[kind][m]
+            h = c[3] << 24
+            for cc in (c[2], c[1], c[0]):
+                h = ((h * x) >> 24) + (cc << 24)
+            vals[n, m] = max(0, (h + 128) >> 8)
+    return first, vals
+
+
+@functools.lru_cache(maxsize=2)
+def fw_matrix(knots: int = KNOTS) -> tuple[tuple[int, ...], ...]:
+    """M_enc from the committed constants as exact i32: round(M * 2^36 / 576)."""
+    from fractions import Fraction
+
+    M = json.loads((OUT / "encoder_constants.json").read_text())[str(knots)]["M_enc_16x16"]
+    return tuple(tuple(int(round(Fraction(v) * (1 << FW_M_SHIFT) / 576)) for v in row) for row in M)
+
+
+def fw_time(nb: int) -> np.ndarray:
+    """Nominal time grid of a firmware record with nb baseline bins."""
+    return (np.arange(nb * FW_BIN + N_POST) - nb * FW_BIN) / FS
+
+
+def fw_frames(w: C.Window) -> tuple[np.ndarray, np.ndarray, list, int]:
+    """Place a window's frames on the nominal 25 Hz grid the board samples on.
+
+    Returns (raw (N, 13) int64, present (N,) bool, live, nb).  A slot no frame
+    rounds to is missing; when two frames round to one slot the first wins."""
+    slot = np.round(w.t * FS).astype(np.int64)
+    nb = min(FW_MAX_BINS, int(np.ceil(-slot.min() / FW_BIN)))
+    npre = nb * FW_BIN
+    n = npre + N_POST
+    raw = np.zeros((n, C.N_CH), np.int64)
+    present = np.zeros(n, bool)
+    vals = np.nan_to_num(w.raw, nan=0.0)
+    for k, row in zip(slot + npre, vals):
+        if 0 <= k < n and not present[k]:
+            raw[k] = np.round(row).astype(np.int64)
+            present[k] = True
+    assert raw.min() >= -32768 and raw.max() <= 32767
+    return raw, present, list(w.live), nb
+
+
+def fw_fill(raw: np.ndarray, p: np.ndarray, present: np.ndarray, recip: np.ndarray, npre: int) -> list:
+    """Post-onset p of one channel with missing frames filled.
+
+    A missing frame k with a present frame before it and one within the next
+    FW_HALF frames gets raw counts interpolated linearly between the two (in
+    1/16 counts) and its own exc13 ratio; otherwise p is held from frame k-1."""
+    n = len(present)
+    out = []
+    last_raw, last_k, last_p = 0, -1, 0
+    for k in range(n):
+        if present[k]:
+            last_raw, last_k, last_p = int(raw[k]), k, int(p[k])
+        elif k >= npre:
+            nxt = next((j for j in range(k + 1, min(k + FW_HALF, n - 1) + 1) if present[j]), None)
+            if nxt is not None and last_k >= 0:
+                r16 = 16 * last_raw + _fw_round_div(16 * (int(raw[nxt]) - last_raw) * (k - last_k), nxt - last_k)
+                last_p = min(max((r16 * int(recip[k])) >> 20, -FW_P_MAX), FW_P_MAX)
+        if k >= npre:
+            out.append(last_p)
+    return out
+
+
+def fw_encode(raw: np.ndarray, present: np.ndarray, live: list, nb: int, knots: int = KNOTS) -> tuple[bytes, dict]:
+    """The Rust encoder's arithmetic on a nominal-grid window (see fw_frames)."""
+    npre = nb * FW_BIN
+    n = npre + N_POST
+    assert raw.shape == (n, C.N_CH) and 2 <= nb <= FW_MAX_BINS
+    raw = raw.astype(np.int64)
+    pres = present.astype(np.int64)
+    # exc13 over present frames, clipped at the window edges
+    exc = raw[:, C.EXC] * pres
+    cs = np.concatenate(([0], np.cumsum(exc)))
+    cn = np.concatenate(([0], np.cumsum(pres)))
+    k = np.arange(n)
+    lo, hi = np.maximum(k - FW_HALF, 0), np.minimum(k + FW_HALF + 1, n)
+    s, cnt = cs[hi] - cs[lo], cn[hi] - cn[lo]
+    s = np.maximum(s, np.maximum(cnt, 1))
+    recip = (np.maximum(cnt, 1) << FW_RECIP_SHIFT) // s
+    p = np.zeros((n, C.N_CH), np.int64)
+    for c in live:
+        p[:, c] = np.clip((raw[:, c] * recip) >> 16, -FW_P_MAX, FW_P_MAX)
+    # baseline bins (E_ref = rounded mean excitation of the first non-empty bin)
+    e_ref = None
+    b = {c: [None] * nb for c in live}
+    for i in range(nb):
+        sel = np.flatnonzero(present[i * FW_BIN:(i + 1) * FW_BIN]) + i * FW_BIN
+        m = len(sel)
+        if m == 0:
+            continue
+        if e_ref is None:
+            e_ref = int(min(max((2 * int(raw[sel, C.EXC].sum()) + m) // (2 * m), 0), 32767))
+        for c in live:
+            t = (16 * e_ref * int(p[sel, c].sum()) + (m << 24)) >> 25
+            t = min(max(t, I32_MIN), I32_MAX)
+            b[c][i] = min(max(t // m, 0), FW_B_MAX)
+    if e_ref is None:
+        raise ValueError("no present frame before onset")
+    ok = [i for i in range(nb) if b[live[0]][i] is not None] if live else []
+    for c in live:
+        for i in range(nb):
+            if b[c][i] is None:
+                prev = [j for j in ok if j < i]
+                b[c][i] = b[c][prev[-1] if prev else ok[0]]
+    # line through (bin centre, b/8), closed form, then in p units per sample
+    wi = [2 * i - (nb - 1) for i in range(nb)]
+    W = nb * (nb * nb - 1) // 3
+    eff = max(e_ref, 1)
+    first, bv = fw_basis(knots)
+    ncoef = knots + 4
+    Mq = fw_matrix(knots)
+    out = {"coefs": {}, "base": {}, "e_ref": e_ref, "nb": nb, "missing": int(n - present.sum())}
+    for c in live:
+        P = sum(b[c])
+        S1 = sum(x * y for x, y in zip(wi, b[c]))
+        a_q16 = _fw_round_div((P * 125 * W + S1 * (125 * nb + 1) * nb) << 16, 1000 * nb * W)
+        bn_q32 = _fw_round_div(S1 << 32, 500 * W)
+        ap_q16 = _fw_round_div(a_q16 << 24, eff)
+        bnp_q16 = _fw_round_div(bn_q32 << 8, eff)
+        hp = fw_fill(raw[:, c], p[:, c], present, recip, npre)
+        G = [0] * ncoef
+        for t_n in range(1, N_POST):
+            line = (ap_q16 + bnp_q16 * t_n + (1 << 15)) >> 16
+            r = min(max(hp[t_n] - line, I32_MIN), I32_MAX)
+            i0 = int(first[t_n])
+            for m in range(4):
+                G[i0 + m] += int(bv[t_n, m]) * r
+        gx = [min(max(((g >> 20) * e_ref) >> 16, I32_MIN), I32_MAX) for g in G]
+        ci = []
+        for row in Mq:
+            acc = sum(mq * x for mq, x in zip(row, gx))
+            ci.append(min(max((acc + (1 << (FW_M_SHIFT - 1))) >> FW_M_SHIFT, FW_CI_MIN), FW_CI_MAX))
+        out["coefs"][c] = np.array(ci, np.int64)
+        out["base"][c] = np.array(b[c], np.int64)
+    data = _fw_bitstream(live, e_ref, nb, knots, out)
+    return data, out
+
+
+def _fw_bitstream(live: list, e_ref: int, nb: int, knots: int, out: dict) -> bytes:
+    bw = K.BitWriter()
+    mask = sum(1 << (c - 1) for c in live)
+    for v, nbits in ((VERSION_BASE | knots // 4, 8), (mask, 16), (e_ref, 16), (nb, 8)):
+        bw.put(v, nbits)
+    kt = fw_k_table(knots)
+    for c in live:
+        b, ci = out["base"][c], out["coefs"][c]
+        d = np.diff(b)
+        kb = min(range(16), key=lambda k: K.rice_len(K.zigzag(d), k))
+        offs = {o: sum(K.rice_len(K.zigzag(ci[j:j + 1]), max(0, kt[j] + o)) for j in range(len(ci))) for o in (-1, 0, 1, 2)}
+        o = min(offs, key=offs.get)
+        bw.put(int(b[0]), B0_BITS)
+        bw.put(kb, 4)
+        for v in d:
+            bw.rice(int(v), kb)
+        bw.put(o + 1, 2)
+        for j in range(len(ci)):
+            bw.rice(int(ci[j]), max(0, kt[j] + o))
+    return bw.bytes()
+
+
+@functools.lru_cache(maxsize=2)
+def fw_k_table(knots: int = KNOTS) -> tuple:
+    return tuple(json.loads((OUT / "encoder_constants.json").read_text())[str(knots)]["rice_k_table"])
+
+
+def fw_spec_encoder(w: C.Window, knots: int = KNOTS) -> E.Encoded:
+    """spec_encoder for firmware mode: decode on the nominal grid, then
+    resample to the window's own time stamps (identity for the corpus)."""
+    data, info = encode(w, "firmware", knots)
+    tn = fw_time(info["nb"])
+    rn, _ = decode(data, tn)
+    recon = np.column_stack([np.interp(w.t, tn, rn[:, c]) for c in range(C.N_CH)])
+    per_ch = (len(data) * 8 - 48) / len(w.live)
+    nbytes = 6 + np.ceil(12 * per_ch / 8)
+    return E.Encoded(f"sfk1_k{knots}_firmware", float(nbytes), recon,
+                     {"payload_B_actual": len(data), "bits_per_channel": per_ch, "missing_frames": info["missing"]})
+
+
+def firmware_main() -> None:
+    """Round trip + index agreement + science of the firmware mode, next to
+    the float reference (results/encoder_spec.json, from main())."""
+    import harness as H
+
+    ws = H.windows()
+    H.reference()
+    ref = json.loads((OUT / "encoder_spec.json").read_text())
+    res = {}
+    for knots in (12, 16):
+        mism, sizes, diff, missing = 0, [], [], []
+        for w in ws:
+            data, enc = encode(w, "firmware", knots)
+            _, dec = decode(data, fw_time(enc["nb"]))
+            for c in w.live:
+                mism += int(np.any(enc["coefs"][c] != dec["coefs"][c]) or np.any(enc["base"][c] != dec["base"][c]))
+            sizes.append(len(data))
+            missing.append(enc["missing"])
+            if w.kind == "synthetic":
+                _, encf = encode(w, knots=knots)
+                diff += [int(np.abs(enc["coefs"][c] - encf["coefs"][c]).max()) for c in w.live]
+        e = H.evaluate(fw_spec_encoder, label=f"sfk1_k{knots}_firmware", knots=knots)
+        f = ref[f"k{knots}"]["float"]
+        print(f"k{knots} firmware round trip: {mism} channel mismatches over {len(ws)} windows; payload bytes mean "
+              f"{np.mean(sizes):.1f}; missing frames per window max {max(missing)}; corpus index vs float: max |diff| "
+              f"{max(diff)}, channels differing {np.mean(np.array(diff) > 0):.1%}")
+        print(H.line(f))
+        print(H.line(e))
+        rr = {k: (f["rmse_ratio_vs_noisefree"][k], e["rmse_ratio_vs_noisefree"][k]) for k in e["rmse_ratio_vs_noisefree"]}
+        print("   max |RMSE ratio firmware - float|:", f"{max(abs(a - b) for a, b in rr.values()):.4f}")
+        res[f"k{knots}"] = {"roundtrip_channel_mismatches": mism, "payload_B_mean": float(np.mean(sizes)),
+                            "max_missing_frames": int(max(missing)), "corpus_max_index_diff_vs_float": int(max(diff)),
+                            "corpus_frac_channels_differing": float(np.mean(np.array(diff) > 0)),
+                            "rmse_ratio_float_vs_firmware": rr, "firmware": e}
+        assert mism == 0
+    C.save_json(res, OUT / "encoder_spec_firmware.json")
+
+
 def main() -> None:
     import harness as H
 
@@ -279,4 +582,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if "--firmware" in sys.argv[1:]:  # firmware mode vs float: round trip, indices, science
+        firmware_main()
+    else:
+        main()
