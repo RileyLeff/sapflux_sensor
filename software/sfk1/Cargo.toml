@@ -32,5 +32,9 @@ serde = { version = "1.0.228", optional = true, default-features = false, featur
 [dev-dependencies]
 proptest = { version = "1.11", default-features = false, features = ["std"] }
 
+[[example]]
+name = "real_pulse"
+required-features = ["std"]
+
 [package.metadata.docs.rs]
 all-features = true
