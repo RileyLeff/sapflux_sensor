@@ -138,6 +138,7 @@ fn record<P: Profile>() -> Vec<u8> {
     out
 }
 
+#[cfg(feature = "decode")]
 #[test]
 fn a_sub_hertz_grid_changes_only_the_time_axis() {
     assert_eq!(Probe48Slow::validate(), Ok(()));

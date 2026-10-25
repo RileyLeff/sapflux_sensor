@@ -8,7 +8,7 @@
 //! Each is checked against East30's 0.6 cm tables on simulated pulses at
 //! its own positions; tables never change what decodes, only record size.
 
-use sfk1::{Decoder, East30K12, East30Offset, Encoder, Profile};
+use sfk1::{East30K12, East30Offset, Encoder, Profile};
 
 mod east30_1cm {
     include!("profiles/east30_1cm.rs");
@@ -101,14 +101,15 @@ fn the_offset_profile_makes_smaller_offset_probe_records() {
     assert!(offset + 15 < east30, "mean 6-thermistor record: East30 tables {east30} B, offset tables {offset} B");
 }
 
+#[cfg(feature = "decode")]
 #[test]
 fn an_upside_down_offset_probe_still_decodes_exactly() {
     // installed flipped: 5 mm above, 10 mm below. Bigger records, same curve.
     let pos = [0.5, -1.0];
     let (east30, offset) =
         (record::<6, East30K12>(pos, 0.0025, 10.0, 7), record::<6, East30Offset>(pos, 0.0025, 10.0, 7));
-    let a = Decoder::<East30K12>::new(&east30).unwrap();
-    let b = Decoder::<East30Offset>::new(&offset).unwrap();
+    let a = sfk1::Decoder::<East30K12>::new(&east30).unwrap();
+    let b = sfk1::Decoder::<East30Offset>::new(&offset).unwrap();
     for (ca, cb) in a.channels().zip(b.channels()) {
         assert_eq!(ca.bins(), cb.bins());
         let worst = ca.samples().zip(cb.samples()).map(|(x, y)| (x - y).abs()).fold(0.0, f64::max);
