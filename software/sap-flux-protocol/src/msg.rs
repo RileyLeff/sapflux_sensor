@@ -216,7 +216,9 @@ pub struct Schedule {
     /// 1 = pulse on this schedule, 0 = disabled. Kept as the raw byte so a
     /// decoded schedule re-encodes (and CRCs) bit-exactly.
     pub enabled: u8,
-    /// `SCHEDULE_FLAG_*` bits; all other bits must be zero.
+    /// `SCHEDULE_FLAG_*` bits and the two probes' kinds
+    /// ([`SCHEDULE_PROBE_SHIFT`](crate::SCHEDULE_PROBE_SHIFT)); all other
+    /// bits must be zero.
     pub flags: u8,
     /// Heater pulse length: 500, 1000 or 1500 ms.
     pub pulse_duration_ms: u16,
@@ -345,7 +347,9 @@ pub struct Sample12 {
 /// `reserved: u16` (sent as zero, ignored on receive).
 ///
 /// The window data that follows (in `WindowChunk`s) is `n_bins` bins of
-/// `channels` × `i16`, see [`crate::field`].
+/// `channels` × `i16`, or with
+/// [`WINDOW_FLAG_SFK1`](crate::WINDOW_FLAG_SFK1) `n_bins` bytes of SFK1
+/// records; see [`crate::field`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowInfo {
     /// Run id of this window.
@@ -354,13 +358,15 @@ pub struct WindowInfo {
     pub window_flags: u16,
     /// Values per bin; 13 (12 thermistors + excitation).
     pub channels: u8,
-    /// Bin width in units of 10 ms (50 = 500 ms).
+    /// Bin width in units of 10 ms (50 = 500 ms); 0 in an SFK1 window.
     pub bin_ms_div10: u8,
-    /// Number of bins in the window data.
+    /// Number of bins in the window data; its length in bytes in an SFK1
+    /// window.
     pub n_bins: u16,
     /// Number of `WindowChunk`s: `ceil(data_len / 100)`.
     pub chunk_count: u16,
-    /// Monotonic time of the window start (bin 0 start).
+    /// Monotonic time of the window start (bin 0 start, or an SFK1
+    /// window's frame 0).
     pub start_monotonic_us: u64,
     /// RTC time of the window start; `-1` if invalid.
     pub start_rtc_unix_ms: i64,
@@ -382,7 +388,8 @@ pub struct WindowInfo {
     pub frames_missing: u16,
     /// Protocol CRC-32 over the full window data byte string.
     pub data_crc32: u32,
-    /// Per-channel base: rounded mean raw count in the first bin.
+    /// Per-channel base: rounded mean raw count in the first bin; zero in
+    /// an SFK1 window.
     pub base_raw: [i16; 13],
 }
 

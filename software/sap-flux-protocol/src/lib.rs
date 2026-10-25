@@ -76,7 +76,7 @@ pub mod raw;
 mod frame;
 mod msg;
 
-pub use field::{ScheduleError, BIN_VALUE_MISSING, BIN_VALUE_SCALE, SCHEDULE_LEN};
+pub use field::{ProbeKind, ScheduleError, BIN_VALUE_MISSING, BIN_VALUE_SCALE, SCHEDULE_LEN};
 pub use frame::{decode_frame, encode, encode_frame, DecodeError, Decoder, EncodeError, Frame};
 pub use msg::{
     payload_len_for, Abort, Ack, AckWindow, ArmPulse, BoardState, ErrorReport, FieldStatus,
@@ -172,6 +172,14 @@ pub const WINDOW_INFO_FRAME_LEN: usize = MIN_FRAME_LEN + 90;
 
 /// `SetSchedule.flags` bit: only pulse while `now < lease_until_unix_s`.
 pub const SCHEDULE_FLAG_REQUIRE_LEASE: u8 = 1 << 0;
+/// `SetSchedule.flags` bit: windows carry one SFK1 record per probe instead
+/// of bins (`docs/field-protocol.md` §1, SFK1 window data).
+pub const SCHEDULE_FLAG_SFK1: u8 = 1 << 1;
+/// `SetSchedule.flags` bit position of each probe's 2-bit [`ProbeKind`]:
+/// probe 1 in bits 2–3, probe 2 in bits 4–5.
+pub const SCHEDULE_PROBE_SHIFT: [u8; 2] = [2, 4];
+/// Every defined `SetSchedule.flags` bit.
+pub const SCHEDULE_FLAGS_DEFINED: u8 = 0b0011_1111;
 
 /// `WindowInfo.window_flags` bit: RTC was invalid; times are monotonic only.
 pub const WINDOW_FLAG_TIME_INVALID: u16 = 1 << 0;
@@ -183,6 +191,9 @@ pub const WINDOW_FLAG_ABORTED: u16 = 1 << 2;
 pub const WINDOW_FLAG_HEATER_FAULT: u16 = 1 << 3;
 /// `WindowInfo.window_flags` bit: the window was cut short.
 pub const WINDOW_FLAG_TRUNCATED: u16 = 1 << 4;
+/// `WindowInfo.window_flags` bit: the data is SFK1 records, not bins
+/// ([`field::sfk1_records`]); `n_bins` is then the data length in bytes.
+pub const WINDOW_FLAG_SFK1: u16 = 1 << 5;
 
 /// `FieldStatus.schedule_flags` bit: schedule enabled.
 pub const FIELD_STATUS_ENABLED: u8 = 1 << 0;

@@ -479,7 +479,8 @@ fn schedule_limits() {
         s.validate(cooldown)
     };
     assert_eq!(bad(|s| s.enabled = 2), Err(ScheduleError::Enabled));
-    assert_eq!(bad(|s| s.flags = 2), Err(ScheduleError::Flags));
+    assert_eq!(bad(|s| s.flags = 1 << 6), Err(ScheduleError::Flags));
+    assert_eq!(bad(|s| s.flags = 0b11 << 4), Err(ScheduleError::Flags)); // probe code 3
     assert_eq!(
         bad(|s| s.pulse_duration_ms = 750),
         Err(ScheduleError::PulseDuration)
@@ -520,6 +521,60 @@ fn schedule_limits() {
     let mut s = DEFAULT_SCHEDULE;
     s.interval_s = 600;
     assert_eq!(s.validate(30_000), Ok(()));
+}
+
+#[test]
+fn sfk1_schedule_flags() {
+    let s = DEFAULT_SCHEDULE
+        .with_probe(0, ProbeKind::East30)
+        .with_probe(1, ProbeKind::East30Offset);
+    assert_eq!(s.flags, 0b10_01_00);
+    assert_eq!((s.probe(0), s.probe(1)), (ProbeKind::East30, ProbeKind::East30Offset));
+    assert!(!s.sfk1());
+    // probe kinds alone are metadata; binned windows ignore them
+    assert_eq!(s.validate(600_000), Ok(()));
+
+    let sfk1 = Schedule { flags: s.flags | SCHEDULE_FLAG_SFK1, ..s };
+    assert!(sfk1.sfk1());
+    assert_eq!(sfk1.validate(600_000), Ok(()));
+    assert_eq!(sfk1.with_probe(0, ProbeKind::None).validate(600_000), Ok(()));
+    let none = sfk1.with_probe(0, ProbeKind::None).with_probe(1, ProbeKind::None);
+    assert_eq!(none.validate(600_000), Err(ScheduleError::Sfk1));
+    let slow = Schedule { sample_hz: 20, ..sfk1 };
+    assert_eq!(slow.validate(600_000), Err(ScheduleError::Sfk1));
+    // flags are part of the schedule bytes, so the CRC follows them
+    assert_ne!(sfk1.crc16(), s.crc16());
+    assert_eq!(Schedule::from_bytes(&sfk1.to_bytes()), sfk1);
+}
+
+#[test]
+fn sfk1_window_data() {
+    let mut data = Vec::new();
+    for (probe, rec) in [(1u8, &[0x5F, 1, 2][..]), (2, &[][..])] {
+        let mut prefix = [0; SFK1_ENTRY_PREFIX_LEN];
+        write_sfk1_prefix(&mut prefix, probe, rec.len() as u16);
+        data.extend_from_slice(&prefix);
+        data.extend_from_slice(rec);
+    }
+    let got: Vec<_> = sfk1_records(&data).collect();
+    assert_eq!(got, [Ok((1, &[0x5F, 1, 2][..])), Ok((2, &[][..]))]);
+    assert_eq!(sfk1_records(&[]).count(), 0);
+    // truncated record, then a bad probe number
+    let got: Vec<_> = sfk1_records(&data[..5]).collect();
+    assert_eq!(got, [Err(Sfk1DataError { offset: 0 })]);
+    let got: Vec<_> = sfk1_records(&[1, 0, 0, 3, 0, 0]).collect();
+    assert_eq!(got, [Ok((1, &[][..])), Err(Sfk1DataError { offset: 3 })]);
+
+    let (mut info, _) = sample_window_data();
+    info.window_flags |= WINDOW_FLAG_SFK1;
+    info.bin_ms_div10 = 0;
+    info.n_bins = data.len() as u16;
+    info.chunk_count = 1;
+    info.data_crc32 = sap_flux_protocol::crc::crc32(&data);
+    assert!(info.is_sfk1());
+    assert_eq!(info.data_len(), 9);
+    assert!(info.is_consistent());
+    assert!(info.verify_data(&data));
 }
 
 #[test]

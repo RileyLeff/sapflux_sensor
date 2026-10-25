@@ -58,7 +58,14 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
 `lease_until_unix_s: u32`.
 
 - `flags` bit 0 `REQUIRE_LEASE`: only pulse while `now < lease_until`.
-  Default 0. Other bits zero.
+  Default 0.
+- `flags` bit 1 `SFK1`: windows carry SFK1 records instead of bins (see
+  SFK1 window data below). Needs `sample_hz` 25 and at least one probe
+  kind.
+- `flags` bits 2–3 / 4–5: probe 1 / probe 2 kind. 0 none, 1 East30 (both
+  needles 6 mm from the heater), 2 East30 offset (10 mm and 5 mm, either
+  way up); 3 is rejected. The kind picks the SFK1 profile; binned windows
+  ignore it. Bits 6–7 zero.
 - Pulses start at RTC times `t` with `(t - phase_s) mod interval_s == 0`
   (Unix seconds); `t` is the heater-on time, baseline starts `baseline_s`
   earlier. If the RTC is invalid the board pulses every `interval_s` on its
@@ -117,7 +124,7 @@ u32` (from window start), `pulse_duration_ms: u16`, `sample_hz: u16`,
 `data_crc32: u32`, `base_raw: [i16; 13]`, `reserved: u16` (zero).
 
 - `window_flags`: bit 0 `TIME_INVALID`, bit 1 `ADC_ERRORS`, bit 2
-  `ABORTED`, bit 3 `HEATER_FAULT`, bit 4 `TRUNCATED`.
+  `ABORTED`, bit 3 `HEATER_FAULT`, bit 4 `TRUNCATED`, bit 5 `SFK1`.
 - Monotonic and RTC stamps at both ends let the server rescale time.
 
 Window data: `n_bins` bins, each bin `channels` × `i16` in order
@@ -129,6 +136,23 @@ or 0 if that bin has no valid frames for the channel.
 A bin with no valid frames for a channel stores `−32768`. `data_crc32` is
 CRC-32 (protocol CRC) over the full data byte string. Bin `k` covers
 `[start + k·bin_ms, start + (k+1)·bin_ms)` on the monotonic clock.
+
+SFK1 window data (`window_flags` bit 5): one entry per probe whose kind is
+set, in probe order: `probe: u8` (1 or 2), `len: u16`, then `len` bytes
+of SFK1 record (`software/sfk1`) of that probe's T1..T6, ratiometric
+against the excitation channel. Classic probes use profile `East30K12`,
+offset probes `East30Offset`; each record has the extended header (6
+channels), which names its profile. `len = 0`: the probe produced no record
+(no valid baseline frame). In an SFK1 window `n_bins` is the data length in
+bytes and `bin_ms_div10` and `base_raw` are zero. Frames are on the 40 ms
+grid: frame `i` of each record is at `start_monotonic_us + i × 40 ms`
+(start is the record's first frame, not the baseline start), record time 0
+is `n_baseline_bins × 5 s` after start (`min(12, baseline_s / 5)` bins), and
+the heater actually came on `heater_on_offset_ms` after start, so a decoder
+shifts the record by the difference. A frame with a failed read of the
+excitation or any of a probe's thermistors is a missing frame of that
+probe's record; frames past the record's 181 s after onset are not encoded.
+About 160 B per probe, 2 chunks per window for two probes.
 
 `WindowChunk` (108 B): `run_id: u32`, `chunk: u16`, `len: u16`
 (≤ 100), `data: [u8; 100]` (zero-padded). Chunk `i` holds data bytes
@@ -260,6 +284,8 @@ board's schedule alone and retries next wake. Windows stay on the board.
 ## 3. Defaults for the first deployment
 
 - Pulse 1000 ms every 3600 s, phase 0, baseline 60 s, recovery 180 s,
-  25 Hz, 500 ms bins.
+  25 Hz, 500 ms bins. SFK1 (`flags` bit 1, plus each probe's kind) once the
+  server decodes it.
 - Gateway check-in every 3600 s plus the post-window wake.
-- Uplink ≈ 12.6 kB per pulse window plus about 0.3 kB per check-in.
+- Uplink ≈ 12.6 kB per binned pulse window (about 0.4 kB with SFK1) plus
+  about 0.3 kB per check-in.

@@ -172,7 +172,7 @@ pub fn validate_schedule(s: &Schedule) -> Result<(), ScheduleError> {
 pub fn schedule_error_text(e: ScheduleError) -> &'static str {
     match e {
         ScheduleError::Enabled => "enabled must be 0 or 1",
-        ScheduleError::Flags => "only flags bit 0 (REQUIRE_LEASE) is defined",
+        ScheduleError::Flags => "flags: only bits 0-5 are defined, and a probe kind is 0, 1 or 2",
         ScheduleError::PulseDuration => "pulse_duration_ms must be 500, 1000 or 1500",
         ScheduleError::Interval => "interval_s must be >= 600",
         ScheduleError::Baseline => "baseline_s must be 10..=300",
@@ -180,6 +180,7 @@ pub fn schedule_error_text(e: ScheduleError) -> &'static str {
         ScheduleError::Timing => "baseline_s + recovery_s + 600 s cooldown must be < interval_s",
         ScheduleError::SampleHz => "sample_hz must be 10, 20 or 25",
         ScheduleError::BinMs => "bin_ms must be 250, 500 or 1000",
+        ScheduleError::Sfk1 => "SFK1 windows need sample_hz 25 and at least one probe kind",
         ScheduleError::WindowTooLong => {
             "baseline + pulse + recovery + 4 s must fit in 1000 bins of bin_ms"
         }

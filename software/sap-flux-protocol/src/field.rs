@@ -19,10 +19,29 @@
 //! `data_crc32` is the protocol CRC-32 ([`crate::crc`]) over the whole data
 //! byte string. The data is carried in [`WINDOW_CHUNK_DATA_LEN`] (100) byte
 //! chunks: chunk `i` holds bytes `[100·i, 100·i + len)`.
+//!
+//! # SFK1 window data
+//!
+//! With [`WINDOW_FLAG_SFK1`] the data is instead one entry per probe whose
+//! [`ProbeKind`] is set, in probe order: `probe: u8` (1 or 2), `len: u16`,
+//! then `len` bytes of SFK1 record (the `sfk1` crate) holding that probe's
+//! T1..T6, ratiometric against the excitation channel. `len = 0` means the
+//! probe produced no record (no valid baseline frame). [`sfk1_records`]
+//! walks the entries. `n_bins` is the data length in bytes, and
+//! `bin_ms_div10` and `base_raw` are zero.
+//!
+//! The records' frame grid is the window's: frame `i` of every record is at
+//! `start + i × 40 ms` on the monotonic clock (`sample_hz` 25), so record
+//! time 0 (heater onset as the record sees it) is at
+//! `start + n_baseline_bins × 5 s`, and the actual heater-on time is
+//! `heater_on_offset_ms` after `start`.
 
 use crate::crc::crc32;
 use crate::msg::{Schedule, WindowInfo};
-use crate::{SCHEDULE_FLAG_REQUIRE_LEASE, WINDOW_CHANNELS, WINDOW_CHUNK_DATA_LEN};
+use crate::{
+    SCHEDULE_FLAGS_DEFINED, SCHEDULE_FLAG_REQUIRE_LEASE, SCHEDULE_FLAG_SFK1, SCHEDULE_PROBE_SHIFT,
+    WINDOW_CHANNELS, WINDOW_CHUNK_DATA_LEN, WINDOW_FLAG_SFK1,
+};
 use core::ops::Range;
 
 /// Length of the schedule byte string (`enabled` through `bin_ms`).
@@ -42,6 +61,45 @@ pub const SCHEDULE_SAMPLE_HZ: [u16; 3] = [10, 20, 25];
 pub const SCHEDULE_BIN_MS: [u16; 3] = [250, 500, 1000];
 /// Most bins one window may hold (the board's RAM slot size).
 pub const SCHEDULE_MAX_WINDOW_BINS: u32 = 1000;
+/// The only `sample_hz` an SFK1 schedule may use (the East30 profiles'
+/// 40 ms frame period).
+pub const SCHEDULE_SFK1_SAMPLE_HZ: u16 = 25;
+/// Bytes before each record in SFK1 window data: `probe: u8`, `len: u16`.
+pub const SFK1_ENTRY_PREFIX_LEN: usize = 3;
+
+/// What is installed on a probe port, from `SetSchedule.flags`
+/// ([`SCHEDULE_PROBE_SHIFT`]). It picks the SFK1 profile the board encodes
+/// that probe's thermistors with; binned windows ignore it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum ProbeKind {
+    /// Nothing, or not declared: no SFK1 record for this port.
+    #[default]
+    None = 0,
+    /// East30 with both needles 6 mm from the heater (`sfk1::East30K12`).
+    East30 = 1,
+    /// East30 offset probe, needles 10 mm and 5 mm from the heater, either
+    /// way up (`sfk1::East30Offset`).
+    East30Offset = 2,
+}
+
+impl ProbeKind {
+    /// Parse a 2-bit code; `None` for the undefined code 3.
+    pub fn from_code(code: u8) -> Option<Self> {
+        match code {
+            0 => Some(Self::None),
+            1 => Some(Self::East30),
+            2 => Some(Self::East30Offset),
+            _ => None,
+        }
+    }
+
+    /// The 2-bit code.
+    pub fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 /// Margin [`Schedule::validate`] adds to the nominal window span: a real
 /// window runs long when firing is retried (up to the board's 3 s fire
 /// grace, which stretches the baseline) and because recovery starts when
@@ -78,6 +136,8 @@ pub enum ScheduleError {
     SampleHz,
     /// `bin_ms` not in {250, 500, 1000}.
     BinMs,
+    /// `SFK1` set but `sample_hz` is not 25 or neither probe has a kind.
+    Sfk1,
     /// The window, plus [`SCHEDULE_WINDOW_SLACK_MS`], would need more than
     /// [`SCHEDULE_MAX_WINDOW_BINS`] bins.
     WindowTooLong,
@@ -146,6 +206,26 @@ impl Schedule {
         self.flags & SCHEDULE_FLAG_REQUIRE_LEASE != 0
     }
 
+    /// `SFK1` flag set: windows carry SFK1 records.
+    pub fn sfk1(&self) -> bool {
+        self.flags & SCHEDULE_FLAG_SFK1 != 0
+    }
+
+    /// Kind of probe `port` (0 = probe 1, 1 = probe 2); `None` (the
+    /// variant) for an undefined code, which [`validate`](Self::validate)
+    /// rejects.
+    pub fn probe(&self, port: usize) -> ProbeKind {
+        let code = (self.flags >> SCHEDULE_PROBE_SHIFT[port]) & 0b11;
+        ProbeKind::from_code(code).unwrap_or(ProbeKind::None)
+    }
+
+    /// `flags` with probe `port` set to `kind`.
+    pub fn with_probe(mut self, port: usize, kind: ProbeKind) -> Self {
+        let shift = SCHEDULE_PROBE_SHIFT[port];
+        self.flags = (self.flags & !(0b11 << shift)) | (kind.code() << shift);
+        self
+    }
+
     /// Check the `SetSchedule` limits. `cooldown_ms` is the board's
     /// mandatory post-pulse cooldown (600 000 ms in production firmware).
     ///
@@ -155,7 +235,11 @@ impl Schedule {
         if self.enabled > 1 {
             return Err(ScheduleError::Enabled);
         }
-        if self.flags & !SCHEDULE_FLAG_REQUIRE_LEASE != 0 {
+        if self.flags & !SCHEDULE_FLAGS_DEFINED != 0
+            || SCHEDULE_PROBE_SHIFT
+                .iter()
+                .any(|&sh| ProbeKind::from_code((self.flags >> sh) & 0b11).is_none())
+        {
             return Err(ScheduleError::Flags);
         }
         if !SCHEDULE_PULSE_DURATIONS_MS.contains(&self.pulse_duration_ms) {
@@ -179,6 +263,12 @@ impl Schedule {
         }
         if !SCHEDULE_BIN_MS.contains(&self.bin_ms) {
             return Err(ScheduleError::BinMs);
+        }
+        if self.sfk1()
+            && (self.sample_hz != SCHEDULE_SFK1_SAMPLE_HZ
+                || (0..2).all(|p| self.probe(p) == ProbeKind::None))
+        {
+            return Err(ScheduleError::Sfk1);
         }
         let bin = self.bin_ms.max(1) as u32;
         if (self.window_span_ms() + SCHEDULE_WINDOW_SLACK_MS).div_ceil(bin)
@@ -300,9 +390,19 @@ impl WindowInfo {
         self.bin_ms_div10 as u32 * 10
     }
 
-    /// Window data length in bytes.
+    /// SFK1 window ([`WINDOW_FLAG_SFK1`]): the data is SFK1 records.
+    pub fn is_sfk1(&self) -> bool {
+        self.window_flags & WINDOW_FLAG_SFK1 != 0
+    }
+
+    /// Window data length in bytes: `n_bins` for an SFK1 window, else
+    /// `n_bins × channels × 2`.
     pub fn data_len(&self) -> usize {
-        window_data_len(self.n_bins, self.channels)
+        if self.is_sfk1() {
+            self.n_bins as usize
+        } else {
+            window_data_len(self.n_bins, self.channels)
+        }
     }
 
     /// `ceil(data_len / 100)`; equals `chunk_count` on a consistent header.
@@ -315,11 +415,11 @@ impl WindowInfo {
         self.start_monotonic_us + k as u64 * self.bin_ms() as u64 * 1000
     }
 
-    /// Whether the header is self-consistent (13 channels, nonzero bin
-    /// width, matching chunk count).
+    /// Whether the header is self-consistent (13 channels, a bin width
+    /// unless SFK1, matching chunk count).
     pub fn is_consistent(&self) -> bool {
         self.channels as usize == WINDOW_CHANNELS
-            && self.bin_ms_div10 != 0
+            && (self.bin_ms_div10 != 0 || self.is_sfk1())
             && self.chunk_count as usize == self.expected_chunk_count()
     }
 
@@ -327,4 +427,58 @@ impl WindowInfo {
     pub fn verify_data(&self, data: &[u8]) -> bool {
         data.len() == self.data_len() && crc32(data) == self.data_crc32
     }
+}
+
+/// SFK1 window data that does not parse: an entry runs past the end, or a
+/// probe number is not 1 or 2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sfk1DataError {
+    /// Byte offset of the bad entry.
+    pub offset: usize,
+}
+
+/// The entries of SFK1 window data ([SFK1 window data](self#sfk1-window-data)):
+/// `(probe, record)` with `probe` 1 or 2 and `record` empty if that probe
+/// produced none. Yields one `Err` and stops at malformed data.
+pub fn sfk1_records(data: &[u8]) -> Sfk1Records<'_> {
+    Sfk1Records { data, offset: 0 }
+}
+
+/// Iterator returned by [`sfk1_records`].
+#[derive(Debug, Clone)]
+pub struct Sfk1Records<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> Iterator for Sfk1Records<'a> {
+    type Item = Result<(u8, &'a [u8]), Sfk1DataError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let at = self.offset;
+        let rest = self.data.get(at..).filter(|r| !r.is_empty())?;
+        let entry = match rest {
+            [probe @ (1 | 2), lo, hi, tail @ ..] => {
+                let len = u16::from_le_bytes([*lo, *hi]) as usize;
+                tail.get(..len).map(|rec| (*probe, rec))
+            }
+            _ => None,
+        };
+        match entry {
+            Some((probe, rec)) => {
+                self.offset = at + SFK1_ENTRY_PREFIX_LEN + rec.len();
+                Some(Ok((probe, rec)))
+            }
+            None => {
+                self.offset = self.data.len();
+                Some(Err(Sfk1DataError { offset: at }))
+            }
+        }
+    }
+}
+
+/// Write an SFK1 entry prefix (`probe`, `len`) into `out[..3]`.
+pub fn write_sfk1_prefix(out: &mut [u8; SFK1_ENTRY_PREFIX_LEN], probe: u8, len: u16) {
+    out[0] = probe;
+    out[1..].copy_from_slice(&len.to_le_bytes());
 }
