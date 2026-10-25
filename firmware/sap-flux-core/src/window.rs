@@ -52,17 +52,35 @@ pub struct WindowParams {
     pub sample_hz: u16,
     pub pulse_duration_ms: u16,
     pub time_invalid: bool,
-    /// Encode the window as SFK1 records instead of bins.
-    pub sfk1: Option<Sfk1Params>,
+    /// Encode the window as SFK1 records instead of bins, unless
+    /// [`Sfk1Params::OFF`].
+    pub sfk1: Sfk1Params,
 }
 
-/// What an SFK1 window needs to know at its start.
+/// What an SFK1 window needs to know at its start. A window is SFK1 when a
+/// probe has a kind.
+///
+/// Not an `Option`: its `None` would sit in a `ProbeKind` niche as a nonzero
+/// byte and move the whole store out of `.bss`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Sfk1Params {
     /// Probe on each port; it picks the profile.
     pub probes: [ProbeKind; PROBES],
     /// Baseline length: the heater fires this long after the first frame.
     pub baseline_s: u16,
+}
+
+impl Sfk1Params {
+    /// A binned window.
+    pub const OFF: Self = Self {
+        probes: [ProbeKind::None; PROBES],
+        baseline_s: 0,
+    };
+
+    /// Whether any probe is encoded.
+    pub fn is_on(&self) -> bool {
+        self.probes.iter().any(|&k| k != ProbeKind::None)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -140,7 +158,7 @@ const IDLE_RECORDER: Recorder = Recorder {
         sample_hz: 0,
         pulse_duration_ms: 0,
         time_invalid: false,
-        sfk1: None,
+        sfk1: Sfk1Params::OFF,
     },
     bin_us: 0,
     cur_bin: 0,
@@ -261,9 +279,9 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
             order: 0,
             info: ZERO_INFO,
         };
-        let sfk1 = match (params.sfk1, self.sfk1.as_deref_mut()) {
-            (Some(p), Some(enc)) => {
-                enc.begin(p.probes, p.baseline_s);
+        let sfk1 = match self.sfk1.as_deref_mut() {
+            Some(enc) if params.sfk1.is_on() => {
+                enc.begin(params.sfk1.probes, params.sfk1.baseline_s);
                 true
             }
             _ => false,
@@ -543,7 +561,7 @@ mod tests {
             sample_hz: 25,
             pulse_duration_ms: 1000,
             time_invalid: false,
-            sfk1: None,
+            sfk1: Sfk1Params::OFF,
         }
     }
 
@@ -585,10 +603,10 @@ mod tests {
     /// onset frame, frames 7 ms after the window begins.
     fn record_sfk1(store: &mut Store, run_id: u32, probes: [ProbeKind; 2]) {
         let mut p = params(run_id);
-        p.sfk1 = Some(Sfk1Params {
+        p.sfk1 = Sfk1Params {
             probes,
             baseline_s: 60,
-        });
+        };
         store.begin(p);
         let first = p.start_us + 7_000;
         for i in 0..242 * 25u64 {
@@ -648,10 +666,10 @@ mod tests {
     fn sfk1_windows_without_an_encoder_are_binned() {
         let mut store = Store::new();
         let mut p = params(6);
-        p.sfk1 = Some(Sfk1Params {
+        p.sfk1 = Sfk1Params {
             probes: [ProbeKind::East30; 2],
             baseline_s: 60,
-        });
+        };
         store.begin(p);
         store.push(p.start_us, &frame(1000), 2000);
         store.finish(p.start_us + 1_000_000, p.start_rtc_ms + 1000);

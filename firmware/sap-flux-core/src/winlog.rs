@@ -577,7 +577,7 @@ mod tests {
             sample_hz: 25,
             pulse_duration_ms: 1000,
             time_invalid: false,
-            sfk1: None,
+            sfk1: crate::window::Sfk1Params::OFF,
         });
         ram.note_heater_on(start + 100_000);
         for i in 0..bins * 6 {
@@ -684,10 +684,10 @@ mod tests {
             sample_hz: 25,
             pulse_duration_ms: 1000,
             time_invalid: false,
-            sfk1: Some(Sfk1Params {
+            sfk1: Sfk1Params {
                 probes: [ProbeKind::East30, ProbeKind::None],
                 baseline_s: 10,
-            }),
+            },
         });
         for i in 0..(10 + 182) * 25u64 {
             if i == 250 {
