@@ -1,0 +1,6 @@
+__pycache__/
+fdstep/target/
+results/_fdwork/
+results/*.npz
+results/study_a_crb_all.json
+results/*_stdout.txt
