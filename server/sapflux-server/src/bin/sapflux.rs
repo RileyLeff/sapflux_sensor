@@ -7,7 +7,7 @@
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
-use sapflux_server::config::{Config, ProbeType};
+use sapflux_server::config::{Config, Preset, ProbeType};
 use sapflux_server::store::{DeviceView, SettingsPatch, Store};
 use sapflux_server::{board, fmt_utc, now_ms, window};
 use std::io::Write;
@@ -62,6 +62,12 @@ enum Cmd {
         probe1: Option<ProbeType>,
         #[arg(long, value_enum)]
         probe2: Option<ProbeType>,
+        /// SFK1 preset for port 1: 12, 20-mixed, 24-fast… (the board refuses
+        /// one its firmware does not link).
+        #[arg(long)]
+        probe1_preset: Option<Preset>,
+        #[arg(long)]
+        probe2_preset: Option<Preset>,
         /// Probe 1 installed upside down (recorded with each window).
         #[arg(long)]
         probe1_flipped: Option<bool>,
@@ -187,6 +193,8 @@ fn main() -> Result<()> {
             sfk1,
             probe1,
             probe2,
+            probe1_preset,
+            probe2_preset,
             probe1_flipped,
             probe2_flipped,
             require_lease,
@@ -208,6 +216,8 @@ fn main() -> Result<()> {
                 sfk1,
                 probe1,
                 probe2,
+                probe1_preset,
+                probe2_preset,
                 probe1_flipped,
                 probe2_flipped,
                 lease_s,
@@ -351,13 +361,20 @@ mod erased {
 }
 
 fn describe_schedule(s: &sapflux_server::store::Settings) -> String {
-    let probe = |p: ProbeType, flipped: bool| {
+    let probe = |p: ProbeType, preset: Preset, flipped: bool| {
         let name = match p {
             ProbeType::None => "none",
             ProbeType::East30 => "east30",
             ProbeType::East30Offset => "east30_offset",
         };
-        if flipped { format!("{name} (flipped)") } else { name.to_string() }
+        let mut d = name.to_string();
+        if s.sfk1 && p != ProbeType::None {
+            d += &format!(" preset {preset}");
+        }
+        if flipped {
+            d += " (flipped)";
+        }
+        d
     };
     format!(
         "{} - pulse {} ms every {} s (phase {} s), baseline {} s, recovery {} s, {} Hz, {}; probes {}, {}{}",
@@ -369,8 +386,8 @@ fn describe_schedule(s: &sapflux_server::store::Settings) -> String {
         s.recovery_s,
         s.sample_hz,
         if s.sfk1 { "SFK1".to_string() } else { format!("{} ms bins", s.bin_ms) },
-        probe(s.probe1, s.probe1_flipped),
-        probe(s.probe2, s.probe2_flipped),
+        probe(s.probe1, s.probe1_preset, s.probe1_flipped),
+        probe(s.probe2, s.probe2_preset, s.probe2_flipped),
         if s.require_lease { ", REQUIRE_LEASE" } else { "" }
     )
 }

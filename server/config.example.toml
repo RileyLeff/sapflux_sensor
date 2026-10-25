@@ -37,6 +37,12 @@ sfk1 = true
 # profile, so set it to what is installed.
 probe1 = "east30"
 probe2 = "east30"
+# SFK1 preset per probe, "<knots>[-<prior>]": 12, 16, 20 or 24 knots (flow
+# range up to about 70, 120, 165, 200 cm/h), prior slow (default), mixed or
+# fast (record size at slow vs fast flow). The board refuses a preset its
+# firmware does not link; see firmware/sap-flux-blinky/README.md.
+probe1_preset = "12"
+probe2_preset = "12"
 # Installed upside down. Only recorded with each window (for the fit).
 probe1_flipped = false
 probe2_flipped = false

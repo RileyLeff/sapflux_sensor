@@ -2,7 +2,7 @@
 
 use anyhow::{bail, Context, Result};
 use sapflux_uplink::Schedule;
-use sap_flux_protocol::{ProbeKind, SCHEDULE_FLAG_SFK1};
+use sap_flux_protocol::{ParsePresetError, ProbeKind, Sfk1Preset, SCHEDULE_FLAG_SFK1};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -64,6 +64,10 @@ pub struct Defaults {
     pub sfk1: bool,
     pub probe1: ProbeType,
     pub probe2: ProbeType,
+    /// SFK1 preset per port: knots set the flow range, the prior the record
+    /// size. The board refuses a preset its firmware does not link.
+    pub probe1_preset: Preset,
+    pub probe2_preset: Preset,
     /// Installed upside down (heater-side needle order reversed). The board
     /// doesn't care; window files record it for the fit.
     pub probe1_flipped: bool,
@@ -106,6 +110,41 @@ impl ProbeType {
     }
 }
 
+/// SFK1 preset in its text form, `12`, `20-mixed`, `24-fast`
+/// ([`Sfk1Preset`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Preset(pub Sfk1Preset);
+
+impl std::fmt::Display for Preset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::str::FromStr for Preset {
+    type Err = ParsePresetError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map(Preset)
+    }
+}
+
+impl Serialize for Preset {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Preset {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        String::deserialize(d)?.parse().map_err(serde::de::Error::custom)
+    }
+}
+
+/// Schedule `sfk1_presets` bytes from the server's settings.
+pub fn preset_codes(presets: [Preset; 2]) -> [u8; 2] {
+    presets.map(|p| p.0.code())
+}
+
 /// Schedule `flags` from the server's settings.
 pub fn schedule_flags(require_lease: bool, sfk1: bool, probes: [ProbeType; 2]) -> u8 {
     let mut s = Schedule {
@@ -135,6 +174,8 @@ impl Default for Defaults {
             sfk1: false,
             probe1: ProbeType::None,
             probe2: ProbeType::None,
+            probe1_preset: Preset::default(),
+            probe2_preset: Preset::default(),
             probe1_flipped: false,
             probe2_flipped: false,
             lease_s: 3 * 3600,
@@ -157,6 +198,7 @@ impl Defaults {
             recovery_s: self.recovery_s,
             sample_hz: self.sample_hz,
             bin_ms: self.bin_ms,
+            sfk1_presets: preset_codes([self.probe1_preset, self.probe2_preset]),
         }
     }
 }

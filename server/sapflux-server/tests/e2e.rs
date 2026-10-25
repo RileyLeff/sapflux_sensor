@@ -324,23 +324,33 @@ async fn admin_api() {
     let (st, body) = call(
         "PUT",
         "/api/devices/box1/schedule",
-        Some(r#"{"sfk1": true, "probe1": "east30", "probe2": "east30_offset", "probe2_flipped": true}"#),
+        Some(
+            r#"{"sfk1": true, "probe1": "east30", "probe2": "east30_offset", "probe2_flipped": true,
+                "probe1_preset": "20-mixed"}"#,
+        ),
     )
     .await;
     assert_eq!(st, 200, "{body}");
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!((v["probe2"].as_str(), v["probe2_flipped"].as_bool()), (Some("east30_offset"), Some(true)));
+    assert_eq!((v["probe1_preset"].as_str(), v["probe2_preset"].as_str()), (Some("20-mixed"), Some("12")));
     let s = r.store.lock().unwrap().settings(DEVICE).unwrap();
     let wire = s.schedule();
     assert!(wire.sfk1());
     assert_eq!(wire.probe(0), sap_flux_protocol::ProbeKind::East30);
     assert_eq!(wire.probe(1), sap_flux_protocol::ProbeKind::East30Offset);
+    assert_eq!(wire.sfk1_presets, [0b01_10, 0]);
     let (st, _) = call("PUT", "/api/devices/box1/schedule", Some(r#"{"probe1": "rubber"}"#)).await;
+    assert_eq!(st, 422);
+    let (st, _) = call("PUT", "/api/devices/box1/schedule", Some(r#"{"probe1_preset": "18"}"#)).await;
     assert_eq!(st, 422);
     let (st, _) = call(
         "PUT",
         "/api/devices/box1/schedule",
-        Some(r#"{"sfk1": false, "probe1": "none", "probe2": "none", "probe2_flipped": false}"#),
+        Some(
+            r#"{"sfk1": false, "probe1": "none", "probe2": "none", "probe2_flipped": false,
+                "probe1_preset": "12"}"#,
+        ),
     )
     .await;
     assert_eq!(st, 200);

@@ -2,7 +2,7 @@
 //! state and window reassembly, plus one set of files per completed window.
 
 use crate::board::{self, BoardMsg, FieldStatus};
-use crate::config::{schedule_flags, Config, Defaults, ProbeType};
+use crate::config::{preset_codes, schedule_flags, Config, Defaults, Preset, ProbeType};
 use crate::window;
 use anyhow::{anyhow, bail, Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS device_config (
     send_windows      INTEGER NOT NULL,
     reboot_from_boot  INTEGER,
     probe_flipped     INTEGER NOT NULL DEFAULT 0,
+    sfk1_presets      INTEGER NOT NULL DEFAULT 0,
     updated_ms        INTEGER NOT NULL,
     updated_by        TEXT NOT NULL
 );
@@ -168,6 +169,8 @@ pub struct Settings {
     pub sfk1: bool,
     pub probe1: ProbeType,
     pub probe2: ProbeType,
+    pub probe1_preset: Preset,
+    pub probe2_preset: Preset,
     pub probe1_flipped: bool,
     pub probe2_flipped: bool,
     pub config_version: u32,
@@ -193,6 +196,7 @@ impl Settings {
             recovery_s: self.recovery_s,
             sample_hz: self.sample_hz,
             bin_ms: self.bin_ms,
+            sfk1_presets: preset_codes([self.probe1_preset, self.probe2_preset]),
         }
     }
 }
@@ -217,6 +221,8 @@ pub struct SettingsPatch {
     pub sfk1: Option<bool>,
     pub probe1: Option<ProbeType>,
     pub probe2: Option<ProbeType>,
+    pub probe1_preset: Option<Preset>,
+    pub probe2_preset: Option<Preset>,
     pub probe1_flipped: Option<bool>,
     pub probe2_flipped: Option<bool>,
     pub lease_s: Option<u32>,
@@ -328,12 +334,16 @@ impl Store {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.execute_batch(SCHEMA)?;
-        // databases from before the column
-        let has_flipped = conn
-            .prepare("SELECT 1 FROM pragma_table_info('device_config') WHERE name = 'probe_flipped'")?
-            .exists([])?;
-        if !has_flipped {
-            conn.execute_batch("ALTER TABLE device_config ADD COLUMN probe_flipped INTEGER NOT NULL DEFAULT 0")?;
+        // databases from before these columns
+        for col in ["probe_flipped", "sfk1_presets"] {
+            let has = conn
+                .prepare("SELECT 1 FROM pragma_table_info('device_config') WHERE name = ?1")?
+                .exists([col])?;
+            if !has {
+                conn.execute_batch(&format!(
+                    "ALTER TABLE device_config ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+                ))?;
+            }
         }
         Ok(Store {
             conn,
@@ -383,8 +393,10 @@ impl Store {
         self.conn.execute(
             "INSERT INTO device_config (device_id, enabled, flags, pulse_duration_ms, interval_s,
                 phase_s, baseline_s, recovery_s, sample_hz, bin_ms, config_version, lease_s,
-                wake_interval_s, send_windows, reboot_from_boot, updated_ms, updated_by, probe_flipped)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, NULL, ?14, 'config-defaults', ?15)",
+                wake_interval_s, send_windows, reboot_from_boot, updated_ms, updated_by, probe_flipped,
+                sfk1_presets)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13, NULL, ?14, 'config-defaults', ?15,
+                ?16)",
             params![
                 device_id as i64,
                 s.enabled,
@@ -400,7 +412,8 @@ impl Store {
                 d.wake_interval_s,
                 d.send_windows,
                 now_ms(),
-                flipped_bits(d.probe1_flipped, d.probe2_flipped)
+                flipped_bits(d.probe1_flipped, d.probe2_flipped),
+                u16::from_le_bytes(s.sfk1_presets)
             ],
         )?;
         self.log_config(device_id, "config-defaults")?;
@@ -469,13 +482,15 @@ impl Store {
                 "SELECT c.enabled, c.flags, c.pulse_duration_ms, c.interval_s, c.phase_s, c.baseline_s,
                         c.recovery_s, c.sample_hz, c.bin_ms, c.config_version, c.lease_s,
                         c.wake_interval_s, c.send_windows, c.reboot_from_boot, c.updated_ms,
-                        c.updated_by, d.name, c.probe_flipped
+                        c.updated_by, d.name, c.probe_flipped, c.sfk1_presets
                  FROM device_config c JOIN devices d USING (device_id) WHERE device_id = ?1",
                 [device_id as i64],
                 |r| {
                     let flags: u8 = r.get(1)?;
                     let flipped: u8 = r.get(17)?;
-                    let wire = Schedule { flags, ..Schedule::FACTORY_DEFAULT };
+                    let presets: u16 = r.get(18)?;
+                    let wire =
+                        Schedule { flags, sfk1_presets: presets.to_le_bytes(), ..Schedule::FACTORY_DEFAULT };
                     let mut s = Settings {
                         device_id,
                         name: r.get(16)?,
@@ -491,6 +506,8 @@ impl Store {
                         sfk1: flags & SCHEDULE_FLAG_SFK1 != 0,
                         probe1: ProbeType::from_kind(wire.probe(0)),
                         probe2: ProbeType::from_kind(wire.probe(1)),
+                        probe1_preset: Preset(wire.preset(0)),
+                        probe2_preset: Preset(wire.preset(1)),
                         probe1_flipped: flipped & 1 != 0,
                         probe2_flipped: flipped & 2 != 0,
                         config_version: r.get(9)?,
@@ -520,7 +537,8 @@ impl Store {
         }
         apply!(
             enabled, require_lease, pulse_duration_ms, interval_s, phase_s, baseline_s, recovery_s,
-            sample_hz, bin_ms, sfk1, probe1, probe2, probe1_flipped, probe2_flipped, lease_s,
+            sample_hz, bin_ms, sfk1, probe1, probe2, probe1_preset, probe2_preset, probe1_flipped,
+            probe2_flipped, lease_s,
             wake_interval_s, send_windows
         );
         sapflux_uplink::validate_schedule(&s.schedule())
@@ -537,7 +555,7 @@ impl Store {
                 phase_s = ?6, baseline_s = ?7, recovery_s = ?8, sample_hz = ?9, bin_ms = ?10,
                 lease_s = ?11, wake_interval_s = ?12, send_windows = ?13,
                 config_version = config_version + 1, updated_ms = ?14, updated_by = ?15,
-                probe_flipped = ?16
+                probe_flipped = ?16, sfk1_presets = ?17
              WHERE device_id = ?1",
             params![
                 device_id as i64,
@@ -555,7 +573,8 @@ impl Store {
                 s.send_windows,
                 now_ms(),
                 actor,
-                flipped_bits(s.probe1_flipped, s.probe2_flipped)
+                flipped_bits(s.probe1_flipped, s.probe2_flipped),
+                u16::from_le_bytes(sch.sfk1_presets)
             ],
         )?;
         let new = self.settings(device_id)?;
@@ -1031,8 +1050,8 @@ impl Store {
                 // installation as configured when the window arrived
                 if let Ok(c) = self.settings(device_id) {
                     js["probes"] = serde_json::json!([
-                        {"probe": 1, "kind": c.probe1, "flipped": c.probe1_flipped},
-                        {"probe": 2, "kind": c.probe2, "flipped": c.probe2_flipped},
+                        {"probe": 1, "kind": c.probe1, "preset": c.probe1_preset, "flipped": c.probe1_flipped},
+                        {"probe": 2, "kind": c.probe2, "preset": c.probe2_preset, "flipped": c.probe2_flipped},
                     ]);
                 }
                 write_atomic(&stem.with_extension("json"), serde_json::to_string_pretty(&js)?.as_bytes())?;
