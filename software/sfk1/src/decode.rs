@@ -150,7 +150,7 @@ impl<P: Profile> fmt::Debug for Decoder<'_, P> {
 }
 
 /// The profile's layout matches a header.
-fn profile_matches<P: Profile>(layout: Layout) -> bool {
+pub(crate) fn profile_matches<P: Profile>(layout: Layout) -> bool {
     match layout {
         Layout::Compact { version } => P::COMPACT_VERSION == Some(version),
         Layout::Extended { profile_id } => profile_id == P::ID,
@@ -551,7 +551,7 @@ mod owned {
 
     use super::{DecodeError, Decoder};
     use crate::header::{Header, Layout};
-    use crate::{East30Extreme, East30K12, East30K16, East30Offset, East30Wide, Profile};
+    use crate::Profile;
 
     /// A decoded record (feature `alloc`).
     #[derive(Debug, Clone, PartialEq)]
@@ -637,10 +637,9 @@ mod owned {
         }
     }
 
-    /// Decode a record of any built-in profile ([`East30K12`] or
-    /// [`East30K16`], compact or extended header, or [`East30Wide`],
-    /// [`East30Extreme`] or [`East30Offset`]), whatever its channel count
-    /// (feature `alloc`). For a custom profile use
+    /// Decode a record of any bundled profile (every entry of
+    /// [`BUNDLED`](crate::BUNDLED), compact or extended header), whatever
+    /// its channel count (feature `alloc`). For a custom profile use
     /// [`Decoder::<P>::new`](Decoder::new) and
     /// [`to_decoded`](Decoder::to_decoded).
     ///
@@ -655,25 +654,11 @@ mod owned {
     /// # Errors
     ///
     /// As [`Decoder::new`]; [`DecodeError::WrongProfile`] if the record is
-    /// not of a built-in profile.
+    /// not of a bundled profile.
     pub fn decode(record: &[u8]) -> Result<Decoded, DecodeError> {
         let layout = Header::parse(record)?.layout();
-        if super::profile_matches::<East30K12>(layout) {
-            Ok(Decoder::<East30K12>::new(record)?.to_decoded())
-        } else if super::profile_matches::<East30K16>(layout) {
-            Ok(Decoder::<East30K16>::new(record)?.to_decoded())
-        } else if super::profile_matches::<East30Wide>(layout) {
-            Ok(Decoder::<East30Wide>::new(record)?.to_decoded())
-        } else if super::profile_matches::<East30Extreme>(layout) {
-            Ok(Decoder::<East30Extreme>::new(record)?.to_decoded())
-        } else if super::profile_matches::<East30Offset>(layout) {
-            Ok(Decoder::<East30Offset>::new(record)?.to_decoded())
-        } else {
-            Err(DecodeError::WrongProfile {
-                found: layout,
-                expected: "a built-in profile (East30K12, East30K16, East30Wide, East30Extreme or East30Offset)",
-            })
-        }
+        crate::presets::decode_bundled(record, layout)
+            .unwrap_or(Err(DecodeError::WrongProfile { found: layout, expected: "a bundled profile (sfk1::BUNDLED)" }))
     }
 }
 

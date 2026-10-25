@@ -33,34 +33,6 @@ They are byte-exact with the Python reference's firmware mode,
 `encoder_spec.decode` to 6e-11 counts. Golden vectors in `tests/vectors`
 check both.
 
-## Choosing a profile
-
-The bundled East30 profiles trade record size for the fastest flow they
-reproduce. On simulated 12-thermistor pulses (six at +0.6 cm, six at
-−0.6 cm, k = 0.0025 cm²/s, 1 s pulse, raw noise 1.53 counts RMS):
-
-| profile | knots, t0 | header | bytes at 0–20 cm/h | accurate from −60 to | RMS error at 100 / 150 / 200 cm/h |
-|---|---|---|---:|---:|---|
-| `East30K12` (default) | 12, 2 s | compact `0x53` | 190 | 70 cm/h | 0.94 / 3.0 / 6.0 |
-| `East30K16` | 16, 2 s | compact `0x54` | 198 | 100 cm/h | 0.24 / 0.74 / 1.9 |
-| `East30Wide` | 20, 2 s | extended | 276 | 150 cm/h | 0.14 / 0.27 / 0.65 |
-| `East30Extreme` | 24, 2 s | extended | 302 | 200 cm/h | 0.14 / 0.17 / 0.29 |
-
-Accurate means a full-curve RMS error of at most 0.5 counts and no sample
-more than 5 counts off the noise-free curve. Beyond its range a profile
-misses mostly 5–12 s after onset, where fast flow makes the curve rise
-steeply. Pick the smallest profile whose range covers the fastest sap flow
-you expect; the lossless 25 Hz raw stays on the logger's flash whichever
-you pick.
-
-`East30K12` and `East30K16` are trained on −4 to 32 cm/h and grow at high
-flow (K12: 287 B at 70 cm/h; K16: 368 B at 100). `East30Wide` is trained
-on −10 to 150 cm/h and `East30Extreme` on −20 to 200, so their records
-stay at about 260–320 B across their range. `sfk1::decode` recognises all of
-them, and `tests/flow_range.rs` checks each range. The range comes from
-the knot count: at a fixed count, a `t0` from 1 to 4 s does about the same
-and 0.48 s does worse.
-
 ## Byte layout
 
 A record is a header, then a bitstream with one block per live channel in
@@ -95,9 +67,6 @@ A decoder refuses a record whose version byte, or profile id, is not its
 profile's (`DecodeError::WrongProfile`). The East30 ids are `0xc6c86f9c`
 (K12) and `0x1cbba4f7` (K16). A 1-channel East30 record therefore has an
 11-byte extended header, and a 20-channel one has a 13-byte header.
-`East30Wide` (`0x318626f3`) and `East30Extreme` (`0x2c677e16`) have no
-compact version, so their 12-channel records carry the 12-byte extended
-header.
 
 ### Per-channel block
 
@@ -235,9 +204,7 @@ mod east30_1cm { include!("profiles/east30_1cm.rs"); }
 let enc = sfk1::Encoder::<12, east30_1cm::East30At1cm>::new(&[0x0f, 0xff], 12)?;
 ```
 
-Besides `East30Wide` and `East30Extreme` ([Choosing a
-profile](#choosing-a-profile)), the crate bundles `East30Offset` for the
-offset East30 probes (10 mm above the heater, 5 mm below;
+The crate bundles `East30Offset` for the offset East30 probes (10 mm above the heater, 5 mm below;
 `--positions='1,0 -0.5,0'`, file `src/profiles/east30_offset.rs`), and
 `sfk1::decode` recognises it. Use one profile per probe type: on simulated
 6-thermistor pulses an offset probe takes 122 B with it vs 153 B with the
@@ -316,8 +283,6 @@ Encoder RAM, `size_of`:
 | `Encoder<1, East30K12>` | 288 |
 | `Encoder12` | 2 744 |
 | `Encoder16` | 3 128 |
-| `Encoder<12, East30Wide>` | 3 512 |
-| `Encoder<12, East30Extreme>` | 3 896 |
 | `Encoder<64, East30K12>` | 14 336 |
 | `Encoder<256, East30K12>` | 57 152 |
 
@@ -336,9 +301,6 @@ link. There are no panic paths in the binary.
 | `"z"` | 10.2 kB + 1.2 kB | 10.1 kB + 1.8 kB |
 | `3` | 17.0 kB + 1.1 kB | 15.7 kB + 1.7 kB |
 
-`East30Wide` and `East30Extreme` link bigger encoder matrices: `MQ` is
-2.3 kB and 3.1 kB, against 1.6 kB for K16.
-
 At `opt-level = 3`, LLVM unrolls the per-channel loops. A firmware built
 that way can give just this crate `opt-level = "s"`:
 
@@ -349,8 +311,7 @@ opt-level = "s"
 
 Records are about 20 B per live channel plus the header: 78-287 B for the
 vector windows. `MAX_RECORD_LEN` (2090 B) bounds any `Encoder12` or
-`Encoder16` record. Every encoder has its own `Encoder::MAX_RECORD_LEN`
-(2360 B for `Encoder<12, East30Wide>`, 2624 B for `East30Extreme`).
+`Encoder16` record. Every encoder has its own `Encoder::MAX_RECORD_LEN`.
 
 ## Features
 
