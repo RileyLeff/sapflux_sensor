@@ -10,7 +10,7 @@ use sap_flux_protocol::{
     Ack, FieldStatus, Schedule, SetSchedule, FIELD_STATUS_EEPROM_FAULT, FIELD_STATUS_ENABLED,
     FIELD_STATUS_FLASH_OK,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
-    FIELD_STATUS_RTC_VALID, SCHEDULE_FLAG_REQUIRE_LEASE,
+    FIELD_STATUS_RTC_VALID, SCHEDULE_FLAG_REQUIRE_LEASE, SCHEDULE_FLAG_SFK1, ProbeKind,
 };
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -108,6 +108,15 @@ struct ScheduleArgs {
     /// Uplink bin width, ms (250, 500, 1000).
     #[arg(long, default_value_t = 500)]
     bin_ms: u16,
+    /// Record windows as SFK1 records (one per probe with a kind).
+    #[arg(long)]
+    sfk1: bool,
+    /// Probe on port 1; picks its SFK1 profile.
+    #[arg(long, value_enum, default_value_t = Probe::None)]
+    probe1: Probe,
+    /// Probe on port 2.
+    #[arg(long, value_enum, default_value_t = Probe::None)]
+    probe2: Probe,
     /// Set REQUIRE_LEASE: only pulse while now < lease_until.
     #[arg(long)]
     require_lease: bool,
@@ -123,6 +132,26 @@ struct ScheduleArgs {
     /// Send even if the local limit check fails (to test board rejection).
     #[arg(long)]
     no_validate: bool,
+}
+
+/// Probe kind for `--probe1` / `--probe2`.
+#[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum Probe {
+    None,
+    /// East30, both needles 6 mm from the heater.
+    East30,
+    /// East30 offset probe, needles 10 mm and 5 mm from the heater.
+    East30Offset,
+}
+
+impl Probe {
+    fn kind(self) -> ProbeKind {
+        match self {
+            Probe::None => ProbeKind::None,
+            Probe::East30 => ProbeKind::East30,
+            Probe::East30Offset => ProbeKind::East30Offset,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -390,6 +419,7 @@ fn schedule_error_text(e: ScheduleError) -> &'static str {
         ScheduleError::Timing => "baseline + recovery + cooldown must be < interval",
         ScheduleError::SampleHz => "sample rate must be 10, 20 or 25 Hz",
         ScheduleError::BinMs => "bin must be 250, 500 or 1000 ms",
+        ScheduleError::Sfk1 => "SFK1 needs 25 Hz and a probe kind (--probe1/--probe2)",
         ScheduleError::WindowTooLong => "baseline + pulse + recovery + 4 s must fit in 1000 bins",
     }
 }
@@ -402,7 +432,7 @@ fn build_schedule(a: &ScheduleArgs) -> Result<Schedule, BoxError> {
             SCHEDULE_FLAG_REQUIRE_LEASE
         } else {
             0
-        },
+        } | if a.sfk1 { SCHEDULE_FLAG_SFK1 } else { 0 },
         pulse_duration_ms: a.pulse_ms,
         interval_s: a.interval_s,
         phase_s: a.phase_s,
@@ -410,7 +440,9 @@ fn build_schedule(a: &ScheduleArgs) -> Result<Schedule, BoxError> {
         recovery_s: a.recovery_s,
         sample_hz: a.sample_hz,
         bin_ms: a.bin_ms,
-    };
+    }
+    .with_probe(0, a.probe1.kind())
+    .with_probe(1, a.probe2.kind());
     let _ = a.disable; // clap guarantees exactly one of --enable/--disable
     if let Err(e) = schedule.validate(a.cooldown_ms) {
         if a.no_validate {

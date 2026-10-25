@@ -12,4 +12,5 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4.5", features = ["derive", "env"] }
 sap-flux-protocol = { path = "../sap-flux-protocol" }
+sfk1 = { path = "../sfk1", features = ["alloc"] }
 serialport = "4.9.0"
