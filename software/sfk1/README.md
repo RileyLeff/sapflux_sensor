@@ -219,7 +219,11 @@ per distance group.
 `--positions` takes the thermistors' (x, y) in cm, x along the expected
 flow; the physics flags (`--k-range`, `--v-range`, `--flow-angle-deg`,
 `--pulse-s`, `--spacing-error`, `--lateral-error-cm`, `--peak-counts`)
-set the priors, with East30 defaults. `--struct NAME` also writes the
+set the priors, with East30 defaults. Each is uniform over its range.
+`--v-typical MEAN SD WEIGHT` makes velocity a mixture instead: a `WEIGHT`
+share of the curves at N(`MEAN`, `SD`) cm/h and the rest uniform over
+`--v-range`, all clamped to it (the bundled mixed-flow presets use
+`--v-typical 5 6 0.85`). `--struct NAME` also writes the
 `impl sfk1::Profile`, so the file is all a crate needs:
 
 ```sh
