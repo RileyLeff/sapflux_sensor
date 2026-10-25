@@ -64,7 +64,22 @@ heater state machine as host commands; there is no safety bypass. With the
 RTC invalid, a run starts one interval after boot or after the schedule
 change, and its window is flagged `TIME_INVALID`.
 
-Each run records one window: 500 ms bins of 13 channels plus v24, in RAM
+With the schedule's SFK1 flag, each probe with a kind is encoded as one SFK1
+record instead, using the profile its kind and preset name. This firmware
+links:
+
+| kind | preset | profile | accurate to |
+|---|---|---|---|
+| East30 | `12` | `East30K12` | 70 cm/h |
+| East30 | `20-mixed` | `East30K20Mixed` | 165 cm/h |
+| East30 offset | `12` | `East30Offset` | 70 cm/h |
+
+`SetSchedule` refuses any other preset with `INVALID_PARAMETER`. Each preset
+costs flash; the list is `linked!` in `sap-flux-core/src/sfk1win.rs`. A
+schedule stored by firmware before presets (20-byte schedule) fails its
+record check at boot, and the factory default replaces it.
+
+Each binned run records one window: 500 ms bins of 13 channels plus v24, in RAM
 (4 windows of up to 1000 bins, 104 000 B; longer windows are flagged
 `TRUNCATED`). A finished window is then written to the next of 256 W25Q256
 slots (32 KiB each, upper 8 MiB), read back against RAM, and only then freed
@@ -147,7 +162,8 @@ out, the schedule is held, and FieldStatus shows `eeprom_fault` (bit 6).
 9. EEPROM fault (spare board, EEPROM not fitted): confirm `status` shows
    `eeprom_fault|heater_lockout` right after boot and that no run starts.
 10. SFK1 windows: `sap-flux-field set-schedule --sfk1 --probe1 east30`
-    (plus `--probe2` if a second probe is fitted). After a run, confirm
+    (plus `--probe2` if a second probe is fitted; repeat with
+    `--preset1 20-mixed`, and confirm `--preset1 16` is refused). After a run, confirm
     `get-window` lists one record per probe and writes the frame CSV. Then
     `get-raw` the same run and confirm the decoded curves track the raw
     frames within a few counts, including the first seconds after the pulse.

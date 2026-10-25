@@ -2,7 +2,7 @@
 //!
 //! | address | record | length |
 //! |---|---|---|
-//! | `0x0000` | schedule | 28 B |
+//! | `0x0000` | schedule | 30 B |
 //! | `0x0020` | RTC trim | 12 B |
 //! | `0x0040` | boot count | 12 B |
 //! | `0x0FC0` | heater lockout (firmware, unchanged) | 16 B |

@@ -35,7 +35,7 @@ use sap_flux_core::rawlog::{Geometry, RawLog, CHUNK_LEN};
 use sap_flux_core::records;
 use sap_flux_core::schedule::{next_boot_count, Action, Inputs, Planner};
 use sap_flux_core::trim::{Calr, TrimLearner, TRIM_LIMIT_PPB};
-use sap_flux_core::sfk1win::Sfk1Window;
+use sap_flux_core::sfk1win::{self, Sfk1Window};
 use sap_flux_core::window::{Sfk1Params, WindowParams, WindowStore, BIN_BYTES};
 use sap_flux_core::winlog::WindowLog;
 use sap_flux_protocol::raw::RawFrame;
@@ -672,7 +672,7 @@ async fn main(_spawner: Spawner) {
     )
     .and_then(|r| records::decode_schedule(&r));
     let schedule = schedule_in_eeprom
-        .filter(|s| s.validate(COOLDOWN_MS as u32).is_ok())
+        .filter(|s| s.validate(COOLDOWN_MS as u32).is_ok() && sfk1win::schedule_supported(s))
         .unwrap_or(Schedule::FACTORY_DEFAULT);
     // Run ids carry the boot count, so it also skips any boot whose runs
     // are still in flash (the EEPROM record may be lost or stale).
@@ -1273,7 +1273,8 @@ async fn handle_command(message: Message, ctx: &mut Ctx<'_>) -> CommandResponses
 /// disable always takes effect in RAM: the heater must be stoppable even
 /// with a broken EEPROM. Both cases still report PERSISTENCE_FAILED.
 async fn set_schedule(ctx: &mut Ctx<'_>, schedule: Schedule, lease_until_unix_s: u32) -> u8 {
-    if schedule.validate(COOLDOWN_MS as u32).is_err() {
+    // an SFK1 preset this build does not link is refused like a bad limit
+    if schedule.validate(COOLDOWN_MS as u32).is_err() || !sfk1win::schedule_supported(&schedule) {
         return INVALID_PARAMETER_RESULT;
     }
     let persisted = ctx.field.schedule_in_eeprom == Some(schedule)
@@ -1368,6 +1369,7 @@ async fn run_scheduler(ctx: &mut Ctx<'_>) {
                         sfk1: if run.schedule.sfk1() {
                             Sfk1Params {
                                 probes: [run.schedule.probe(0), run.schedule.probe(1)],
+                                presets: [run.schedule.preset(0), run.schedule.preset(1)],
                                 baseline_s: run.schedule.baseline_s,
                             }
                         } else {

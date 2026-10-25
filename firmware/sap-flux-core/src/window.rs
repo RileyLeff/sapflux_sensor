@@ -30,7 +30,8 @@ use crate::sfk1win::{Sfk1Window, PROBES};
 use sap_flux_protocol::crc::Crc32;
 use sap_flux_protocol::field::{encode_bin_value, mean_raw_rounded};
 use sap_flux_protocol::{
-    ProbeKind, WindowChunk, WindowInfo, WINDOW_CHANNELS, WINDOW_CHUNK_DATA_LEN,
+    ProbeKind, Sfk1Knots, Sfk1Preset, Sfk1Prior, WindowChunk, WindowInfo, WINDOW_CHANNELS,
+    WINDOW_CHUNK_DATA_LEN,
     WINDOW_FLAG_ABORTED, WINDOW_FLAG_ADC_ERRORS, WINDOW_FLAG_SFK1, WINDOW_FLAG_TIME_INVALID,
     WINDOW_FLAG_TRUNCATED,
 };
@@ -64,8 +65,10 @@ pub struct WindowParams {
 /// byte and move the whole store out of `.bss`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Sfk1Params {
-    /// Probe on each port; it picks the profile.
+    /// Probe on each port; with its preset it picks the profile.
     pub probes: [ProbeKind; PROBES],
+    /// SFK1 preset of each port.
+    pub presets: [Sfk1Preset; PROBES],
     /// Baseline length: the heater fires this long after the first frame.
     pub baseline_s: u16,
 }
@@ -74,6 +77,7 @@ impl Sfk1Params {
     /// A binned window.
     pub const OFF: Self = Self {
         probes: [ProbeKind::None; PROBES],
+        presets: [Sfk1Preset { knots: Sfk1Knots::K12, prior: Sfk1Prior::Slow }; PROBES],
         baseline_s: 0,
     };
 
@@ -281,7 +285,7 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
         };
         let sfk1 = match self.sfk1.as_deref_mut() {
             Some(enc) if params.sfk1.is_on() => {
-                enc.begin(params.sfk1.probes, params.sfk1.baseline_s);
+                enc.begin(params.sfk1.probes, params.sfk1.presets, params.sfk1.baseline_s);
                 true
             }
             _ => false,
@@ -605,6 +609,7 @@ mod tests {
         let mut p = params(run_id);
         p.sfk1 = Sfk1Params {
             probes,
+            presets: Sfk1Params::OFF.presets,
             baseline_s: 60,
         };
         store.begin(p);
@@ -668,6 +673,7 @@ mod tests {
         let mut p = params(6);
         p.sfk1 = Sfk1Params {
             probes: [ProbeKind::East30; 2],
+            presets: Sfk1Params::OFF.presets,
             baseline_s: 60,
         };
         store.begin(p);

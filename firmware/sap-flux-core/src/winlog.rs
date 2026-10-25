@@ -686,6 +686,7 @@ mod tests {
             time_invalid: false,
             sfk1: Sfk1Params {
                 probes: [ProbeKind::East30, ProbeKind::None],
+                presets: Sfk1Params::OFF.presets,
                 baseline_s: 10,
             },
         });

@@ -1,10 +1,11 @@
 //! SFK1 encoding of a field window: one record per probe
 //! (`docs/field-protocol.md` §1, SFK1 window data).
 //!
-//! Each probe port with a [`ProbeKind`] gets its own 6-channel encoder, with
-//! the profile its needle spacing was trained for: classic East30 probes
-//! [`East30K12`], offset probes [`East30Offset`]. Both see the same frames
-//! and the same excitation channel.
+//! Each probe port with a [`ProbeKind`] gets its own 6-channel encoder with
+//! the profile picked by its kind (needle spacing) and [`Sfk1Preset`] (flow
+//! range and training prior). Both see the same frames and the same
+//! excitation channel. Only the presets in [`LINKED`] are built into the
+//! firmware; [`supports`] says whether a schedule can use one.
 //!
 //! Frames are placed on the 40 ms grid by time, not by count: the first
 //! frame after [`begin`](Sfk1Window::begin) is window frame 0, and a frame at
@@ -18,8 +19,11 @@
 
 use crate::window::{CHANNELS, INVALID_RAW};
 use sap_flux_protocol::field::{write_sfk1_prefix, SFK1_ENTRY_PREFIX_LEN};
-use sap_flux_protocol::{ProbeKind, WINDOW_EXCITATION_CHANNEL};
-use sfk1::{East30K12, East30Offset, EncodeError, Encoder, Profile};
+use sap_flux_protocol::{
+    ProbeKind, Schedule, Sfk1Knots, Sfk1Preset, Sfk1Prior,
+    WINDOW_EXCITATION_CHANNEL,
+};
+use sfk1::{East30K12, EncodeError, Encoder, Profile};
 
 /// Probe ports on the board.
 pub const PROBES: usize = 2;
@@ -33,61 +37,113 @@ const BIN_FRAMES: u32 = East30K12::BIN_FRAMES as u32;
 const BIN_S: u16 = (BIN_FRAMES as u64 * FRAME_PERIOD_US / 1_000_000) as u16;
 const MAX_BINS: u16 = 12;
 
-const _: () = {
-    assert!(East30K12::FRAME_PERIOD_US == East30Offset::FRAME_PERIOD_US);
-    assert!(East30K12::BIN_FRAMES == East30Offset::BIN_FRAMES);
-    assert!(East30K12::POST_FRAMES == East30Offset::POST_FRAMES);
-    assert!(BIN_FRAMES as u64 * FRAME_PERIOD_US == BIN_S as u64 * 1_000_000);
-};
+/// Defines the linked presets: one encoder variant each, [`LINKED`],
+/// [`supports`] and the constructor. Each code that is not here costs
+/// nothing; each knot count here costs about 4 kB of encoder code, and each
+/// preset its tables (1.0 / 1.6 / 2.3 / 3.1 kB at 12 / 16 / 20 / 24 knots).
+macro_rules! linked {
+    ($($profile:ident: $kind:ident $knots:ident $prior:ident,)*) => {
+        /// One port's encoder.
+        #[allow(clippy::large_enum_variant)] // never moved once the window starts
+        enum ProbeEncoder {
+            Off,
+            $($profile(Encoder<PROBE_CHANNELS, sfk1::$profile>),)*
+        }
 
-/// One port's encoder.
-#[allow(clippy::large_enum_variant)] // never moved once the window starts
-enum ProbeEncoder {
-    Off,
-    East30(Encoder<PROBE_CHANNELS, East30K12>),
-    Offset(Encoder<PROBE_CHANNELS, East30Offset>),
-}
+        /// The (probe kind, preset) pairs this firmware encodes, with the
+        /// `sfk1` profile of each.
+        pub const LINKED: &[(ProbeKind, Sfk1Preset, &str)] = &[
+            $((
+                ProbeKind::$kind,
+                Sfk1Preset { knots: Sfk1Knots::$knots, prior: Sfk1Prior::$prior },
+                <sfk1::$profile as Profile>::NAME,
+            ),)*
+        ];
 
-macro_rules! with_encoder {
-    ($probe:expr, $enc:ident => $body:expr, $off:expr) => {
-        match $probe {
-            ProbeEncoder::Off => $off,
-            ProbeEncoder::East30($enc) => $body,
-            ProbeEncoder::Offset($enc) => $body,
+        const _: () = {
+            $(
+                assert!(<sfk1::$profile as Profile>::FRAME_PERIOD_US as u64 == FRAME_PERIOD_US);
+                assert!(<sfk1::$profile as Profile>::BIN_FRAMES as u32 == BIN_FRAMES);
+                assert!(<sfk1::$profile as Profile>::POST_FRAMES == East30K12::POST_FRAMES);
+            )*
+            assert!(BIN_FRAMES as u64 * FRAME_PERIOD_US == BIN_S as u64 * 1_000_000);
+        };
+
+        impl ProbeEncoder {
+            fn new(kind: ProbeKind, preset: Sfk1Preset, n_bins: u8) -> Self {
+                let made = match (kind, preset.knots, preset.prior) {
+                    $((ProbeKind::$kind, Sfk1Knots::$knots, Sfk1Prior::$prior) => {
+                        Encoder::new(&LIVE, n_bins).map(Self::$profile)
+                    })*
+                    _ => return Self::Off,
+                };
+                // 2..=12 bins and a 1-byte mask of 6 channels always construct
+                made.unwrap_or(Self::Off)
+            }
+
+            fn push(&mut self, frame: Option<(i16, &[i16; PROBE_CHANNELS])>) {
+                // WindowFull past the record's end: those frames are not encoded
+                let _ = match self {
+                    Self::Off => Ok(()),
+                    $(Self::$profile(e) => match frame {
+                        Some((exc, therm)) => e.push(exc, therm),
+                        None => e.push_missing(),
+                    },)*
+                };
+            }
+
+            fn is_complete(&self) -> bool {
+                match self {
+                    Self::Off => true,
+                    $(Self::$profile(e) => e.is_complete(),)*
+                }
+            }
+
+            fn reached_onset(&self) -> bool {
+                match self {
+                    Self::Off => false,
+                    $(Self::$profile(e) => e.frames_pushed() > e.onset_frame(),)*
+                }
+            }
+
+            fn pad(&mut self) {
+                match self {
+                    Self::Off => {}
+                    $(Self::$profile(e) => while !e.is_complete() && e.push_missing().is_ok() {},)*
+                }
+            }
+
+            fn finish(&self, out: &mut [u8]) -> Result<usize, EncodeError> {
+                match self {
+                    Self::Off => Ok(0),
+                    $(Self::$profile(e) => e.finish(out).map(|f| f.len),)*
+                }
+            }
         }
     };
 }
 
-impl ProbeEncoder {
-    fn new(kind: ProbeKind, n_bins: u8) -> Self {
-        let made = match kind {
-            ProbeKind::None => return Self::Off,
-            ProbeKind::East30 => Encoder::new(&LIVE, n_bins).map(Self::East30),
-            ProbeKind::East30Offset => Encoder::new(&LIVE, n_bins).map(Self::Offset),
-        };
-        // 2..=12 bins and a 1-byte mask of 6 channels always construct
-        made.unwrap_or(Self::Off)
-    }
+// Each preset is monomorphized code plus its tables: about 2.4 kB for another
+// preset at a linked knot count, 7.7 kB for the first at a new one. K20 Mixed
+// for the offset probe would leave 4.5 kB of flash; drop a preset here before
+// trimming anything else when flash runs short.
+linked! {
+    East30K12: East30 K12 Slow,
+    East30Offset: East30Offset K12 Slow,
+    East30K20Mixed: East30 K20 Mixed,
+}
 
-    fn push(&mut self, frame: Option<(i16, &[i16; PROBE_CHANNELS])>) {
-        // WindowFull past the record's end: those frames are not encoded
-        let _ = with_encoder!(self, e => match frame {
-            Some((exc, therm)) => e.push(exc, therm),
-            None => e.push_missing(),
-        }, Ok(()));
-    }
+/// Whether this firmware can encode `kind` with `preset`. A port without a
+/// kind takes any preset.
+pub fn supports(kind: ProbeKind, preset: Sfk1Preset) -> bool {
+    kind == ProbeKind::None || LINKED.iter().any(|&(k, p, _)| (k, p) == (kind, preset))
+}
 
-    fn reached_onset(&self) -> bool {
-        with_encoder!(self, e => e.frames_pushed() > e.onset_frame(), false)
-    }
-
-    fn pad(&mut self) {
-        with_encoder!(self, e => while !e.is_complete() && e.push_missing().is_ok() {}, ())
-    }
-
-    fn finish(&self, out: &mut [u8]) -> Result<usize, EncodeError> {
-        with_encoder!(self, e => e.finish(out).map(|f| f.len), Ok(0))
-    }
+/// Whether this firmware can run `schedule`: a binned schedule always, an
+/// SFK1 one when every port's (kind, preset) is [linked](LINKED). Check it
+/// with [`Schedule::validate`] before accepting a schedule.
+pub fn schedule_supported(schedule: &Schedule) -> bool {
+    !schedule.sfk1() || (0..PROBES).all(|p| supports(schedule.probe(p), schedule.preset(p)))
 }
 
 /// What [`Sfk1Window::finish`] wrote.
@@ -139,11 +195,17 @@ impl Sfk1Window {
     }
 
     /// Start a window whose heater fires `baseline_s` after its first frame.
-    pub fn begin(&mut self, kinds: [ProbeKind; PROBES], baseline_s: u16) {
+    /// A port whose preset is not [linked](LINKED) gets no record.
+    pub fn begin(
+        &mut self,
+        kinds: [ProbeKind; PROBES],
+        presets: [Sfk1Preset; PROBES],
+        baseline_s: u16,
+    ) {
         let n_bins = Self::baseline_bins(baseline_s);
         let baseline_frames = baseline_s as u32 * 1_000_000 / FRAME_PERIOD_US as u32;
-        for (probe, &kind) in self.probes.iter_mut().zip(&kinds) {
-            *probe = ProbeEncoder::new(kind, n_bins);
+        for ((probe, &kind), &preset) in self.probes.iter_mut().zip(&kinds).zip(&presets) {
+            *probe = ProbeEncoder::new(kind, preset, n_bins);
         }
         self.kinds = kinds;
         self.active = true;
@@ -186,7 +248,7 @@ impl Sfk1Window {
                 continue;
             }
             for _ in 0..gap {
-                if with_encoder!(probe, e => e.is_complete(), true) {
+                if probe.is_complete() {
                     break;
                 }
                 probe.push(None);
@@ -248,6 +310,7 @@ mod tests {
     extern crate std;
     use super::*;
     use sap_flux_protocol::field::sfk1_records;
+    use sap_flux_protocol::SCHEDULE_FLAG_SFK1;
     use std::vec;
 
     const ONSET_S: u64 = 60;
@@ -267,14 +330,26 @@ mod tests {
         f
     }
 
+    const K12: [Sfk1Preset; 2] = [Sfk1Preset { knots: Sfk1Knots::K12, prior: Sfk1Prior::Slow }; 2];
+
     fn run(
         kinds: [ProbeKind; 2],
         baseline_s: u16,
         secs: u64,
         drop: impl Fn(u64) -> bool,
     ) -> (vec::Vec<u8>, u64) {
+        run_presets(kinds, K12, baseline_s, secs, drop)
+    }
+
+    fn run_presets(
+        kinds: [ProbeKind; 2],
+        presets: [Sfk1Preset; 2],
+        baseline_s: u16,
+        secs: u64,
+        drop: impl Fn(u64) -> bool,
+    ) -> (vec::Vec<u8>, u64) {
         let mut w = Sfk1Window::new();
-        w.begin(kinds, baseline_s);
+        w.begin(kinds, presets, baseline_s);
         let t0 = 5_000_017u64;
         for n in 0..secs * 25 {
             if drop(n) {
@@ -306,7 +381,7 @@ mod tests {
             assert_eq!(*probe as usize, p + 1);
             let dec = sfk1::decode(rec).unwrap();
             assert_eq!(dec.n_channels, 6);
-            assert_eq!(dec.profile, [East30K12::NAME, East30Offset::NAME][p]);
+            assert_eq!(dec.profile, [East30K12::NAME, sfk1::East30Offset::NAME][p]);
             assert_eq!(dec.channels.len(), 6);
             let times = dec.times();
             for (c, ch) in dec.channels.iter().enumerate() {
@@ -350,7 +425,7 @@ mod tests {
     #[test]
     fn invalid_reads_are_missing_frames_of_that_probe_only() {
         let mut w = Sfk1Window::new();
-        w.begin([ProbeKind::East30, ProbeKind::East30], 60);
+        w.begin([ProbeKind::East30, ProbeKind::East30], K12, 60);
         for n in 0..242 * 25u64 {
             let mut f = frame(n as f64 / 25.0 - 60.0, 400.0);
             if n % 100 == 3 {
@@ -375,5 +450,45 @@ mod tests {
         assert_eq!(Sfk1Window::baseline_bins(37), 7);
         assert_eq!(Sfk1Window::baseline_bins(300), 12);
         std::println!("Sfk1Window is {} B", core::mem::size_of::<Sfk1Window>());
+    }
+
+    #[test]
+    fn every_linked_preset_records_and_others_are_refused() {
+        for &(kind, preset, name) in LINKED {
+            assert!(supports(kind, preset));
+            let (data, _) = run_presets([kind, ProbeKind::None], [preset, K12[0]], 60, 242, |_| false);
+            let entries: vec::Vec<_> = sfk1_records(&data).map(Result::unwrap).collect();
+            assert_eq!(entries.len(), 1);
+            let dec = sfk1::decode(entries[0].1).unwrap();
+            assert_eq!(dec.profile, name);
+            let times = dec.times();
+            for (c, ch) in dec.channels.iter().enumerate() {
+                let err = ch
+                    .samples
+                    .iter()
+                    .zip(&times)
+                    .map(|(&v, &t)| (v - frame(t, 400.0)[c] as f64).abs())
+                    .fold(0.0, f64::max);
+                assert!(err < 3.0, "{name} ch {c}: max error {err} counts");
+            }
+        }
+        assert!(supports(ProbeKind::None, Sfk1Preset { knots: Sfk1Knots::K24, prior: Sfk1Prior::Fast }));
+        // a preset the firmware does not link gives no record, not a wrong one
+        let missing = [Sfk1Knots::K12, Sfk1Knots::K16, Sfk1Knots::K20, Sfk1Knots::K24]
+            .into_iter()
+            .flat_map(|knots| {
+                [Sfk1Prior::Slow, Sfk1Prior::Mixed, Sfk1Prior::Fast]
+                    .map(|prior| Sfk1Preset { knots, prior })
+            })
+            .find(|&p| !supports(ProbeKind::East30, p));
+        if let Some(p) = missing {
+            let sched = Schedule { flags: SCHEDULE_FLAG_SFK1, ..Schedule::FACTORY_DEFAULT }
+                .with_probe(0, ProbeKind::East30);
+            assert!(schedule_supported(&sched));
+            assert!(!schedule_supported(&sched.with_preset(0, p)));
+            assert!(schedule_supported(&Schedule { flags: 0, ..sched.with_preset(0, p) }));
+            let (data, _) = run_presets([ProbeKind::East30, ProbeKind::None], [p, K12[0]], 60, 242, |_| false);
+            assert_eq!(data, [1, 0, 0]);
+        }
     }
 }
