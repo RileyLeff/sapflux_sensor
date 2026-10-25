@@ -138,17 +138,20 @@ fn record<P: Profile>() -> Vec<u8> {
     out
 }
 
-#[cfg(feature = "decode")]
 #[test]
 fn a_sub_hertz_grid_changes_only_the_time_axis() {
     assert_eq!(Probe48Slow::validate(), Ok(()));
     assert_ne!(Probe48Slow::ID, Probe48::ID);
     let (fast, slow) = (record::<Probe48>(), record::<Probe48Slow>());
-    let fast = sfk1::Decoder::<Probe48>::new(&fast).unwrap();
-    let slow = sfk1::Decoder::<Probe48Slow>::new(&slow).unwrap();
-    let onset = slow.onset_frame();
-    assert_eq!((slow.time_s(onset + 1), slow.time_s(onset - 2), fast.time_s(onset + 1)), (2.5, -5.0, 0.1));
-    for (f, s) in fast.channels().zip(slow.channels()) {
-        assert_eq!((f.coefs(), f.bins()), (s.coefs(), s.bins()));
+    assert_eq!(fast.len(), slow.len());
+    #[cfg(feature = "decode")]
+    {
+        let fast = sfk1::Decoder::<Probe48>::new(&fast).unwrap();
+        let slow = sfk1::Decoder::<Probe48Slow>::new(&slow).unwrap();
+        let onset = slow.onset_frame();
+        assert_eq!((slow.time_s(onset + 1), slow.time_s(onset - 2), fast.time_s(onset + 1)), (2.5, -5.0, 0.1));
+        for (f, s) in fast.channels().zip(slow.channels()) {
+            assert_eq!((f.coefs(), f.bins()), (s.coefs(), s.bins()));
+        }
     }
 }
