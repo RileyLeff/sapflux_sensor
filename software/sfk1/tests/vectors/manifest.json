@@ -1,0 +1,97 @@
+{
+ "real_aug24_soaked4x4": {
+  "file_bytes": 95142,
+  "firmware_k12": {
+   "bytes": 109,
+   "missing": 270,
+   "e_ref": 24888
+  },
+  "float_k12": {
+   "bytes": 107
+  },
+  "firmware_k16": {
+   "bytes": 114,
+   "missing": 270,
+   "e_ref": 24888
+  },
+  "float_k16": {
+   "bytes": 113
+  }
+ },
+ "real_jul11_bench": {
+  "file_bytes": 82976,
+  "firmware_k12": {
+   "bytes": 79,
+   "missing": 242,
+   "e_ref": 24966
+  },
+  "float_k12": {
+   "bytes": 77
+  },
+  "firmware_k16": {
+   "bytes": 84,
+   "missing": 242,
+   "e_ref": 24966
+  },
+  "float_k16": {
+   "bytes": 82
+  }
+ },
+ "null_jul11_norise": {
+  "file_bytes": 94961,
+  "firmware_k12": {
+   "bytes": 78,
+   "missing": 274,
+   "e_ref": 24938
+  },
+  "float_k12": {
+   "bytes": 76
+  },
+  "firmware_k16": {
+   "bytes": 83,
+   "missing": 274,
+   "e_ref": 24938
+  },
+  "float_k16": {
+   "bytes": 81
+  }
+ },
+ "syn00_0": {
+  "file_bytes": 165921,
+  "firmware_k12": {
+   "bytes": 271,
+   "missing": 0,
+   "e_ref": 24907
+  },
+  "float_k12": {
+   "bytes": 271
+  },
+  "firmware_k16": {
+   "bytes": 287,
+   "missing": 0,
+   "e_ref": 24907
+  },
+  "float_k16": {
+   "bytes": 287
+  }
+ },
+ "syn01_0": {
+  "file_bytes": 165797,
+  "firmware_k12": {
+   "bytes": 240,
+   "missing": 0,
+   "e_ref": 24932
+  },
+  "float_k12": {
+   "bytes": 240
+  },
+  "firmware_k16": {
+   "bytes": 256,
+   "missing": 0,
+   "e_ref": 24932
+  },
+  "float_k16": {
+   "bytes": 256
+  }
+ }
+}
