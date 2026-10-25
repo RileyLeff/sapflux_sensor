@@ -1,13 +1,17 @@
-//! SFK1: the per-pulse heat-pulse compression format of the sap-flux board.
+//! SFK1: compression for heat-pulse windows, one record per pulse.
 //!
-//! One record carries a whole heat-pulse window (for the East30 probe: 60 s
-//! of baseline plus 181 s from heater onset, 12 thermistors at 25 Hz, about
-//! 150 kB raw) in about 250 bytes, with no measurable loss of sap-velocity
-//! information. The format and the science behind it are in
+//! A record carries a baseline before a heater pulse and the response after
+//! it, from any number of thermistors on a fixed sampling grid. A
+//! [`Profile`] sets the grid, the log-time spline basis and the trained
+//! coding tables, so one crate serves different probes, spacings, channel
+//! counts and frame periods. The bundled East30 profiles are the sap-flux
+//! board's: 60 s of baseline plus 181 s from heater onset, 12 thermistors at
+//! 25 Hz, about 150 kB raw, in about 250 bytes with no measurable loss of
+//! sap-velocity information. The format and the science behind it are in
 //! `analysis/compression_research_20261024/README.md` §5; the byte layout is
 //! repeated in this crate's README.
 //!
-//! * [`Encoder<N, P>`](Encoder) runs on the board: `no_std`, no allocation,
+//! * [`Encoder<N, P>`](Encoder) runs on the logger: `no_std`, no allocation,
 //!   no panics, no floating point. `N` is the thermistor count and `P` the
 //!   [`Profile`] (sampling grid and trained tables). Push one frame at a
 //!   time ([`Encoder::push`], [`Encoder::push_missing`]); nothing is buffered
@@ -16,9 +20,11 @@
 //! * [`Decoder<P>`](Decoder) (feature `decode`, on by default) parses a
 //!   record of any channel count and rebuilds each channel's curve. With
 //!   `alloc`, [`decode()`] picks the East30 profile from the header and
-//!   returns it all in [`Vec`](alloc::vec::Vec)s.
+//!   returns it all in [`Vec`](alloc::vec::Vec)s. [`Curve`] evaluates a
+//!   channel between frames, for front ends that sample channels at fixed
+//!   offsets ([sample timing](Curve#sample-timing)).
 //!
-//! [`Encoder12`] and [`Encoder16`] are the board's encoders (12 thermistors,
+//! [`Encoder12`] and [`Encoder16`] are the sap-flux board's encoders (12 thermistors,
 //! [`East30K12`] / [`East30K16`]). They are bit-exact with the reference's
 //! firmware mode, `encoder_spec.encode(w, fixed_point="firmware")`, and the
 //! decoder matches the reference decoder; both are checked against golden

@@ -1,26 +1,32 @@
 # sfk1
 
-SFK1 is the per-pulse heat-pulse compression format of the sap-flux board.
-One record holds a whole heat-pulse window in about 250 bytes, with no
-measurable loss of sap-velocity information. For the East30 probe a window
-is 60 s of baseline plus 181 s from heater onset, 12 thermistors at 25 Hz,
-about 150 kB raw.
+SFK1 compresses heat-pulse windows: a baseline before a heater pulse and
+the temperature response after it, from any number of thermistors on a
+fixed sampling grid. Each record is one pulse. A [`Profile`](#profiles)
+sets the grid (frame period, baseline bins, window length), the log-time
+spline basis and the trained coding tables, so the same code serves
+different probes, spacings, channel counts and sample rates.
+
+The bundled East30 profiles are the sap-flux board's: 60 s of baseline plus
+181 s from heater onset, 12 thermistors at 25 Hz, about 150 kB raw, in
+about 250 bytes with no measurable loss of sap-velocity information.
 
 The format and the science behind it are in
 `analysis/compression_research_20261024/README.md` §5. The reference
 implementation is `encoder_spec.py` in the same directory.
 
-* **`Encoder<N, P>`** runs on the board. It is `no_std`, does not allocate,
+* **`Encoder<N, P>`** runs on the logger. It is `no_std`, does not allocate,
   has no panic paths, uses no floats and no `unsafe`. You push one frame at a
   time and it writes the record into a caller buffer. `N` is the thermistor
   count and `P` the [`Profile`](#profiles).
 * **`Decoder<P>`** (feature `decode`, on by default) is `no_std` too, and
   uses `libm`. It learns the channel count from the record and rebuilds
   each channel's curve.
-* **`sfk1::decode`** (feature `alloc`) picks the East30 profile from the
-  header and returns owned `Vec`s, serde-ready, for the server.
+* **`sfk1::decode`** (feature `alloc`) picks a bundled East30 profile from
+  the header and returns owned `Vec`s, serde-ready, for the server; other
+  profiles use `Decoder::<P>::to_decoded`.
 
-`Encoder12` and `Encoder16` are the board's encoders: 12 thermistors with
+`Encoder12` and `Encoder16` are the sap-flux board's encoders: 12 thermistors with
 `East30K12` (record version `0x53`, the default) or `East30K16` (`0x54`).
 They are byte-exact with the Python reference's firmware mode,
 `encoder_spec.encode(w, fixed_point="firmware")`. The decoder matches
