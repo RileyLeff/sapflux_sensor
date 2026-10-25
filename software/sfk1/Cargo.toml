@@ -1,0 +1,36 @@
+[package]
+name = "sfk1"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+description = "SFK1 heat-pulse compression: a streaming, allocation-free no_std encoder for the sap-flux board and a decoder for the server side"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["no_std", "compression", "sap-flux", "embedded", "heat-pulse"]
+categories = ["embedded", "no-std", "compression", "science"]
+exclude = ["tools/__pycache__"]
+
+[features]
+default = ["decode"]
+# The float decoder (needs `libm` for ln). Firmware that only encodes can turn
+# default features off and compile nothing but the integer encoder.
+decode = ["dep:libm"]
+# Vec-returning decode API.
+alloc = ["decode", "serde?/alloc"]
+std = ["alloc"]
+# `defmt::Format` on public types and errors.
+defmt = ["dep:defmt"]
+# Serialize/Deserialize on the header and decoded types.
+serde = ["dep:serde"]
+
+[dependencies]
+# Each dependency is optional and only pulled in by the feature that needs it.
+libm = { version = "0.2.15", optional = true }
+defmt = { version = "1", optional = true }
+serde = { version = "1.0.228", optional = true, default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+proptest = { version = "1.11", default-features = false, features = ["std"] }
+
+[package.metadata.docs.rs]
+all-features = true
