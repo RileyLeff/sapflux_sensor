@@ -1,0 +1,110 @@
+       layout   model  phi    U  n  phi_bias  phi_rmse  phi_p95  frac_gt20  speed_bias  speed_rmse  crb_phi  crb_speed scenario
+       2H_tri aligned  0.0  2.0 40    -1.554     6.662   13.175      0.000       0.004       0.141    5.661      0.055     base
+       2H_tri aligned  0.0 10.0 40     0.540     2.445    4.662      0.000       0.002       0.050    2.576      0.047     base
+       2H_tri aligned 25.0  2.0 40    -0.106     4.388    8.919      0.000       0.013       0.136    5.321      0.045     base
+       2H_tri aligned 25.0 10.0 40    -0.987     2.858    5.221      0.000       0.004       0.048    2.725      0.038     base
+       2H_tri aligned 90.0  2.0 40    -2.151    13.534   11.194      0.025      -0.049       0.123    5.574      0.044     base
+       2H_tri aligned 90.0 10.0 40     0.787     2.966    5.811      0.000       0.006       0.046    3.296      0.037     base
+       2H_tri general  0.0  2.0 40     3.434    25.401   16.969      0.025      -0.008       0.126    7.148      0.055     base
+       2H_tri general  0.0 10.0 40    -0.911     2.962    5.743      0.000      -0.008       0.049    3.091      0.048     base
+       2H_tri general 25.0  2.0 40     8.668    33.995  111.805      0.125      -0.003       0.145    8.432      0.046     base
+       2H_tri general 25.0 10.0 40     0.860     2.941    5.756      0.000      -0.007       0.040    2.837      0.040     base
+       2H_tri general 90.0  2.0 40    -5.577    14.379   19.064      0.050      -0.020       0.104   11.646      0.044     base
+       2H_tri general 90.0 10.0 40    -0.100     4.076    9.106      0.000      -0.004       0.041    3.298      0.039     base
+T3_axial+side aligned  0.0  2.0 40    -6.628    27.198   56.070      0.475       0.025       0.261   21.311      0.043     base
+T3_axial+side aligned  0.0 10.0 40     0.472     5.483    9.903      0.000       0.001       0.039    5.355      0.035     base
+T3_axial+side aligned 25.0  2.0 40    -5.889    27.536   53.054      0.425      -0.026       0.280   12.797      0.128     base
+T3_axial+side aligned 25.0 10.0 40    -0.265     3.698    7.134      0.000      -0.001       0.043    3.288      0.051     base
+T3_axial+side aligned 90.0  2.0 40    -3.353    10.719   20.295      0.075       0.010       0.224   12.322      0.076     base
+T3_axial+side aligned 90.0 10.0 40    -0.184     2.488    5.337      0.000       0.015       0.070    3.164      0.066     base
+T3_axial+side general  0.0  2.0 40    -0.413    15.534   28.767      0.275       0.087       0.305      inf      0.043     base
+T3_axial+side general  0.0 10.0 40     3.132     8.882   17.597      0.025       0.036       0.078      inf      0.035     base
+T3_axial+side general 25.0  2.0 40   -13.558    35.597   55.514      0.425       0.249       1.526   13.280      0.256     base
+T3_axial+side general 25.0 10.0 40    -3.828    16.218   49.669      0.100       0.064       0.210    3.611      0.064     base
+T3_axial+side general 90.0  2.0 40     3.548    42.170  138.267      0.400       0.950       3.388      inf      0.076     base
+T3_axial+side general 90.0 10.0 40     2.279    14.578   26.092      0.225       0.076       0.153      inf      0.066     base
+       cross4 aligned  0.0  2.0 40    -0.432    19.134   33.824      0.175       0.041       0.199   12.322      0.042     base
+       cross4 aligned  0.0 10.0 40    -0.235     3.350    6.105      0.000      -0.004       0.036    3.164      0.035     base
+       cross4 aligned 25.0  2.0 40    -0.008    11.885   27.055      0.100       0.111       0.312   10.954      0.115     base
+       cross4 aligned 25.0 10.0 40    -0.693     3.073    6.205      0.000      -0.001       0.058    2.601      0.049     base
+       cross4 aligned 90.0  2.0 40    -3.885    10.719   18.683      0.050       0.015       0.143   12.322      0.042     base
+       cross4 aligned 90.0 10.0 40    -0.758     3.543    6.223      0.000       0.008       0.036    3.164      0.035     base
+       cross4 general  0.0  2.0 40    -2.950    35.854   34.283      0.325       0.433       1.382      inf      0.042     base
+       cross4 general  0.0 10.0 40    -0.955    10.058   16.630      0.025       0.040       0.073      inf      0.035     base
+       cross4 general 25.0  2.0 40    -6.204    15.965   33.165      0.200       0.058       0.252   13.058      0.221     base
+       cross4 general 25.0 10.0 40    -2.977    11.754   13.922      0.050       0.022       0.126    3.270      0.055     base
+       cross4 general 90.0  2.0 40    -1.887    14.779   26.664      0.150       0.104       0.252      inf      0.042     base
+       cross4 general 90.0 10.0 40     1.083     7.473   14.133      0.000       0.029       0.062      inf      0.035     base
+         hex6 aligned  0.0  2.0 40    -2.681    13.226   11.942      0.025      -0.006       0.116    5.353      0.040     base
+         hex6 aligned  0.0 10.0 40     0.241     2.273    4.974      0.000      -0.004       0.032    2.218      0.032     base
+         hex6 aligned 25.0  2.0 40    -0.304     4.646    7.603      0.000      -0.019       0.120    4.381      0.051     base
+         hex6 aligned 25.0 10.0 40    -0.061     2.022    3.394      0.000       0.011       0.042    1.972      0.038     base
+         hex6 aligned 90.0  2.0 40    -0.271     5.246    9.554      0.000       0.029       0.144    4.295      0.051     base
+         hex6 aligned 90.0 10.0 40     0.603     1.994    3.405      0.000      -0.000       0.039    1.955      0.039     base
+         hex6 general  0.0  2.0 40     0.920     6.341   12.960      0.000       0.027       0.126    6.081      0.040     base
+         hex6 general  0.0 10.0 40    -0.693     2.947    5.799      0.000      -0.001       0.033    3.059      0.032     base
+         hex6 general 25.0  2.0 40    -0.058     5.688    9.997      0.000      -0.016       0.146    5.773      0.051     base
+         hex6 general 25.0 10.0 40    -0.132     1.901    3.557      0.000       0.007       0.034    2.237      0.038     base
+         hex6 general 90.0  2.0 40    -0.691     7.106   13.462      0.000      -0.045       0.160    5.751      0.051     base
+         hex6 general 90.0 10.0 40     0.084     2.334    4.292      0.000      -0.004       0.031    2.198      0.039     base
+         tri3 aligned  0.0  2.0 40    -0.225    11.702   23.079      0.100       0.041       0.177   10.334      0.075     base
+         tri3 aligned  0.0 10.0 40     0.295     3.567    7.718      0.000       0.006       0.046    3.447      0.055     base
+         tri3 aligned 25.0  2.0 40     0.134     8.166   17.913      0.000      -0.012       0.265    8.082      0.108     base
+         tri3 aligned 25.0 10.0 40     0.016     4.077    8.131      0.000      -0.008       0.055    3.195      0.060     base
+         tri3 aligned 90.0  2.0 40    -0.709    12.138   26.738      0.100      -0.049       0.257    7.837      0.111     base
+         tri3 aligned 90.0 10.0 40    -0.227     3.198    6.509      0.000       0.024       0.067    3.177      0.060     base
+         tri3 general  0.0  2.0 40    -3.197    12.092   25.782      0.100       0.047       0.227   10.334      0.075     base
+         tri3 general  0.0 10.0 40     1.488     7.746   14.790      0.000       0.002       0.062    7.179      0.055     base
+         tri3 general 25.0  2.0 40    -1.323     7.607   14.165      0.025      -0.005       0.221    8.813      0.109     base
+         tri3 general 25.0 10.0 40    -0.538     4.692    7.958      0.000       0.014       0.085    4.632      0.060     base
+         tri3 general 90.0  2.0 40    -1.818     9.530   19.250      0.050      -0.050       0.300    8.707      0.111     base
+         tri3 general 90.0 10.0 40     0.236     4.321    8.071      0.000       0.024       0.061    4.535      0.060     base
+        scenario        layout   model    U  n  phi_bias  phi_rmse  phi_p95  frac_gt20  speed_bias  speed_rmse  crb_phi  crb_speed
+        badprior        2H_tri general  2.0 40     3.244    22.566   27.799      0.075      -0.002       0.157      NaN        NaN
+        badprior        2H_tri general 10.0 40     0.888     4.843    9.171      0.000       0.002       0.081      NaN        NaN
+        badprior T3_axial+side general  2.0 40   -21.477    50.441   81.977      0.575       7.148      43.815      NaN        NaN
+        badprior T3_axial+side general 10.0 40    -9.228    23.146   48.954      0.225       0.114       0.301      NaN        NaN
+        badprior          hex6 general  2.0 40     2.092     7.264   16.041      0.000      -0.022       0.166      NaN        NaN
+        badprior          hex6 general 10.0 40    -0.968     4.233    7.950      0.000       0.020       0.082      NaN        NaN
+        badprior          tri3 general  2.0 40    -9.497    19.915   41.685      0.250       0.062       0.409      NaN        NaN
+        badprior          tri3 general 10.0 40    -0.789    11.582   16.194      0.050       0.055       0.143      NaN        NaN
+            curv        2H_tri general  2.0 40     5.485    17.509   37.925      0.225      -0.140       0.547      NaN        NaN
+            curv        2H_tri general 10.0 40    -0.556     3.722    7.015      0.000      -0.000       0.040      NaN        NaN
+            curv T3_axial+side general  2.0 40    -4.889    22.785   54.237      0.275       0.240       1.185      NaN        NaN
+            curv T3_axial+side general 10.0 40   -15.091    26.717   51.170      0.300       0.168       0.333      NaN        NaN
+            curv          hex6 general  2.0 40    -4.679    29.213   19.218      0.050       0.070       0.702      NaN        NaN
+            curv          hex6 general 10.0 40     0.196     1.905    3.193      0.000      -0.001       0.046      NaN        NaN
+            curv          tri3 general  2.0 40    -1.922    12.270   25.187      0.100      -0.219       0.756      NaN        NaN
+            curv          tri3 general 10.0 40    -0.226     4.755    7.776      0.000      -0.007       0.103      NaN        NaN
+           gain5        2H_tri general  2.0 40    28.741    63.173  144.906      0.475      -0.078       0.181      NaN        NaN
+           gain5        2H_tri general 10.0 40     0.863     4.806    9.523      0.000      -0.007       0.040      NaN        NaN
+           gain5 T3_axial+side general  2.0 40    -6.940    47.042   77.726      0.700      -0.158       0.298      NaN        NaN
+           gain5 T3_axial+side general 10.0 40    -9.007    21.602   47.748      0.275       0.060       0.227      NaN        NaN
+           gain5          hex6 general  2.0 40    -8.241    32.186   46.393      0.175      -0.050       0.152      NaN        NaN
+           gain5          hex6 general 10.0 40    -0.932     3.801    7.677      0.000       0.007       0.054      NaN        NaN
+           gain5          tri3 general  2.0 40   -11.524    47.283  117.441      0.350      -0.000       0.290      NaN        NaN
+           gain5          tri3 general 10.0 40     0.827     7.781   13.462      0.025       0.025       0.116      NaN        NaN
+             iso        2H_tri general  2.0 40    24.052    52.927  109.691      0.350      -0.186       0.222      NaN        NaN
+             iso        2H_tri general 10.0 40    -3.839     4.752    8.323      0.000      -0.148       0.149      NaN        NaN
+             iso T3_axial+side general  2.0 40    -2.860    18.988   38.878      0.225      -0.102       0.185      NaN        NaN
+             iso T3_axial+side general 10.0 40     0.671     4.385    8.011      0.000      -0.117       0.121      NaN        NaN
+             iso          hex6 general  2.0 40     1.762    10.126   18.635      0.050      -0.156       0.187      NaN        NaN
+             iso          hex6 general 10.0 40     0.105     2.014    3.637      0.000      -0.169       0.171      NaN        NaN
+             iso          tri3 general  2.0 40    -0.571    15.876   28.248      0.225      -0.135       0.191      NaN        NaN
+             iso          tri3 general 10.0 40    -0.570     3.551    6.450      0.000      -0.162       0.164      NaN        NaN
+        offgrain        2H_tri aligned  2.0 40    12.727    38.068   68.726      0.325      -0.088       0.222      NaN        NaN
+        offgrain        2H_tri aligned 10.0 40     3.954     4.848    8.767      0.000      -0.062       0.069      NaN        NaN
+        offgrain T3_axial+side aligned  2.0 40    11.771    23.077   38.163      0.500      -0.004       0.402      NaN        NaN
+        offgrain T3_axial+side aligned 10.0 40     4.356     5.665   12.403      0.000       0.097       0.118      NaN        NaN
+        offgrain          hex6 aligned  2.0 40    -7.936    13.446   18.202      0.025       0.030       0.119      NaN        NaN
+        offgrain          hex6 aligned 10.0 40     7.376     7.740   11.632      0.000      -0.044       0.057      NaN        NaN
+        offgrain          tri3 aligned  2.0 40     5.956    22.054   50.580      0.300       0.038       0.256      NaN        NaN
+        offgrain          tri3 aligned 10.0 40    12.022    12.547   17.032      0.025      -0.053       0.076      NaN        NaN
+offgrain_general        2H_tri general  2.0 40     2.427    14.152   21.613      0.075      -0.007       0.159      NaN        NaN
+offgrain_general        2H_tri general 10.0 40    -0.931     3.582    6.121      0.000      -0.003       0.046      NaN        NaN
+offgrain_general T3_axial+side general  2.0 40    -3.637    28.505   50.205      0.375       0.139       0.611      NaN        NaN
+offgrain_general T3_axial+side general 10.0 40    -0.730     8.284   10.307      0.025       0.016       0.119      NaN        NaN
+offgrain_general          hex6 general  2.0 40    -0.165     7.075   13.567      0.000      -0.030       0.139      NaN        NaN
+offgrain_general          hex6 general 10.0 40    -0.702     2.580    4.801      0.000      -0.006       0.035      NaN        NaN
+offgrain_general          tri3 general  2.0 40     1.937    10.307   16.763      0.000      -0.016       0.155      NaN        NaN
+offgrain_general          tri3 general 10.0 40    -2.219     7.041   11.229      0.025       0.022       0.078      NaN        NaN
