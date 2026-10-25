@@ -45,23 +45,39 @@ S_REF = 0.6  # cm
 PEAK_REF = 1.3  # degC peak rise at 0.6 cm, isotropic K_REF, no flow (bench)
 
 
-def line_response(t, rx, ry, kL, kT, theta, ux, uy, dur=DUR):
+def line_response(t, rx, ry, kL, kT, theta, ux, uy, dur=DUR, c=0.0, lam=0.0):
     """S(r, t) in 1/cm^2 for one heater-thermistor vector r (cm).
 
     u in cm/s.  Mean over the pulse of the instantaneous moving
-    line-source kernel (16-node Gauss-Legendre in source time)."""
+    line-source kernel (16-node Gauss-Legendre in source time).
+
+    c (cm^2) is the finite-needle blur: a heater of radius a_h and a
+    thermistor needle of radius a_t that averages over its cross-section
+    act, to second order, like Gaussian blurs of variance a^2/4 per axis, so
+    the kernel covariance 2 K tau becomes 2 (K tau + c I) with
+    c = (a_h^2 + a_t^2) / 8.  c = 0 is the ideal line source / point sensor.
+
+    lam (1/s) is a common-mode loss rate exp(-lam tau): a stand-in for heat
+    leaving the 2-D plane (finite heater length, needle conduction, block or
+    stem boundaries).  Note u^T K^-1 u / 4 enters the kernel in exactly the
+    same way, so with lam free the |u|^2 decay carries no information."""
     t = np.asarray(t, float)
-    c, s = np.cos(theta), np.sin(theta)
-    rl, rt = c * rx + s * ry, -s * rx + c * ry
-    ul, ut = c * ux + s * uy, -s * ux + c * uy
+    ct, st_ = np.cos(theta), np.sin(theta)
+    rl, rt = ct * rx + st_ * ry, -st_ * rx + ct * ry
+    ul, ut = ct * ux + st_ * uy, -st_ * ux + ct * uy
     src = 0.5 * dur * (GL_X + 1.0)
     w = 0.5 * GL_W
     tau = t[:, None] - src[None, :]
     valid = tau > 0
     tau_ = np.where(valid, tau, 1.0)
-    q = (rl - ul * tau_) ** 2 / kL + (rt - ut * tau_) ** 2 / kT
-    val = np.where(valid, np.exp(-q / (4.0 * tau_)) / tau_, 0.0)
-    return (val @ w) / np.sqrt(kL * kT)
+    if c == 0.0:
+        q = (rl - ul * tau_) ** 2 / kL + (rt - ut * tau_) ** 2 / kT
+        val = np.where(valid, np.exp(-q / (4.0 * tau_) - lam * tau_) / tau_, 0.0)
+        return (val @ w) / np.sqrt(kL * kT)
+    sl, st = kL * tau_ + c, kT * tau_ + c
+    q = (rl - ul * tau_) ** 2 / sl + (rt - ut * tau_) ** 2 / st
+    val = np.where(valid, np.exp(-q / 4.0 - lam * tau_) / np.sqrt(sl * st), 0.0)
+    return val @ w
 
 
 def amplitude_ref() -> float:
@@ -71,6 +87,8 @@ def amplitude_ref() -> float:
 
 
 A_REF = amplitude_ref()
+A_NEEDLE = 0.065  # cm, needle radius (1.3 mm OD)
+C_NEEDLE = 2 * A_NEEDLE**2 / 8.0  # cm^2, geometric blur for heater + thermistor needle
 
 
 # --------------------------------------------------------------------------
@@ -79,14 +97,45 @@ A_REF = amplitude_ref()
 
 @dataclass
 class Layout:
+    """Needle layout.  Normal: separate heater and thermistor needles.
+    dual=True: every needle in `therms` carries a heater and a thermistor;
+    the heaters fire one at a time and each pulse is recorded on all the
+    *other* needles (`heaters` is ignored)."""
+
     name: str
     heaters: np.ndarray  # (H, 2) cm
     therms: np.ndarray  # (M, 2) cm
     note: str = ""
+    dual: bool = False
+
+    @property
+    def needles(self) -> np.ndarray:
+        if self.dual:
+            return np.asarray(self.therms, float)
+        return np.vstack((self.heaters, self.therms)).astype(float)
+
+    @property
+    def heater_ids(self) -> list[int]:
+        return list(range(len(self.therms))) if self.dual else list(range(len(self.heaters)))
+
+    @property
+    def therm_ids(self) -> list[int]:
+        H = 0 if self.dual else len(self.heaters)
+        return [H + j for j in range(len(self.therms))]
+
+    @property
+    def pairs(self) -> list[tuple[int, int]]:
+        """(heater index k into heater_ids, sensor index j into therms)."""
+        out = []
+        for k, h in enumerate(self.heater_ids):
+            for j, n in enumerate(self.therm_ids):
+                if n != h:
+                    out.append((k, j))
+        return out
 
     @property
     def n_needles(self) -> int:
-        return len(self.heaters) + len(self.therms)
+        return len(self.needles)
 
 
 def ring(n: int, s: float, phase_deg: float = 0.0) -> np.ndarray:
@@ -118,6 +167,17 @@ def layouts(s: float = S_REF) -> dict[str, Layout]:
         Layout("2H_tri", np.array([[-s / 2, 0], [s / 2, 0]]),
                np.array([[0, s * np.sqrt(3) / 2], [0, -s * np.sqrt(3) / 2], [s, s * np.sqrt(3) / 2]]),
                "2 heaters + 3 thermistors on a triangular lattice"),
+        # Shadow-avoiding layouts: no two needles on a common axial line
+        # (pairwise lateral offset >= s/2 at a vertical install), pair
+        # directions 60 deg apart mod 180 (30, 90, 150).
+        Layout("Y3", h0, np.array([[s * np.cos(np.pi / 6), s / 2], [s * np.cos(np.pi / 6), -s / 2], [0, s]]),
+               "1 heater + 3 thermistors at -30, +30, 90 deg: no shared axial lines"),
+        Layout("dual3", h0, np.array([[0, 0], [s * np.cos(np.pi / 6), s / 2], [0, s]]),
+               "3 needles, each heater+thermistor, triangle with sides at 30/90/150 deg", dual=True),
+        Layout("dual4", h0, np.array([[0, 0], [s * np.cos(np.pi / 6), s / 2], [s * np.cos(np.pi / 6), -s / 2], [0, s]]),
+               "Y3 geometry with every needle heater+thermistor", dual=True),
+        Layout("dual2", h0, np.array([[0, 0], [s, 0]]),
+               "2 needles on the axial line, each heater+thermistor", dual=True),
     ]
     return {x.name: x for x in L}
 
@@ -134,19 +194,24 @@ class Model:
     t_post: np.ndarray = field(default_factory=lambda: np.arange(1.5, 180.0 + 1e-9, 0.5))
     baseline: bool = True
     dur: float = DUR
+    blur: bool = False  # fit the finite-needle blur c (log c parameter "lc")
+    loss: bool = False  # fit a common-mode loss rate "lam" (1/s, per heater)
 
     def __post_init__(self):
-        H, M = len(self.layout.heaters), len(self.layout.therms)
+        lay = self.layout
+        H, M = len(lay.heater_ids), len(lay.therms)
+        self.pairs = lay.pairs
         names = ["lkL", "lkT", "th"]
         names += ["U"] if self.aligned else ["ux", "uy"]
+        names += ["lc"] if self.blur else []
+        names += [f"lam{h}" for h in range(H)] if self.loss else []
         names += [f"lA{h}" for h in range(H)]
         names += [f"lg{j}" for j in range(M)]
-        for n in range(H + M):
+        for n in range(lay.n_needles):
             names += [f"dx{n}", f"dy{n}"]
         if self.baseline:
-            for h in range(H):
-                for j in range(M):
-                    names += [f"b0_{h}_{j}", f"b1_{h}_{j}"]
+            for h, j in self.pairs:
+                names += [f"b0_{h}_{j}", f"b1_{h}_{j}"]
         self.names = names
         self.idx = {n: i for i, n in enumerate(names)}
         self.H, self.M = H, M
@@ -166,6 +231,8 @@ class Model:
             p[self.idx["ux"]], p[self.idx["uy"]] = ux, uy
         for h in range(self.H):
             p[self.idx[f"lA{h}"]] = np.log(A)
+        if self.blur:
+            p[self.idx["lc"]] = np.log(C_NEEDLE)
         return p
 
     def velocity(self, p):
@@ -176,12 +243,12 @@ class Model:
         return p[self.idx["ux"]], p[self.idx["uy"]]
 
     def positions(self, p):
-        H = self.H
-        pos = np.vstack((self.layout.heaters, self.layout.therms)).astype(float).copy()
+        """True heater positions (H, 2) and thermistor positions (M, 2)."""
+        pos = self.layout.needles.copy()
         for n in range(len(pos)):
             pos[n, 0] += p[self.idx[f"dx{n}"]]
             pos[n, 1] += p[self.idx[f"dy{n}"]]
-        return pos[:H], pos[H:]
+        return pos[self.layout.heater_ids], pos[self.layout.therm_ids]
 
     def predict(self, p):
         kL, kT = np.exp(p[self.idx["lkL"]]), np.exp(p[self.idx["lkT"]])
@@ -189,17 +256,18 @@ class Model:
         ux, uy = self.velocity(p)
         ux, uy = ux / 3600.0, uy / 3600.0
         hp, tp = self.positions(p)
+        c = float(np.exp(p[self.idx["lc"]])) if self.blur else 0.0
         out = []
-        for h in range(self.H):
+        for h, j in self.pairs:
             A = np.exp(p[self.idx[f"lA{h}"]])
-            for j in range(self.M):
-                g = np.exp(p[self.idx[f"lg{j}"]])
-                r = tp[j] - hp[h]
-                y = np.zeros_like(self.t)
-                y[self.n_pre:] = g * A * line_response(self.t_post, r[0], r[1], kL, kT, th, ux, uy, self.dur)
-                if self.baseline:
-                    y += p[self.idx[f"b0_{h}_{j}"]] + p[self.idx[f"b1_{h}_{j}"]] * self.t
-                out.append(y)
+            lam = float(p[self.idx[f"lam{h}"]]) if self.loss else 0.0
+            g = np.exp(p[self.idx[f"lg{j}"]])
+            r = tp[j] - hp[h]
+            y = np.zeros_like(self.t)
+            y[self.n_pre:] = g * A * line_response(self.t_post, r[0], r[1], kL, kT, th, ux, uy, self.dur, c, lam)
+            if self.baseline:
+                y += p[self.idx[f"b0_{h}_{j}"]] + p[self.idx[f"b1_{h}_{j}"]] * self.t
+            out.append(y)
         return np.concatenate(out)
 
     # ------------------------------------------------------------------
@@ -212,6 +280,8 @@ class Model:
                 h = 1e-3
             if self.names[i].startswith("b"):
                 h = 1e-3
+            if self.names[i].startswith("lam"):
+                h = 1e-6
             dp = np.zeros_like(p)
             dp[i] = h
             cols.append((self.predict(p + dp) - self.predict(p - dp)) / (2 * h))
@@ -277,18 +347,26 @@ class Model:
 def crb(model: Model, p, prior, pulses_per_heater=1.0, sigma=SIGMA_25HZ):
     """Posterior (Bayesian CRB) std of (phi deg, speed rel, kL rel, kT rel, theta deg)."""
     F = model.fisher(p, sigma, pulses_per_heater) + prior
-    try:
-        C = np.linalg.inv(F)
-    except np.linalg.LinAlgError:
-        return dict(phi=np.inf, speed_rel=np.inf, kL_rel=np.inf, kT_rel=np.inf, theta=np.inf, cond=np.inf)
-    G = model.derived_grad(p)
-    V = G @ C @ G.T
+    # Jacobi-scale before inverting so the conditioning test is unit-free.
+    d = np.sqrt(np.diag(F))
+    d[d == 0] = 1.0
+    Fs = F / np.outer(d, d)
+    w, Q = np.linalg.eigh(Fs)
+    cond = float(w.max() / max(w.min(), 1e-300))
+    G = model.derived_grad(p) / d[None, :]
+    # Directions with (scaled) eigenvalue below 1e-9 are unidentified: any
+    # derived quantity that loads on them gets infinite variance.
+    good = w > 1e-9 * w.max()
+    load = G @ Q
+    V = (load[:, good] / w[good]) @ load[:, good].T
     sd = np.sqrt(np.clip(np.diag(V), 0, None))
+    bad = np.any(np.abs(load[:, ~good]) > 1e-6 * np.abs(load).max(axis=1, keepdims=True), axis=1)
+    sd[bad] = np.inf
     sp = model.derived(p)["speed"]
     return dict(
         phi=float(np.degrees(sd[0])), speed_rel=float(sd[1] / sp) if sp > 0 else np.inf,
         speed_abs=float(sd[1]), kL_rel=float(sd[2]), kT_rel=float(sd[3]),
-        theta=float(np.degrees(sd[4])), cond=float(np.linalg.cond(F)),
+        theta=float(np.degrees(sd[4])), cond=cond,
     )
 
 
@@ -296,7 +374,7 @@ def crb(model: Model, p, prior, pulses_per_heater=1.0, sigma=SIGMA_25HZ):
 # Whole-curve fit
 
 
-def fit(model: Model, y, sigma_pt, prior_sd: dict, starts, prior_mean=None, max_nfev=400):
+def fit(model: Model, y, sigma_pt, prior_sd: dict, starts, prior_mean=None, max_nfev=400, iso=False):
     """MAP fit: Gaussian likelihood on every curve sample + Gaussian priors.
 
     prior_sd maps parameter-name prefixes to prior std (around prior_mean,
@@ -313,9 +391,12 @@ def fit(model: Model, y, sigma_pt, prior_sd: dict, starts, prior_mean=None, max_
                 break
     sel, sd = np.array(sel, int), np.array(sd, float)
 
+    iL, iT = model.idx["lkL"], model.idx["lkT"]
+
     def resid(p):
         r = (model.predict(p) - y) / sigma_pt
-        return np.concatenate((r, (p[sel] - mu[sel]) / sd))
+        extra = [(p[iL] - p[iT]) / 1e-4] if iso else []  # isotropic-K model
+        return np.concatenate((r, (p[sel] - mu[sel]) / sd, extra))
 
     best = None
     for p0 in starts:
