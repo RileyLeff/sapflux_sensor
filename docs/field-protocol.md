@@ -46,16 +46,17 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
 
 | type | name | payload |
 |---|---|---|
-| `0x07` | `SetSchedule` | 32 B |
+| `0x07` | `SetSchedule` | 34 B |
 | `0x08` | `GetWindow` | 14 B |
 | `0x09` | `AckWindow` | 12 B |
 | `0x0A` | `GetFieldStatus` | 8 B |
 | `0x0B` | `GetRaw` | 16 B |
 
-`SetSchedule` (32 B): `command_nonce: u64`, `enabled: u8`, `flags: u8`,
+`SetSchedule` (34 B): `command_nonce: u64`, `enabled: u8`, `flags: u8`,
 `pulse_duration_ms: u16`, `interval_s: u32`, `phase_s: u32`,
 `baseline_s: u16`, `recovery_s: u16`, `sample_hz: u16`, `bin_ms: u16`,
-`lease_until_unix_s: u32`.
+`sfk1_presets: [u8; 2]`, `lease_until_unix_s: u32`. The 22 bytes
+`enabled`..`sfk1_presets` are the schedule.
 
 - `flags` bit 0 `REQUIRE_LEASE`: only pulse while `now < lease_until`.
   Default 0.
@@ -66,6 +67,16 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
   needles 6 mm from the heater), 2 East30 offset (10 mm and 5 mm, either
   way up); 3 is rejected. The kind picks the SFK1 profile; binned windows
   ignore it. Bits 6–7 zero.
+- `sfk1_presets[p]`: probe `p + 1`'s SFK1 preset. Bits 0–1 knots (0 → 12,
+  1 → 16, 2 → 20, 3 → 24), bits 2–3 training prior (0 slow, 1 mixed, 2
+  fast; 3 is rejected), bits 4–7 zero. Knots set the flow range the record
+  reproduces (12 → 70 cm/h, 16 → 120, 20 → 165, 24 → 200; 110 and 150 for
+  the offset probe at 16 and 20); the prior trades record size between slow
+  and fast flow. With the kind it names the profile: `East30K12` and
+  `East30Offset` at code 0, otherwise `East30[Offset]K<knots>[Mixed|Fast]`
+  (`software/sfk1` `BUNDLED`). Binned windows ignore it. A board refuses
+  (`INVALID_PARAMETER`) an SFK1 schedule whose (kind, preset) its firmware
+  does not link; the board README lists the linked ones.
 - Pulses start at RTC times `t` with `(t - phase_s) mod interval_s == 0`
   (Unix seconds); `t` is the heater-on time, baseline starts `baseline_s`
   earlier. If the RTC is invalid the board pulses every `interval_s` on its
@@ -73,11 +84,12 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
 - Limits (reject with `INVALID_PARAMETER` 0x02): `pulse_duration_ms` ∈ {500,
   1000, 1500}; `interval_s` ≥ 600; `baseline_s` 10–300; `recovery_s`
   60–600; `baseline_s + recovery_s + cooldown` < `interval_s`; `sample_hz` ∈
-  {10, 20, 25}; `bin_ms` ∈ {250, 500, 1000}.
+  {10, 20, 25}; `bin_ms` ∈ {250, 500, 1000}; preset codes as above.
 - Persisted in EEPROM (write only when a non-lease field changes; lease is
   kept in RAM and a TAMP backup register).
 - Factory default (blank EEPROM): disabled, 1000 ms, 3600 s, phase 0, 60 s,
-  180 s, 25 Hz, 500 ms.
+  180 s, 25 Hz, 500 ms, presets 0. A schedule stored by firmware with the
+  older 20-byte schedule fails its record check and is replaced by this.
 - Reply: `Ack` (result 0 or code) then `FieldStatus`.
 
 `GetWindow` (14 B): `command_nonce: u64`, `run_id: u32` (0 = oldest
@@ -140,9 +152,9 @@ CRC-32 (protocol CRC) over the full data byte string. Bin `k` covers
 SFK1 window data (`window_flags` bit 5): one entry per probe whose kind is
 set, in probe order: `probe: u8` (1 or 2), `len: u16`, then `len` bytes
 of SFK1 record (`software/sfk1`) of that probe's T1..T6, ratiometric
-against the excitation channel. Classic probes use profile `East30K12`,
-offset probes `East30Offset`; each record has the extended header (6
-channels), which names its profile. `len = 0`: the probe produced no record
+against the excitation channel, encoded with the profile its kind and
+preset name; each record has the extended header (6 channels), which names
+its profile. `len = 0`: the probe produced no record
 (no valid baseline frame). In an SFK1 window `n_bins` is the data length in
 bytes and `bin_ms_div10` and `base_raw` are zero. Frames are on the 40 ms
 grid: frame `i` of each record is at `start_monotonic_us + i × 40 ms`
@@ -176,8 +188,8 @@ u32`, `last_run_id: u32`, `calr_ppb: i32` (current RTC trim, parts per billion, 
 i32` (last `SetRtc` correction, new − old), `boot_count: u16`,
 `v24_raw: i16`, `flash_used_kib: u32`, `schedule_crc: u16`, `reserved: u16`.
 
-`schedule_crc` = low 16 bits of CRC-32 over the 20 schedule bytes of the
-last accepted `SetSchedule` (`enabled` through `bin_ms`), so the gateway can
+`schedule_crc` = low 16 bits of CRC-32 over the 22 schedule bytes of the
+last accepted `SetSchedule` (`enabled` through `sfk1_presets`), so the gateway can
 tell whether the board already has the server's config.
 
 `RawChunk` (112 B): `run_id: u32`, `chunk: u32`, `len: u16` (≤ 100),
@@ -241,8 +253,8 @@ board's latest `Hello`, `Status` and `FieldStatus` as decoded v1 frames
 
 `0x81 CheckInReply` (server → gateway). Body:
 `t1_unix_ms: i64` (echo), `t2_unix_ms: i64` (server receive),
-`t3_unix_ms: i64` (server send), `config_version: u32`, `schedule: [u8; 20]`
-(`SetSchedule` bytes `enabled`..`bin_ms`), `lease_s: u32` (lease length the
+`t3_unix_ms: i64` (server send), `config_version: u32`, `schedule: [u8; 22]`
+(`SetSchedule` bytes `enabled`..`sfk1_presets`), `lease_s: u32` (lease length the
 gateway should grant, from now), `wake_interval_s: u32` (gateway check-in
 period), `request_flags: u16` (bit 0 send pending windows, bit 1 reboot
 gateway), `reserved: u16`.
@@ -286,8 +298,8 @@ board's schedule alone and retries next wake. Windows stay on the board.
 
 - Pulse 1000 ms every 3600 s, phase 0, baseline 60 s, recovery 180 s,
   25 Hz, SFK1 (`flags` bit 1) with each installed probe's kind; the server
-  config sets them per board (`sfk1`, `probe1`, `probe2`) and keeps which
-  way up each probe is.
+  config sets them per board (`sfk1`, `probe1`, `probe2`, `probe1_preset`,
+  `probe2_preset`) and keeps which way up each probe is.
 - Gateway check-in every 3600 s plus the post-window wake.
 - Uplink ≈ 12.6 kB per binned pulse window (about 0.25 kB with SFK1) plus
   about 0.3 kB per check-in.

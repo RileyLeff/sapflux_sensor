@@ -44,8 +44,8 @@ use crate::{
 };
 use core::ops::Range;
 
-/// Length of the schedule byte string (`enabled` through `bin_ms`).
-pub const SCHEDULE_LEN: usize = 20;
+/// Length of the schedule byte string (`enabled` through `sfk1_presets`).
+pub const SCHEDULE_LEN: usize = 22;
 
 /// Fixed-point scale of a window bin value: 16 steps per raw count.
 pub const BIN_VALUE_SCALE: i32 = 16;
@@ -68,18 +68,20 @@ pub const SCHEDULE_SFK1_SAMPLE_HZ: u16 = 25;
 pub const SFK1_ENTRY_PREFIX_LEN: usize = 3;
 
 /// What is installed on a probe port, from `SetSchedule.flags`
-/// ([`SCHEDULE_PROBE_SHIFT`]). It picks the SFK1 profile the board encodes
-/// that probe's thermistors with; binned windows ignore it.
+/// ([`SCHEDULE_PROBE_SHIFT`]). With the port's [`Sfk1Preset`] it picks the
+/// SFK1 profile the board encodes that probe's thermistors with; binned
+/// windows ignore both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 pub enum ProbeKind {
     /// Nothing, or not declared: no SFK1 record for this port.
     #[default]
     None = 0,
-    /// East30 with both needles 6 mm from the heater (`sfk1::East30K12`).
+    /// East30 with both needles 6 mm from the heater (`sfk1::East30K12`
+    /// and the other `sfk1::East30K*` presets).
     East30 = 1,
     /// East30 offset probe, needles 10 mm and 5 mm from the heater, either
-    /// way up (`sfk1::East30Offset`).
+    /// way up (`sfk1::East30Offset` and the `sfk1::East30OffsetK*` presets).
     East30Offset = 2,
 }
 
@@ -97,6 +99,127 @@ impl ProbeKind {
     /// The 2-bit code.
     pub fn code(self) -> u8 {
         self as u8
+    }
+}
+
+/// Spline knots of a port's SFK1 preset, which set the flows its records
+/// reproduce accurately (`sfk1::BUNDLED` has each preset's range).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum Sfk1Knots {
+    /// 12 knots: to 70 cm/h.
+    #[default]
+    K12 = 0,
+    /// 16 knots: to 120 cm/h (offset probe 110).
+    K16 = 1,
+    /// 20 knots: to 165 cm/h (offset probe 150).
+    K20 = 2,
+    /// 24 knots: to 200 cm/h.
+    K24 = 3,
+}
+
+impl Sfk1Knots {
+    /// The knot count.
+    pub fn count(self) -> u8 {
+        12 + 4 * self as u8
+    }
+}
+
+/// Training prior of a port's SFK1 preset. It only changes record size:
+/// every prior decodes the same curve.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum Sfk1Prior {
+    /// Smallest records when flow stays under about 32 cm/h.
+    #[default]
+    Slow = 0,
+    /// Mostly slow flow with occasional fast spells.
+    Mixed = 1,
+    /// About the same size at any flow in the range.
+    Fast = 2,
+}
+
+/// A port's SFK1 preset, one byte of `Schedule.sfk1_presets`: knots in bits
+/// 0–1, prior in bits 2–3, the rest zero. Code 0 (12 knots, slow) is the
+/// original `sfk1::East30K12` / `sfk1::East30Offset`. A board accepts only
+/// the presets its firmware links (see its README) and answers others with
+/// [`ACK_INVALID_PARAMETER`](crate::ACK_INVALID_PARAMETER).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Sfk1Preset {
+    /// Flow range.
+    pub knots: Sfk1Knots,
+    /// Record size trade-off.
+    pub prior: Sfk1Prior,
+}
+
+impl Sfk1Preset {
+    /// Parse a preset byte; `None` for an undefined code.
+    pub fn from_code(code: u8) -> Option<Self> {
+        let knots = match code & 0b11 {
+            0 => Sfk1Knots::K12,
+            1 => Sfk1Knots::K16,
+            2 => Sfk1Knots::K20,
+            _ => Sfk1Knots::K24,
+        };
+        let prior = match (code >> 2) & 0b11 {
+            0 => Sfk1Prior::Slow,
+            1 => Sfk1Prior::Mixed,
+            2 => Sfk1Prior::Fast,
+            _ => return None,
+        };
+        (code >> 4 == 0).then_some(Self { knots, prior })
+    }
+
+    /// The preset byte.
+    pub fn code(self) -> u8 {
+        self.knots as u8 | (self.prior as u8) << 2
+    }
+}
+
+/// Text form `<knots>[-<prior>]`: `12`, `20-mixed`, `24-fast`. A slow prior
+/// prints without a suffix.
+impl core::fmt::Display for Sfk1Preset {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.knots.count())?;
+        match self.prior {
+            Sfk1Prior::Slow => Ok(()),
+            Sfk1Prior::Mixed => f.write_str("-mixed"),
+            Sfk1Prior::Fast => f.write_str("-fast"),
+        }
+    }
+}
+
+/// A preset name that is not `<12|16|20|24>[-<slow|mixed|fast>]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParsePresetError;
+
+impl core::fmt::Display for ParsePresetError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("SFK1 preset must be 12, 16, 20 or 24 knots, optionally -slow, -mixed or -fast")
+    }
+}
+
+impl core::error::Error for ParsePresetError {}
+
+impl core::str::FromStr for Sfk1Preset {
+    type Err = ParsePresetError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (k, p) = s.split_once('-').unwrap_or((s, "slow"));
+        let knots = match k {
+            "12" => Sfk1Knots::K12,
+            "16" => Sfk1Knots::K16,
+            "20" => Sfk1Knots::K20,
+            "24" => Sfk1Knots::K24,
+            _ => return Err(ParsePresetError),
+        };
+        let prior = match p {
+            "slow" => Sfk1Prior::Slow,
+            "mixed" => Sfk1Prior::Mixed,
+            "fast" => Sfk1Prior::Fast,
+            _ => return Err(ParsePresetError),
+        };
+        Ok(Self { knots, prior })
     }
 }
 
@@ -138,6 +261,8 @@ pub enum ScheduleError {
     BinMs,
     /// `SFK1` set but `sample_hz` is not 25 or neither probe has a kind.
     Sfk1,
+    /// An `sfk1_presets` byte is not a defined [`Sfk1Preset`] code.
+    Sfk1Preset,
     /// The window, plus [`SCHEDULE_WINDOW_SLACK_MS`], would need more than
     /// [`SCHEDULE_MAX_WINDOW_BINS`] bins.
     WindowTooLong,
@@ -156,9 +281,10 @@ impl Schedule {
         recovery_s: 180,
         sample_hz: 25,
         bin_ms: 500,
+        sfk1_presets: [0; 2],
     };
 
-    /// Serialize to the 20 schedule bytes.
+    /// Serialize to the 22 schedule bytes.
     pub fn to_bytes(&self) -> [u8; SCHEDULE_LEN] {
         let mut b = [0u8; SCHEDULE_LEN];
         b[0] = self.enabled;
@@ -170,10 +296,11 @@ impl Schedule {
         b[14..16].copy_from_slice(&self.recovery_s.to_le_bytes());
         b[16..18].copy_from_slice(&self.sample_hz.to_le_bytes());
         b[18..20].copy_from_slice(&self.bin_ms.to_le_bytes());
+        b[20..22].copy_from_slice(&self.sfk1_presets);
         b
     }
 
-    /// Parse the 20 schedule bytes (e.g. `CheckInReply.schedule`). No
+    /// Parse the 22 schedule bytes (e.g. `CheckInReply.schedule`). No
     /// validation; see [`validate`](Self::validate).
     pub fn from_bytes(b: &[u8; SCHEDULE_LEN]) -> Self {
         let u16_at = |i: usize| u16::from_le_bytes([b[i], b[i + 1]]);
@@ -188,6 +315,7 @@ impl Schedule {
             recovery_s: u16_at(14),
             sample_hz: u16_at(16),
             bin_ms: u16_at(18),
+            sfk1_presets: [b[20], b[21]],
         }
     }
 
@@ -223,6 +351,18 @@ impl Schedule {
     pub fn with_probe(mut self, port: usize, kind: ProbeKind) -> Self {
         let shift = SCHEDULE_PROBE_SHIFT[port];
         self.flags = (self.flags & !(0b11 << shift)) | (kind.code() << shift);
+        self
+    }
+
+    /// SFK1 preset of probe `port`; the default for an undefined code, which
+    /// [`validate`](Self::validate) rejects.
+    pub fn preset(&self, port: usize) -> Sfk1Preset {
+        Sfk1Preset::from_code(self.sfk1_presets[port]).unwrap_or_default()
+    }
+
+    /// With probe `port`'s SFK1 preset set to `preset`.
+    pub fn with_preset(mut self, port: usize, preset: Sfk1Preset) -> Self {
+        self.sfk1_presets[port] = preset.code();
         self
     }
 
@@ -269,6 +409,9 @@ impl Schedule {
                 || (0..2).all(|p| self.probe(p) == ProbeKind::None))
         {
             return Err(ScheduleError::Sfk1);
+        }
+        if self.sfk1_presets.iter().any(|&c| Sfk1Preset::from_code(c).is_none()) {
+            return Err(ScheduleError::Sfk1Preset);
         }
         let bin = self.bin_ms.max(1) as u32;
         if (self.window_span_ms() + SCHEDULE_WINDOW_SLACK_MS).div_ceil(bin)

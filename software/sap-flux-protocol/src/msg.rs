@@ -201,12 +201,12 @@ pub struct Abort {
     pub run_id: u32,
 }
 
-/// The 20 schedule bytes shared by `SetSchedule` (bytes 8..28 of its
+/// The 22 schedule bytes shared by `SetSchedule` (bytes 8..30 of its
 /// payload), the server's `CheckInReply.schedule`, and `schedule_crc`.
 ///
 /// Layout: `enabled: u8`, `flags: u8`, `pulse_duration_ms: u16`,
 /// `interval_s: u32`, `phase_s: u32`, `baseline_s: u16`, `recovery_s: u16`,
-/// `sample_hz: u16`, `bin_ms: u16`.
+/// `sample_hz: u16`, `bin_ms: u16`, `sfk1_presets: [u8; 2]`.
 ///
 /// Pulses start at RTC times `t` (Unix seconds) with
 /// `(t - phase_s) mod interval_s == 0`; `t` is the heater-on time and the
@@ -234,12 +234,15 @@ pub struct Schedule {
     pub sample_hz: u16,
     /// Uplink bin width: 250, 500 or 1000 ms.
     pub bin_ms: u16,
+    /// Each probe's [`Sfk1Preset`](crate::Sfk1Preset) code (probe 1 first),
+    /// used by SFK1 windows. Raw bytes, like `enabled`.
+    pub sfk1_presets: [u8; 2],
 }
 
-/// `0x07` SetSchedule — store the autonomous pulse schedule (32-byte
+/// `0x07` SetSchedule — store the autonomous pulse schedule (34-byte
 /// payload).
 ///
-/// Layout: `command_nonce: u64`, then the 20 [`Schedule`] bytes, then
+/// Layout: `command_nonce: u64`, then the 22 [`Schedule`] bytes, then
 /// `lease_until_unix_s: u32`. Reply: `Ack` (result 0 or a code, e.g.
 /// [`ACK_INVALID_PARAMETER`](crate::ACK_INVALID_PARAMETER)) then
 /// `FieldStatus`.
@@ -1013,7 +1016,7 @@ pub fn payload_len_for(message_type: u8) -> Option<usize> {
         crate::MSG_ARM_PULSE => 14,
         crate::MSG_FIRE_PULSE => 12,
         crate::MSG_ABORT => 12,
-        crate::MSG_SET_SCHEDULE => 32,
+        crate::MSG_SET_SCHEDULE => 34,
         crate::MSG_GET_WINDOW => 14,
         crate::MSG_ACK_WINDOW => 12,
         crate::MSG_GET_FIELD_STATUS => 8,

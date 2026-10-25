@@ -88,6 +88,7 @@ fn field_messages() -> Vec<(&'static str, u32, Message)> {
                     recovery_s: 300,
                     sample_hz: 10,
                     bin_ms: 1000,
+                    sfk1_presets: [0b10_01, 0b00_11], // K16 fast, K24 slow
                     ..DEFAULT_SCHEDULE
                 },
                 lease_until_unix_s: 0xFFFF_FFFF,
@@ -278,7 +279,7 @@ fn roundtrip_every_field_message() {
 #[test]
 fn exact_payload_sizes() {
     let expected = [
-        (MSG_SET_SCHEDULE, 32),
+        (MSG_SET_SCHEDULE, 34),
         (MSG_GET_WINDOW, 14),
         (MSG_ACK_WINDOW, 12),
         (MSG_GET_FIELD_STATUS, 8),
@@ -324,7 +325,7 @@ fn type_codes_match_spec() {
 #[test]
 fn wrong_lengths_rejected() {
     for (t, n) in [
-        (MSG_SET_SCHEDULE, 32usize),
+        (MSG_SET_SCHEDULE, 34usize),
         (MSG_GET_WINDOW, 14),
         (MSG_ACK_WINDOW, 12),
         (MSG_GET_FIELD_STATUS, 8),
@@ -449,14 +450,14 @@ fn schedule_bytes_and_crc() {
     assert_eq!(b.len(), SCHEDULE_LEN);
     assert_eq!(Schedule::from_bytes(&b), s);
     assert_eq!(s.crc16(), crc::crc32(&b) as u16);
-    // The schedule bytes are exactly SetSchedule payload bytes 8..28.
+    // The schedule bytes are exactly SetSchedule payload bytes 8..30.
     let msg = Message::SetSchedule(SetSchedule {
         command_nonce: 0xAABB,
         schedule: s,
         lease_until_unix_s: 5,
     });
     let raw = frame_to_vec(&msg, 0);
-    assert_eq!(&raw[HEADER_LEN + 8..HEADER_LEN + 28], &b);
+    assert_eq!(&raw[HEADER_LEN + 8..HEADER_LEN + 30], &b);
     // Changing the lease or nonce does not change the CRC.
     let other = SetSchedule {
         command_nonce: 1,
@@ -545,6 +546,38 @@ fn sfk1_schedule_flags() {
     // flags are part of the schedule bytes, so the CRC follows them
     assert_ne!(sfk1.crc16(), s.crc16());
     assert_eq!(Schedule::from_bytes(&sfk1.to_bytes()), sfk1);
+}
+
+#[test]
+fn sfk1_presets() {
+    let fast20 = Sfk1Preset { knots: Sfk1Knots::K20, prior: Sfk1Prior::Fast };
+    let s = DEFAULT_SCHEDULE.with_preset(1, fast20);
+    assert_eq!(s.sfk1_presets, [0, 0b10_10]);
+    assert_eq!((s.preset(0), s.preset(1)), (Sfk1Preset::default(), fast20));
+    assert_eq!(Sfk1Knots::K20.count(), 20);
+    assert_eq!(s.validate(600_000), Ok(()));
+    assert_ne!(s.crc16(), DEFAULT_SCHEDULE.crc16());
+    assert_eq!(Schedule::from_bytes(&s.to_bytes()), s);
+    for code in 0..=255u8 {
+        let p = Sfk1Preset::from_code(code);
+        assert_eq!(p.is_some(), code < 12, "code {code}");
+        if let Some(p) = p {
+            assert_eq!(p.code(), code);
+        }
+    }
+    let bad = |c| Schedule { sfk1_presets: [0, c], ..DEFAULT_SCHEDULE }.validate(600_000);
+    assert_eq!(bad(0b11_00), Err(ScheduleError::Sfk1Preset)); // prior code 3
+    assert_eq!(bad(1 << 4), Err(ScheduleError::Sfk1Preset));
+    for code in 0..12 {
+        let p = Sfk1Preset::from_code(code).unwrap();
+        assert_eq!(p.to_string().parse(), Ok(p));
+    }
+    assert_eq!("20-fast".parse(), Ok(fast20));
+    assert_eq!(Sfk1Preset::default().to_string(), "12");
+    assert_eq!("12-slow".parse(), Ok(Sfk1Preset::default()));
+    for bad in ["", "18", "16-quick", "20-", "-mixed", "20-mixed-fast"] {
+        assert!(bad.parse::<Sfk1Preset>().is_err(), "{bad:?}");
+    }
 }
 
 #[test]
@@ -686,7 +719,7 @@ fn vector_file_text() -> String {
          # frame <name> <sequence> <decoded_frame_hex> <wire_hex>\n\
          #   decoded_frame = header + payload + CRC-32 (no COBS); wire = COBS + 0x00 delimiter.\n\
          # schedule <name> <schedule_bytes_hex> <schedule_crc_u16_hex>\n\
-         #   schedule_bytes = SetSchedule bytes enabled..bin_ms (20 B); crc = low 16 bits of CRC-32.\n\
+         #   schedule_bytes = SetSchedule bytes enabled..sfk1_presets (22 B); crc = low 16 bits of CRC-32.\n\
          # window_data <name> <data_hex> <data_crc32_hex>\n\
          #   window data of the WindowInfo frame vector (bins x 13 x i16 LE).\n\
          # bin_value <sum> <count> <base_raw> <value>\n\

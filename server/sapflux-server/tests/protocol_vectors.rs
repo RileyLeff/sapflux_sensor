@@ -4,7 +4,7 @@
 
 use sapflux_server::board::{self, unhex, BoardMsg};
 use sapflux_server::window;
-use sapflux_uplink::Schedule;
+use sapflux_uplink::{Schedule, SCHEDULE_LEN};
 use std::collections::HashMap;
 
 fn vectors() -> Option<String> {
@@ -35,7 +35,7 @@ fn field_vectors_decode() {
                 frames.insert(f[1].to_string(), bytes);
             }
             "schedule" => {
-                let b: [u8; 20] = unhex(f[2]).unwrap().try_into().unwrap();
+                let b: [u8; SCHEDULE_LEN] = unhex(f[2]).unwrap().try_into().unwrap();
                 let s = Schedule::from_bytes(&b);
                 assert_eq!(format!("{:04x}", s.crc16()), f[3], "{}", f[1]);
                 assert_eq!(s.to_bytes(), b);

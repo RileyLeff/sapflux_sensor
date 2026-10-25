@@ -184,6 +184,7 @@ pub fn schedule_error_text(e: ScheduleError) -> &'static str {
         ScheduleError::WindowTooLong => {
             "baseline + pulse + recovery + 4 s must fit in 1000 bins of bin_ms"
         }
+        ScheduleError::Sfk1Preset => "an SFK1 preset must be 12, 16, 20 or 24 knots with a slow, mixed or fast prior",
     }
 }
 
@@ -207,7 +208,7 @@ pub struct CheckIn<'a> {
     pub board_frames: &'a [u8],
 }
 
-/// `0x81` CheckInReply body (60 bytes).
+/// `0x81` CheckInReply body (62 bytes).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckInReply {
     /// Echo of `CheckIn.t1_unix_ms`.
@@ -348,7 +349,7 @@ impl Body<'_> {
             Body::CheckIn(b) => 24 + b.board_frames.len(),
             Body::WindowPart(b) => 22 + b.data.len(),
             Body::Event(b) => 12 + b.text.len(),
-            Body::CheckInReply(_) => 60,
+            Body::CheckInReply(_) => 40 + SCHEDULE_LEN,
             Body::WindowAck(_) => 48,
             Body::EventAck(_) => 8,
         }
@@ -481,7 +482,7 @@ fn parse_body(msg_type: u8, body: &[u8]) -> Result<Body<'_>, Error> {
             })
         }
         TYPE_CHECKIN_REPLY => {
-            exact(60)?;
+            exact(40 + SCHEDULE_LEN)?;
             let t1_unix_ms = r.i64();
             let t2_unix_ms = r.i64();
             let t3_unix_ms = r.i64();

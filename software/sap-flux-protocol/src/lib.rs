@@ -76,7 +76,7 @@ pub mod raw;
 mod frame;
 mod msg;
 
-pub use field::{ProbeKind, ScheduleError, BIN_VALUE_MISSING, BIN_VALUE_SCALE, SCHEDULE_LEN};
+pub use field::{ProbeKind, ScheduleError, ParsePresetError, Sfk1Knots, Sfk1Preset, Sfk1Prior, BIN_VALUE_MISSING, BIN_VALUE_SCALE, SCHEDULE_LEN};
 pub use frame::{decode_frame, encode, encode_frame, DecodeError, Decoder, EncodeError, Frame};
 pub use msg::{
     payload_len_for, Abort, Ack, AckWindow, ArmPulse, BoardState, ErrorReport, FieldStatus,

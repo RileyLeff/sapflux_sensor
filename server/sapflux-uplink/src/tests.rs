@@ -37,7 +37,7 @@ fn default_sched() -> Schedule {
 
 // Golden bytes computed independently with Python's hmac/hashlib/struct.
 const GOLDEN_EVENT: &str = "5346010340639325bd400100efbeadde07000000ff5d5b36a001000001000400626f6f74f46eb52d86da00d4";
-const GOLDEN_REPLY: &str = "5346018140639325bd400100efbeadde07000000e803000000000000dc05000000000000dd05000000000000030000000100e803100e0000000000003c00b4001900f401302a0000100e00000100000097c42363cc8aac8e";
+const GOLDEN_REPLY: &str = "5346018140639325bd400100efbeadde07000000e803000000000000dc05000000000000dd05000000000000030000000100e803100e0000000000003c00b4001900f4010000302a0000100e000001000000e75c8ce48a50a136";
 
 #[test]
 fn golden_event() {
@@ -68,15 +68,15 @@ fn golden_checkin_reply() {
     });
     let mut out = [0u8; MAX_DATAGRAM_LEN];
     let n = seal(&hdr(TYPE_CHECKIN_REPLY), &body, &KEY, &mut out).unwrap();
-    assert_eq!(n, 88);
+    assert_eq!(n, 90);
     assert_eq!(&out[..n], &hex(GOLDEN_REPLY)[..]);
 }
 
 #[test]
 fn schedule_bytes_and_crc() {
     let s = default_sched();
-    assert_eq!(&s.to_bytes()[..], &hex("0100e803100e0000000000003c00b4001900f401")[..]);
-    assert_eq!(s.crc16(), 0x4612);
+    assert_eq!(&s.to_bytes()[..], &hex("0100e803100e0000000000003c00b4001900f4010000")[..]);
+    assert_eq!(s.crc16(), 0x93fb);
     assert_eq!(Schedule::from_bytes(&s.to_bytes()), s);
 }
 
@@ -98,7 +98,8 @@ fn schedule_limits() {
     bad(|s| s.recovery_s = 601, ScheduleError::Recovery);
     bad(|s| s.sample_hz = 50, ScheduleError::SampleHz);
     bad(|s| s.bin_ms = 200, ScheduleError::BinMs);
-    bad(|s| s.flags = 2, ScheduleError::Flags);
+    bad(|s| s.flags = 1 << 6, ScheduleError::Flags);
+    bad(|s| s.sfk1_presets = [0b11_00, 0], ScheduleError::Sfk1Preset);
     // 60 + 180 + 600 = 840: interval 840 is too tight, 841 passes.
     bad(|s| s.interval_s = 840, ScheduleError::Timing);
     bad(|s| s.enabled = 2, ScheduleError::Enabled);
