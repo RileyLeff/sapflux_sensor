@@ -42,6 +42,8 @@ sff status                      # GetFieldStatus, pretty-printed
 sff set-schedule --enable
 sff set-schedule --enable --interval-s 900 --phase-s 300 --pulse-ms 500
 sff set-schedule --enable --require-lease --lease-s 7200
+# SFK1 records; --preset1/--preset2 pick knots and prior (12, 20-mixed, …)
+sff set-schedule --enable --sfk1 --probe1 east30 --preset1 20-mixed
 sff set-schedule --disable
 # Limits are checked locally first (board cooldown --cooldown-ms 600000);
 # --no-validate sends anyway to test the board's INVALID_PARAMETER path.

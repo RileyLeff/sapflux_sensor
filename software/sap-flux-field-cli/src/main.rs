@@ -10,7 +10,7 @@ use sap_flux_protocol::{
     Ack, FieldStatus, Schedule, SetSchedule, FIELD_STATUS_EEPROM_FAULT, FIELD_STATUS_ENABLED,
     FIELD_STATUS_FLASH_OK,
     FIELD_STATUS_HEATER_LOCKOUT, FIELD_STATUS_LEASE_VALID, FIELD_STATUS_REQUIRE_LEASE,
-    FIELD_STATUS_RTC_VALID, SCHEDULE_FLAG_REQUIRE_LEASE, SCHEDULE_FLAG_SFK1, ProbeKind,
+    FIELD_STATUS_RTC_VALID, SCHEDULE_FLAG_REQUIRE_LEASE, SCHEDULE_FLAG_SFK1, ProbeKind, Sfk1Preset,
 };
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -117,6 +117,13 @@ struct ScheduleArgs {
     /// Probe on port 2.
     #[arg(long, value_enum, default_value_t = Probe::None)]
     probe2: Probe,
+    /// SFK1 preset for port 1: knots and prior, as 12, 20-mixed, 24-fast…
+    /// The board refuses a preset its firmware does not link.
+    #[arg(long, value_parser = str::parse::<Sfk1Preset>, default_value = "12")]
+    preset1: Sfk1Preset,
+    /// SFK1 preset for port 2.
+    #[arg(long, value_parser = str::parse::<Sfk1Preset>, default_value = "12")]
+    preset2: Sfk1Preset,
     /// Set REQUIRE_LEASE: only pulse while now < lease_until.
     #[arg(long)]
     require_lease: bool,
@@ -421,6 +428,7 @@ fn schedule_error_text(e: ScheduleError) -> &'static str {
         ScheduleError::BinMs => "bin must be 250, 500 or 1000 ms",
         ScheduleError::Sfk1 => "SFK1 needs 25 Hz and a probe kind (--probe1/--probe2)",
         ScheduleError::WindowTooLong => "baseline + pulse + recovery + 4 s must fit in 1000 bins",
+        ScheduleError::Sfk1Preset => "unknown SFK1 preset code",
     }
 }
 
@@ -440,9 +448,12 @@ fn build_schedule(a: &ScheduleArgs) -> Result<Schedule, BoxError> {
         recovery_s: a.recovery_s,
         sample_hz: a.sample_hz,
         bin_ms: a.bin_ms,
+        sfk1_presets: [0; 2],
     }
     .with_probe(0, a.probe1.kind())
-    .with_probe(1, a.probe2.kind());
+    .with_probe(1, a.probe2.kind())
+    .with_preset(0, a.preset1)
+    .with_preset(1, a.preset2);
     let _ = a.disable; // clap guarantees exactly one of --enable/--disable
     if let Err(e) = schedule.validate(a.cooldown_ms) {
         if a.no_validate {
@@ -645,3 +656,4 @@ fn not_found_hint(e: LinkError) -> BoxError {
         other => other.into(),
     }
 }
+
