@@ -18,13 +18,21 @@
 //! (`windows_dropped` counts it). A window that would need more bins than a
 //! slot holds is cut at the slot size and flagged `TRUNCATED`.
 //!
+//! A window begun with [`WindowParams::sfk1`] is not binned: its frames go
+//! to the attached [`Sfk1Window`] ([`WindowStore::attach_sfk1`]), and
+//! finishing it writes one SFK1 record per probe into the slot instead
+//! (`WINDOW_FLAG_SFK1`). Its start moves to the records' frame 0. Without an
+//! attached encoder such a window is binned as usual.
+//!
 //! The struct is all-zero when empty, so a `static` of it lives in `.bss`.
 
+use crate::sfk1win::{Sfk1Window, PROBES};
 use sap_flux_protocol::crc::Crc32;
 use sap_flux_protocol::field::{encode_bin_value, mean_raw_rounded};
 use sap_flux_protocol::{
-    WindowChunk, WindowInfo, WINDOW_CHANNELS, WINDOW_CHUNK_DATA_LEN, WINDOW_FLAG_ABORTED,
-    WINDOW_FLAG_ADC_ERRORS, WINDOW_FLAG_TIME_INVALID, WINDOW_FLAG_TRUNCATED,
+    ProbeKind, WindowChunk, WindowInfo, WINDOW_CHANNELS, WINDOW_CHUNK_DATA_LEN,
+    WINDOW_FLAG_ABORTED, WINDOW_FLAG_ADC_ERRORS, WINDOW_FLAG_SFK1, WINDOW_FLAG_TIME_INVALID,
+    WINDOW_FLAG_TRUNCATED,
 };
 
 pub const CHANNELS: usize = WINDOW_CHANNELS;
@@ -44,6 +52,17 @@ pub struct WindowParams {
     pub sample_hz: u16,
     pub pulse_duration_ms: u16,
     pub time_invalid: bool,
+    /// Encode the window as SFK1 records instead of bins.
+    pub sfk1: Option<Sfk1Params>,
+}
+
+/// What an SFK1 window needs to know at its start.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Sfk1Params {
+    /// Probe on each port; it picks the profile.
+    pub probes: [ProbeKind; PROBES],
+    /// Baseline length: the heater fires this long after the first frame.
+    pub baseline_s: u16,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -106,6 +125,8 @@ struct Recorder {
     heater_on: bool,
     heater_on_us: u64,
     flags: u16,
+    /// Frames go to the attached SFK1 encoder, not to bins.
+    sfk1: bool,
 }
 
 const IDLE_RECORDER: Recorder = Recorder {
@@ -119,6 +140,7 @@ const IDLE_RECORDER: Recorder = Recorder {
         sample_hz: 0,
         pulse_duration_ms: 0,
         time_invalid: false,
+        sfk1: None,
     },
     bin_us: 0,
     cur_bin: 0,
@@ -132,6 +154,7 @@ const IDLE_RECORDER: Recorder = Recorder {
     heater_on: false,
     heater_on_us: 0,
     flags: 0,
+    sfk1: false,
 };
 
 pub struct WindowStore<const SLOTS: usize, const BYTES: usize> {
@@ -143,6 +166,7 @@ pub struct WindowStore<const SLOTS: usize, const BYTES: usize> {
     last_run_id: u32,
     acked: [u32; ACKED_MEMORY],
     acked_next: usize,
+    sfk1: Option<&'static mut Sfk1Window>,
 }
 
 impl<const SLOTS: usize, const BYTES: usize> Default for WindowStore<SLOTS, BYTES> {
@@ -164,7 +188,13 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
             last_run_id: 0,
             acked: [0; ACKED_MEMORY],
             acked_next: 0,
+            sfk1: None,
         }
+    }
+
+    /// Give the store the encoder for [`WindowParams::sfk1`] windows.
+    pub fn attach_sfk1(&mut self, encoder: &'static mut Sfk1Window) {
+        self.sfk1 = Some(encoder);
     }
 
     /// Run id of the window being recorded.
@@ -231,6 +261,13 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
             order: 0,
             info: ZERO_INFO,
         };
+        let sfk1 = match (params.sfk1, self.sfk1.as_deref_mut()) {
+            (Some(p), Some(enc)) => {
+                enc.begin(p.probes, p.baseline_s);
+                true
+            }
+            _ => false,
+        };
         self.rec = Recorder {
             active: true,
             slot,
@@ -241,6 +278,7 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
             } else {
                 0
             },
+            sfk1,
             ..IDLE_RECORDER
         };
     }
@@ -266,6 +304,13 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
         if !self.rec.active || t_us < self.rec.params.start_us {
             return;
         }
+        if self.rec.sfk1 {
+            if let Some(enc) = self.sfk1.as_deref_mut() {
+                enc.push(t_us, values);
+            }
+            self.count_frame(values, v24_raw);
+            return;
+        }
         let bin = ((t_us - self.rec.params.start_us) / self.rec.bin_us) as usize;
         while self.rec.cur_bin < bin && self.rec.cur_bin < Self::CAPACITY_BINS {
             self.flush_bin();
@@ -274,16 +319,18 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
             self.rec.flags |= WINDOW_FLAG_TRUNCATED;
             return;
         }
-        let mut all_valid = true;
         for (c, &v) in values.iter().enumerate() {
-            if v == INVALID_RAW {
-                all_valid = false;
-            } else {
+            if v != INVALID_RAW {
                 self.rec.sums[c] += v as i32;
                 self.rec.counts[c] += 1;
             }
         }
-        if all_valid {
+        self.count_frame(values, v24_raw);
+    }
+
+    /// Frame statistics every window keeps: good frames, ADC errors, 24 V.
+    fn count_frame(&mut self, values: &[i16; CHANNELS], v24_raw: i16) {
+        if !values.contains(&INVALID_RAW) {
             self.rec.frames_good += 1;
         } else {
             self.rec.flags |= WINDOW_FLAG_ADC_ERRORS;
@@ -318,30 +365,59 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
         if !self.rec.active {
             return;
         }
-        let start = self.rec.params.start_us;
+        let begun_us = self.rec.params.start_us;
+        // An SFK1 window starts at its records' frame 0.
+        let start = match self.sfk1.as_deref() {
+            Some(enc) if self.rec.sfk1 => enc.record_start_us().unwrap_or(begun_us),
+            _ => begun_us,
+        };
         let end_us = end_us.max(start);
         let span = end_us - start;
-        let partial = self.rec.counts.iter().any(|&n| n > 0) as usize;
-        let mut n_bins = (span.div_ceil(self.rec.bin_us) as usize)
-            .max(self.rec.cur_bin + partial)
-            .max(1);
-        if n_bins > Self::CAPACITY_BINS {
-            n_bins = Self::CAPACITY_BINS;
-            self.rec.flags |= WINDOW_FLAG_TRUNCATED;
-        }
-        while self.rec.cur_bin < n_bins {
-            self.flush_bin();
-        }
+        let (n_bins, data_len, stored_span) = if self.rec.sfk1 {
+            let slot = self.rec.slot;
+            let written = self
+                .sfk1
+                .as_deref_mut()
+                .map(|enc| enc.finish(&mut self.data[slot]));
+            let (len, truncated) = written.map_or((0, false), |w| (w.len, w.truncated));
+            if truncated {
+                self.rec.flags |= WINDOW_FLAG_TRUNCATED;
+            }
+            self.rec.flags |= WINDOW_FLAG_SFK1;
+            // n_bins carries the byte length; a slot never holds 64 kB
+            let len = len.min(u16::MAX as usize);
+            (len, len, span)
+        } else {
+            let partial = self.rec.counts.iter().any(|&n| n > 0) as usize;
+            let mut n_bins = (span.div_ceil(self.rec.bin_us) as usize)
+                .max(self.rec.cur_bin + partial)
+                .max(1);
+            if n_bins > Self::CAPACITY_BINS {
+                n_bins = Self::CAPACITY_BINS;
+                self.rec.flags |= WINDOW_FLAG_TRUNCATED;
+            }
+            while self.rec.cur_bin < n_bins {
+                self.flush_bin();
+            }
+            (
+                n_bins,
+                n_bins * BIN_BYTES,
+                span.min(n_bins as u64 * self.rec.bin_us),
+            )
+        };
 
         let rec = self.rec;
         if !rec.heater_on {
             self.rec.flags |= WINDOW_FLAG_ABORTED;
         }
-        let data_len = n_bins * BIN_BYTES;
         let mut crc = Crc32::new();
         crc.update(&self.data[rec.slot][..data_len]);
+        let start_rtc_ms = if rec.params.start_rtc_ms >= 0 {
+            rec.params.start_rtc_ms + ((start - begun_us) / 1000) as i64
+        } else {
+            rec.params.start_rtc_ms
+        };
 
-        let stored_span = span.min(n_bins as u64 * rec.bin_us);
         let frames_total = (stored_span * rec.params.sample_hz as u64 + 500_000) / 1_000_000;
         let frames_total = frames_total.min(u16::MAX as u64) as u32;
         let v24_mean = if rec.v24_count > 0 {
@@ -359,11 +435,15 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
                 run_id: rec.params.run_id,
                 window_flags: self.rec.flags,
                 channels: CHANNELS as u8,
-                bin_ms_div10: (rec.params.bin_ms / 10) as u8,
+                bin_ms_div10: if rec.sfk1 {
+                    0
+                } else {
+                    (rec.params.bin_ms / 10) as u8
+                },
                 n_bins: n_bins as u16,
                 chunk_count: data_len.div_ceil(WINDOW_CHUNK_DATA_LEN) as u16,
                 start_monotonic_us: start,
-                start_rtc_unix_ms: rec.params.start_rtc_ms,
+                start_rtc_unix_ms: start_rtc_ms,
                 end_monotonic_us: end_us,
                 end_rtc_unix_ms: end_rtc_ms,
                 heater_on_offset_ms: if rec.heater_on {
@@ -397,8 +477,7 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
     pub fn chunk(&self, run_id: u32, chunk: u16) -> Option<WindowChunk> {
         let i = self.find_pending(run_id)?;
         let info = &self.meta[i].info;
-        let len = info.n_bins as usize * BIN_BYTES;
-        let range = sap_flux_protocol::field::chunk_range(chunk, len)?;
+        let range = sap_flux_protocol::field::chunk_range(chunk, info.data_len())?;
         WindowChunk::new(info.run_id, chunk, &self.data[i][range])
     }
 
@@ -411,7 +490,7 @@ impl<const SLOTS: usize, const BYTES: usize> WindowStore<SLOTS, BYTES> {
     pub fn pending_window(&self, run_id: u32) -> Option<(&WindowInfo, &[u8])> {
         let i = self.find_pending(run_id)?;
         let info = &self.meta[i].info;
-        Some((info, &self.data[i][..info.n_bins as usize * BIN_BYTES]))
+        Some((info, &self.data[i][..info.data_len()]))
     }
 
     /// Free a pending window that now lives elsewhere (persisted to flash),
@@ -464,6 +543,7 @@ mod tests {
             sample_hz: 25,
             pulse_duration_ms: 1000,
             time_invalid: false,
+            sfk1: None,
         }
     }
 
@@ -499,6 +579,85 @@ mod tests {
             p.start_us + secs * 1_000_000,
             p.start_rtc_ms + secs as i64 * 1000,
         );
+    }
+
+    /// A 242 s SFK1 window: 60 s baseline, heater on 20 ms after the record
+    /// onset frame, frames 7 ms after the window begins.
+    fn record_sfk1(store: &mut Store, run_id: u32, probes: [ProbeKind; 2]) {
+        let mut p = params(run_id);
+        p.sfk1 = Some(Sfk1Params {
+            probes,
+            baseline_s: 60,
+        });
+        store.begin(p);
+        let first = p.start_us + 7_000;
+        for i in 0..242 * 25u64 {
+            let t = first + i * 40_000;
+            if i == 1500 {
+                store.note_heater_on(t + 20_000);
+            }
+            let rel = i as f64 / 25.0 - 60.0;
+            let rise = if rel > 0.0 {
+                300.0 * (rel / 8.0).min(1.0) * (-rel / 150.0).exp()
+            } else {
+                0.0
+            };
+            let mut f = [24_900i16; CHANNELS];
+            for (c, x) in f.iter_mut().enumerate().take(12) {
+                *x = (11_000.0 + 40.0 * c as f64 + rise) as i16;
+            }
+            store.push(t, &f, 2000);
+        }
+        store.finish(first + 242_000_000, p.start_rtc_ms + 242_007);
+    }
+
+    #[test]
+    fn sfk1_windows_hold_one_record_per_probe() {
+        use sap_flux_protocol::field::sfk1_records;
+        use sfk1::Profile;
+        let mut store = Store::new();
+        store.attach_sfk1(std::boxed::Box::leak(std::boxed::Box::default()));
+        record_sfk1(&mut store, 5, [ProbeKind::East30Offset, ProbeKind::East30]);
+        let info = store.info(5).unwrap();
+        assert!(info.is_sfk1() && info.is_consistent());
+        assert_eq!(info.window_flags, WINDOW_FLAG_SFK1);
+        assert_eq!((info.bin_ms_div10, info.base_raw), (0, [0; CHANNELS]));
+        // starts at the first frame, and the heater offset is measured from it
+        let p = params(5);
+        assert_eq!(info.start_monotonic_us, p.start_us + 7_000);
+        assert_eq!(info.start_rtc_unix_ms, p.start_rtc_ms + 7);
+        assert_eq!(info.heater_on_offset_ms, 60_020);
+        assert_eq!((info.frames_total, info.frames_missing), (6050, 0));
+        let bytes = data(&store, 5);
+        assert_eq!(bytes.len(), info.n_bins as usize);
+        assert!(info.verify_data(&bytes));
+        let names: Vec<_> = sfk1_records(&bytes)
+            .map(|e| {
+                let (_, rec) = e.unwrap();
+                let d = sfk1::decode(rec).unwrap();
+                assert_eq!((d.n_channels, d.n_bins, d.onset_frame), (6, 12, 1500));
+                d.profile
+            })
+            .collect();
+        assert_eq!(names, [sfk1::East30Offset::NAME, sfk1::East30K12::NAME]);
+        let (_, d) = store.pending_window(5).unwrap();
+        assert_eq!(d, &bytes[..]);
+    }
+
+    #[test]
+    fn sfk1_windows_without_an_encoder_are_binned() {
+        let mut store = Store::new();
+        let mut p = params(6);
+        p.sfk1 = Some(Sfk1Params {
+            probes: [ProbeKind::East30; 2],
+            baseline_s: 60,
+        });
+        store.begin(p);
+        store.push(p.start_us, &frame(1000), 2000);
+        store.finish(p.start_us + 1_000_000, p.start_rtc_ms + 1000);
+        let info = store.info(6).unwrap();
+        assert!(!info.is_sfk1());
+        assert_eq!(info.n_bins, 2);
     }
 
     #[test]

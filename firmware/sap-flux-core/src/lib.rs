@@ -6,6 +6,7 @@ pub mod pulse;
 pub mod rawlog;
 pub mod records;
 pub mod schedule;
+pub mod sfk1win;
 pub mod trim;
 pub mod window;
 pub mod winlog;

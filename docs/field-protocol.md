@@ -152,7 +152,8 @@ the heater actually came on `heater_on_offset_ms` after start, so a decoder
 shifts the record by the difference. A frame with a failed read of the
 excitation or any of a probe's thermistors is a missing frame of that
 probe's record; frames past the record's 181 s after onset are not encoded.
-About 160 B per probe, 2 chunks per window for two probes.
+About 120 B per probe (simulated pulses with sensor noise; 109 B for
+the 5-thermistor 24 Aug bench pulse), so 3 chunks per window for two probes.
 
 `WindowChunk` (108 B): `run_id: u32`, `chunk: u16`, `len: u16`
 (≤ 100), `data: [u8; 100]` (zero-padded). Chunk `i` holds data bytes
@@ -287,5 +288,5 @@ board's schedule alone and retries next wake. Windows stay on the board.
   25 Hz, 500 ms bins. SFK1 (`flags` bit 1, plus each probe's kind) once the
   server decodes it.
 - Gateway check-in every 3600 s plus the post-window wake.
-- Uplink ≈ 12.6 kB per binned pulse window (about 0.4 kB with SFK1) plus
+- Uplink ≈ 12.6 kB per binned pulse window (about 0.25 kB with SFK1) plus
   about 0.3 kB per check-in.

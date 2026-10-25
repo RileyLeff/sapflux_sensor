@@ -10,7 +10,7 @@
 //! | 16 | 102 | `WindowInfo` as a protocol frame (header, payload, CRC) |
 //! | 124 | 4 | CRC-32 over bytes 0..124 |
 //! | 255 | 1 | delivered marker: `0xFF` pending, `0x00` delivered |
-//! | 256 | `n_bins × 26` | window data, exactly as `WindowChunk`s carry it |
+//! | 256 | `data_len` | window data, exactly as `WindowChunk`s carry it (`n_bins × 26`, or `n_bins` bytes of SFK1 records) |
 //!
 //! A finished window stays in the RAM [`WindowStore`] while it is written:
 //! erase the slot's 8 sectors, program the data pages, program the header
@@ -366,7 +366,7 @@ impl<const SLOTS: usize> WindowLog<SLOTS> {
         }
         let slot = self.find_flash(run_id, SlotState::Pending)?;
         let info = self.read_info(flash, slot)?;
-        let range = chunk_range(chunk, info.n_bins as usize * crate::window::BIN_BYTES)?;
+        let range = chunk_range(chunk, info.data_len())?;
         let mut data = [0u8; sap_flux_protocol::WINDOW_CHUNK_DATA_LEN];
         let out = &mut data[..range.len()];
         if !flash.read(self.slot_addr(slot) + DATA_OFFSET + range.start as u32, out) {
@@ -577,6 +577,7 @@ mod tests {
             sample_hz: 25,
             pulse_duration_ms: 1000,
             time_invalid: false,
+            sfk1: None,
         });
         ram.note_heater_on(start + 100_000);
         for i in 0..bins * 6 {
@@ -660,6 +661,55 @@ mod tests {
         assert_eq!(log.last_run_id(&ram), 12);
         assert_eq!(download(&log, &mut f, &ram, 0).unwrap(), w11);
         assert_eq!(download(&log, &mut f, &ram, 12).unwrap(), w12);
+    }
+
+    #[test]
+    fn sfk1_windows_persist_by_their_byte_length() {
+        use crate::sfk1win::Sfk1Window;
+        use crate::window::Sfk1Params;
+        use sap_flux_protocol::ProbeKind;
+        let mut f = chip();
+        let mut ram = Ram::new();
+        ram.attach_sfk1(std::boxed::Box::leak(std::boxed::Box::new(
+            Sfk1Window::new(),
+        )));
+        let mut log = Log::new();
+        assert!(log.mount(&mut f, BASE, || {}));
+        let start = 40_000_000;
+        ram.begin(WindowParams {
+            run_id: 31,
+            start_us: start,
+            start_rtc_ms: 1_793_000_000_000,
+            bin_ms: 500,
+            sample_hz: 25,
+            pulse_duration_ms: 1000,
+            time_invalid: false,
+            sfk1: Some(Sfk1Params {
+                probes: [ProbeKind::East30, ProbeKind::None],
+                baseline_s: 10,
+            }),
+        });
+        for i in 0..(10 + 182) * 25u64 {
+            if i == 250 {
+                ram.note_heater_on(start + i * 40_000);
+            }
+            let rise = if i > 250 { 200 } else { 0 };
+            let mut v = [24_000i16; CHANNELS];
+            for (c, x) in v.iter_mut().enumerate().take(12) {
+                *x = 10_000 + c as i16 * 30 + rise;
+            }
+            ram.push(start + i * 40_000, &v, 2400);
+        }
+        ram.finish(start + 192_000_000, 1_793_000_192_000);
+        let w = snapshot(&ram, 31);
+        assert!(w.0.is_sfk1());
+        assert_eq!(w.1.len(), w.0.n_bins as usize);
+        persist_all(&mut log, &mut f, &mut ram);
+        assert_eq!(ram.windows_pending(), 0);
+        let ram = Ram::new();
+        let mut log = Log::new();
+        assert!(log.mount(&mut f, BASE, || {}));
+        assert_eq!(download(&log, &mut f, &ram, 31).unwrap(), w);
     }
 
     #[test]

@@ -9,6 +9,11 @@ path = "src/lib.rs"
 [dependencies]
 # Wire types, Schedule limits, CRC-32 and window bin encoding.
 sap-flux-protocol = { path = "../../software/sap-flux-protocol" }
+# SFK1 window records: the integer encoder and the East30 profiles only.
+sfk1 = { path = "../../software/sfk1", default-features = false }
+
+[dev-dependencies]
+sfk1 = { path = "../../software/sfk1", features = ["alloc"] }
 
 [features]
 default = []
