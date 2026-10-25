@@ -114,5 +114,6 @@ fn an_upside_down_offset_probe_still_decodes_exactly() {
         let worst = ca.samples().zip(cb.samples()).map(|(x, y)| (x - y).abs()).fold(0.0, f64::max);
         assert!(worst < 2.0, "channel {}: decodes differ by {worst} counts", ca.channel());
     }
+    #[cfg(feature = "alloc")]
     assert_eq!(sfk1::decode(&offset).unwrap().profile, East30Offset::NAME);
 }
