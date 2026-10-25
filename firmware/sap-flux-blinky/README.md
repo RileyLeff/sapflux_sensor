@@ -168,17 +168,11 @@ out, the schedule is held, and FieldStatus shows `eeprom_fault` (bit 6).
     `get-raw` the same run and confirm the decoded curves track the raw
     frames within a few counts, including the first seconds after the pulse.
 
-Build the field firmware:
+There is one build, the production one (600 s cooldown), for the bench and
+the field alike:
 
 ```sh
 cargo build --release --bin heater_monitor
-```
-
-The supervised bench build retains the intentionally short 30-second
-persistent cooldown and advertises firmware version 0.4.32:
-
-```sh
-cargo build --release --bin heater_monitor --features dev-short-cooldown
 ```
 
 Flash through the ST-Link:

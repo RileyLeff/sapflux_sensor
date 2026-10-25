@@ -71,12 +71,7 @@ const BKP_LEASE_UNTIL: usize = 2;
 const BKP_TRIM_ANCHOR_UNIX_S: usize = 3;
 const BKP_TRIM_STEPS_MS: usize = 4;
 const EEPROM_PAGE_LEN: usize = records::PAGE_LEN as usize;
-#[cfg(not(feature = "dev-short-cooldown"))]
 const FIRMWARE_VERSION: u32 = 0x00_04_00;
-// Patch 32 is intentionally conspicuous in the monitor: this is the
-// supervised bench build with a 30-second persistent cooldown.
-#[cfg(feature = "dev-short-cooldown")]
-const FIRMWARE_VERSION: u32 = 0x00_04_20;
 // One frame = 12 thermistors + excitation at 25 Hz. Budget (Python, 400 kHz
 // I2C, 32.768 kHz ticks): 12 x 1.88 ms + 1.67 ms = 24.3 ms acquisition, plus
 // a 5.7 ms Sample12 and, once per second, a 3.6 ms Status on RS-485.

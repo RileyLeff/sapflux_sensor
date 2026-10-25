@@ -1,13 +1,7 @@
-#[cfg(not(feature = "dev-short-cooldown"))]
 pub const COOLDOWN_MS: u64 = 600_000;
-#[cfg(feature = "dev-short-cooldown")]
-pub const COOLDOWN_MS: u64 = 30_000;
 pub const HEALTH_MAX_AGE_MS: u64 = 500;
 
-#[cfg(not(feature = "dev-short-cooldown"))]
 const MIN_RECOVERY_MS: u32 = 60_000;
-#[cfg(feature = "dev-short-cooldown")]
-const MIN_RECOVERY_MS: u32 = 30_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum State {

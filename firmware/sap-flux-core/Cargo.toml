@@ -17,7 +17,6 @@ sfk1 = { path = "../../software/sfk1", features = ["alloc"] }
 
 [features]
 default = []
-dev-short-cooldown = []
 
 [lints.rust]
 unsafe_code = "forbid"

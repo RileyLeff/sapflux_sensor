@@ -5,7 +5,6 @@ edition = "2021"
 
 [features]
 default = []
-dev-short-cooldown = ["sap-flux-core/dev-short-cooldown"]
 
 [dependencies]
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core"] }
