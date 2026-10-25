@@ -271,7 +271,7 @@ fn main() -> Result<()> {
             match output {
                 Some(p) => {
                     std::fs::write(&p, &csv)?;
-                    eprintln!("wrote {} ({} bins)", p.display(), w.n_bins.unwrap_or(0));
+                    eprintln!("wrote {}", p.display());
                 }
                 None => std::io::stdout().write_all(&csv)?,
             }

@@ -919,7 +919,7 @@ impl Store {
                     None,
                     now_ms(),
                     SERVER_EVENT_WINDOW_STORED,
-                    &format!("board {board} run {} stored ({} bins)", p.run_id, info.n_bins),
+                    &format!("board {board} run {} stored ({})", p.run_id, window::size_text(&info)),
                 )?;
                 ack.complete = true;
             }

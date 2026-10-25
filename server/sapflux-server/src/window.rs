@@ -1,9 +1,9 @@
-//! Pulse windows: verification, decoding back to raw counts, CSV output,
-//! and a reference binner that reduces raw frames the way the board does
+//! Pulse windows: verification, decoding back to raw counts (bins, or the
+//! curves rebuilt from SFK1 records), CSV output, and a reference binner that reduces raw frames the way the board does
 //! (used by the gateway simulator and tests).
 
 use crate::board::{self, BoardMsg, WindowInfo, WINDOW_FLAG_TIME_INVALID, WINDOW_INFO_FRAME_LEN};
-use sap_flux_protocol::field::{decode_bin_value_x16, encode_bin_value, mean_raw_rounded};
+use sap_flux_protocol::field::{decode_bin_value_x16, encode_bin_value, mean_raw_rounded, sfk1_records};
 use sapflux_uplink::crc32;
 use serde::Serialize;
 use std::io::Write;
@@ -32,6 +32,8 @@ pub enum WindowError {
     NotWindowInfo(u8),
     RunIdMismatch { expected: u32, got: u32 },
     BadGeometry(String),
+    /// SFK1 window data whose entries don't parse.
+    Sfk1Entries { offset: usize },
     DataLength { expected: usize, got: usize },
     DataCrc { expected: u32, got: u32 },
 }
@@ -46,6 +48,7 @@ impl std::fmt::Display for WindowError {
                 write!(f, "WindowInfo run_id {got} != WindowPart run_id {expected}")
             }
             WindowError::BadGeometry(e) => write!(f, "bad geometry: {e}"),
+            WindowError::Sfk1Entries { offset } => write!(f, "SFK1 data: bad entry at byte {offset}"),
             WindowError::DataLength { expected, got } => {
                 write!(f, "data is {got} bytes, WindowInfo says {expected}")
             }
@@ -81,7 +84,7 @@ pub fn verify(bytes: &[u8], run_id: Option<u32>) -> Result<(WindowInfo, &[u8]), 
     if info.channels == 0 || info.channels > 13 {
         return Err(WindowError::BadGeometry(format!("channels = {}", info.channels)));
     }
-    if info.bin_ms_div10 == 0 {
+    if info.bin_ms_div10 == 0 && !info.is_sfk1() {
         return Err(WindowError::BadGeometry("bin_ms = 0".into()));
     }
     let data = &bytes[WINDOW_INFO_FRAME_LEN..];
@@ -98,7 +101,21 @@ pub fn verify(bytes: &[u8], run_id: Option<u32>) -> Result<(WindowInfo, &[u8]), 
             got,
         });
     }
+    if info.is_sfk1() {
+        if let Some(Err(e)) = sfk1_records(data).find(Result::is_err) {
+            return Err(WindowError::Sfk1Entries { offset: e.offset });
+        }
+    }
     Ok((info, data))
+}
+
+/// Window size for logs: "482 bins" or "SFK1, 231 B".
+pub fn size_text(info: &WindowInfo) -> String {
+    if info.is_sfk1() {
+        format!("SFK1, {} B", info.n_bins)
+    } else {
+        format!("{} bins", info.n_bins)
+    }
 }
 
 /// Board-monotonic → wall-clock mapping from the window's two stamp pairs.
@@ -140,21 +157,38 @@ impl Clock {
     }
 }
 
-/// One decoded bin.
+/// One decoded bin, or one frame of an SFK1 window's records.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bin {
-    /// Bin index.
+    /// Bin (frame) index.
     pub k: usize,
-    /// Monotonic start of the bin.
+    /// Monotonic start of the bin (time of the frame).
     pub mono_start_us: u64,
-    /// Bin center relative to heater on, board monotonic seconds.
+    /// Bin center (frame time) relative to heater on, board monotonic seconds.
     pub t_s: f64,
     /// Same, rescaled to RTC (crystal) seconds.
     pub t_rtc_s: f64,
     /// Bin center wall time, if the RTC was valid.
     pub unix_ms: Option<f64>,
-    /// Mean raw counts per channel; `None` for the sentinel.
+    /// Mean raw counts per channel; `None` for the sentinel. In an SFK1
+    /// window: the 13-channel layout, thermistors as rebuilt by the records
+    /// in counts at the first record's reference excitation (the other
+    /// probe's rescaled to it), that excitation as `exc`, and `None` for a
+    /// probe or thermistor without a record.
     pub raw: Vec<Option<f64>>,
+}
+
+/// One probe's entry in an SFK1 window.
+#[derive(Debug, Clone)]
+pub struct Sfk1Probe {
+    /// Port, 1 or 2.
+    pub probe: u8,
+    /// Record length in bytes; 0 when the board had no record.
+    pub len: usize,
+    /// The decoded record (`None` if `len` is 0 or it failed to decode).
+    pub record: Option<sfk1::Decoded>,
+    /// Why the record failed to decode.
+    pub error: Option<String>,
 }
 
 /// A verified, decoded window.
@@ -162,11 +196,17 @@ pub struct Bin {
 pub struct Decoded {
     pub info: WindowInfo,
     pub clock: Clock,
+    /// Bins, or for an SFK1 window one entry per record frame.
     pub bins: Vec<Bin>,
+    /// The SFK1 records (empty for a binned window).
+    pub probes: Vec<Sfk1Probe>,
 }
 
 /// Decode window data back to raw counts per channel with timestamps.
 pub fn decode(info: &WindowInfo, data: &[u8]) -> Decoded {
+    if info.is_sfk1() {
+        return decode_sfk1(info, data);
+    }
     let ch = info.channels as usize;
     let bin_us = info.bin_ms() as u64 * 1000;
     let heater_on_us = info.start_monotonic_us + info.heater_on_offset_ms as u64 * 1000;
@@ -202,6 +242,72 @@ pub fn decode(info: &WindowInfo, data: &[u8]) -> Decoded {
         info: *info,
         clock,
         bins,
+        probes: Vec::new(),
+    }
+}
+
+/// SFK1 window: decode each probe's record and lay its curves out on the
+/// record frame grid, frame `i` at `start + i × frame period`.
+fn decode_sfk1(info: &WindowInfo, data: &[u8]) -> Decoded {
+    let clock = Clock::new(info);
+    let probes: Vec<Sfk1Probe> = sfk1_records(data)
+        .map_while(Result::ok)
+        .map(|(probe, rec)| {
+            let (record, error) = match rec {
+                [] => (None, None),
+                rec => match sfk1::decode(rec) {
+                    Ok(d) => (Some(d), None),
+                    Err(e) => (None, Some(e.to_string())),
+                },
+            };
+            Sfk1Probe {
+                probe,
+                len: rec.len(),
+                record,
+                error,
+            }
+        })
+        .collect();
+    let decoded = || probes.iter().filter_map(|p| Some((p.probe, p.record.as_ref()?)));
+    let n_frames = decoded()
+        .map(|(_, r)| r.channels.first().map_or(0, |c| c.samples.len()))
+        .max()
+        .unwrap_or(0);
+    let period_us = decoded().map(|(_, r)| r.frame_period_us).next().unwrap_or(40_000) as u64;
+    let heater_on_us = info.start_monotonic_us + info.heater_on_offset_ms as u64 * 1000;
+    let e_ref = decoded().map(|(_, r)| r.e_ref as f64).next();
+    let bins = (0..n_frames)
+        .map(|k| {
+            let mono = info.start_monotonic_us + k as u64 * period_us;
+            let t_s = (mono as f64 - heater_on_us as f64) / 1e6;
+            let mut raw = vec![None; 13];
+            for (probe, rec) in decoded() {
+                let first = (probe as usize - 1) * 6;
+                // ratiometric, so a probe whose record has another E_ref is
+                // rescaled to the shared `exc`
+                let scale = e_ref.map_or(1.0, |e| e / rec.e_ref.max(1) as f64);
+                for ch in &rec.channels {
+                    if let (1..=6, Some(v)) = (ch.channel, ch.samples.get(k)) {
+                        raw[first + ch.channel as usize - 1] = Some(*v * scale);
+                    }
+                }
+            }
+            raw[12] = e_ref;
+            Bin {
+                k,
+                mono_start_us: mono,
+                t_s,
+                t_rtc_s: t_s * clock.ratio,
+                unix_ms: clock.unix_ms(mono as f64),
+                raw,
+            }
+        })
+        .collect();
+    Decoded {
+        info: *info,
+        clock,
+        bins,
+        probes,
     }
 }
 
@@ -230,11 +336,17 @@ fn fmt_opt(v: Option<f64>, prec: usize) -> String {
 }
 
 /// Write the decoded window as CSV: one row per bin, raw counts (float,
-/// empty = no data) and, for the 13-channel layout, temperatures.
+/// empty = no data) and, for the 13-channel layout, temperatures. An SFK1
+/// window has one row per record frame (`frame,mono_us,...`) with the same
+/// channel columns ([`Bin::raw`]).
 pub fn write_csv(d: &Decoded, mut w: impl Write) -> std::io::Result<()> {
     let names = channel_names(d.info.channels);
     let temps = d.info.channels == 13;
-    write!(w, "bin,mono_start_us,t_s,t_rtc_s,unix_ms")?;
+    if d.info.is_sfk1() {
+        write!(w, "frame,mono_us,t_s,t_rtc_s,unix_ms")?;
+    } else {
+        write!(w, "bin,mono_start_us,t_s,t_rtc_s,unix_ms")?;
+    }
     for n in &names {
         write!(w, ",{n}_raw")?;
     }
@@ -284,6 +396,22 @@ pub struct Summary<'a> {
     pub start_unix_ms: Option<f64>,
     pub heater_on_unix_ms: Option<f64>,
     pub sentinel_values: usize,
+    /// SFK1 records, one per probe entry (empty for a binned window).
+    pub sfk1: Vec<Sfk1Summary>,
+}
+
+/// One SFK1 record in a [`Summary`].
+#[derive(Debug, Serialize)]
+pub struct Sfk1Summary {
+    pub probe: u8,
+    pub bytes: usize,
+    pub profile: Option<String>,
+    /// Reference excitation of the rebuilt counts.
+    pub e_ref: Option<u16>,
+    /// Thermistors in the record (1-based).
+    pub live_channels: Vec<u16>,
+    pub frames: Option<usize>,
+    pub error: Option<String>,
 }
 
 impl Decoded {
@@ -299,11 +427,27 @@ impl Decoded {
             rtc_valid: self.clock.rtc_valid,
             start_unix_ms: self.clock.unix_ms(self.info.start_monotonic_us as f64),
             heater_on_unix_ms: self.clock.unix_ms(heater_on),
-            sentinel_values: self
-                .bins
+            sentinel_values: if self.info.is_sfk1() {
+                0
+            } else {
+                self.bins
+                    .iter()
+                    .map(|b| b.raw.iter().filter(|v| v.is_none()).count())
+                    .sum()
+            },
+            sfk1: self
+                .probes
                 .iter()
-                .map(|b| b.raw.iter().filter(|v| v.is_none()).count())
-                .sum(),
+                .map(|p| Sfk1Summary {
+                    probe: p.probe,
+                    bytes: p.len,
+                    profile: p.record.as_ref().map(|r| r.profile.clone()),
+                    e_ref: p.record.as_ref().map(|r| r.e_ref),
+                    live_channels: p.record.iter().flat_map(|r| r.channels.iter().map(|c| c.channel)).collect(),
+                    frames: p.record.as_ref().map(|r| r.channels.first().map_or(0, |c| c.samples.len())),
+                    error: p.error.clone(),
+                })
+                .collect(),
         }
     }
 }
@@ -570,6 +714,114 @@ mod tests {
         assert!(matches!(verify(&bad, Some(9)), Err(WindowError::DataCrc { .. })));
         assert!(matches!(verify(&bytes, Some(8)), Err(WindowError::RunIdMismatch { .. })));
         assert!(matches!(verify(&bytes[..bytes.len() - 2], None), Err(WindowError::DataLength { .. })));
+    }
+
+    /// One probe's record: T1..T6 at 12 500 counts (25 °C), rising by
+    /// `rise` × (1 − e^(−t/20 s)) after onset, excitation `exc`.
+    fn sfk1_record<P: sfk1::Profile>(exc: i16, rise: f64) -> Vec<u8> {
+        let mut enc = sfk1::Encoder::<6, P>::new(&[0b11_1111], 12).unwrap();
+        let onset = enc.onset_frame();
+        for n in 0..enc.frames_expected() {
+            let t = n.saturating_sub(onset) as f64 * 0.04;
+            let v = 12_500.0 * exc as f64 / 25_000.0 + rise * (1.0 - (-t / 20.0).exp());
+            enc.push(exc, &[v.round() as i16; 6]).unwrap();
+        }
+        let mut out = vec![0u8; sfk1::Encoder::<6, P>::MAX_RECORD_LEN];
+        let len = enc.finish(&mut out).unwrap().len;
+        out.truncate(len);
+        out
+    }
+
+    fn sfk1_window(entries: &[(u8, &[u8])]) -> (Vec<u8>, WindowInfo) {
+        let mut data = Vec::new();
+        for (probe, rec) in entries {
+            let mut prefix = [0u8; 3];
+            sap_flux_protocol::field::write_sfk1_prefix(&mut prefix, *probe, rec.len() as u16);
+            data.extend(prefix);
+            data.extend_from_slice(rec);
+        }
+        let start_us = 40_000_000;
+        let info = WindowInfo {
+            run_id: 5,
+            window_flags: sap_flux_protocol::WINDOW_FLAG_SFK1,
+            channels: 13,
+            n_bins: data.len() as u16,
+            chunk_count: data.len().div_ceil(CHUNK_BYTES) as u16,
+            start_monotonic_us: start_us,
+            start_rtc_unix_ms: 1_787_618_000_000,
+            end_monotonic_us: start_us + 241_000_000,
+            end_rtc_unix_ms: 1_787_618_241_000,
+            // the board's heater came on 20 ms after the record's onset frame
+            heater_on_offset_ms: 60_020,
+            pulse_duration_ms: 1000,
+            sample_hz: 25,
+            frames_total: 6050,
+            data_crc32: crc32(&data),
+            ..WindowInfo::default()
+        };
+        let mut bytes = board::window_info_frame(&info, 1);
+        bytes.extend_from_slice(&data);
+        (bytes, info)
+    }
+
+    #[test]
+    fn sfk1_window_decodes_to_frames() {
+        let p1 = sfk1_record::<sfk1::East30K12>(25_000, 400.0);
+        // probe 2 saw another excitation, so its record has another E_ref
+        let p2 = sfk1_record::<sfk1::East30Offset>(24_000, 200.0);
+        let (bytes, info) = sfk1_window(&[(1, &p1), (2, &p2)]);
+        assert_eq!(info.data_len(), p1.len() + p2.len() + 6);
+        let (vi, data) = verify(&bytes, Some(5)).unwrap();
+        let d = decode(&vi, data);
+        assert_eq!(d.probes.len(), 2);
+        assert!(d.probes.iter().all(|p| p.record.is_some() && p.error.is_none()));
+        let s = d.summary();
+        assert_eq!(s.sfk1[1].profile.as_deref(), Some(<sfk1::East30Offset as sfk1::Profile>::NAME));
+        assert_eq!(s.sfk1[0].live_channels, [1, 2, 3, 4, 5, 6]);
+        assert_eq!(s.sentinel_values, 0);
+
+        let onset = 12 * 125;
+        assert_eq!(d.bins.len(), s.sfk1[0].frames.unwrap());
+        assert_eq!(d.bins[onset].mono_start_us, 40_000_000 + 60_000_000);
+        assert!((d.bins[onset].t_s + 0.020).abs() < 1e-9);
+        let late = &d.bins[onset + 25 * 100];
+        assert_eq!(late.raw[12], Some(25_000.0));
+        let want1 = 12_500.0 + 400.0 * (1.0 - (-100.0f64 / 20.0).exp());
+        let want2 = 12_500.0 + 200.0 * 25.0 / 24.0 * (1.0 - (-100.0f64 / 20.0).exp());
+        for c in 0..6 {
+            assert!((late.raw[c].unwrap() - want1).abs() < 3.0, "p1 t{}", c + 1);
+            assert!((late.raw[6 + c].unwrap() - want2).abs() < 3.0, "p2 t{}", c + 1);
+        }
+        let t = temp_c(late.raw[12].unwrap(), late.raw[6].unwrap()).unwrap();
+        assert!(t > 25.0 && t < 26.0, "{t}");
+
+        let mut csv = Vec::new();
+        write_csv(&d, &mut csv).unwrap();
+        let csv = String::from_utf8(csv).unwrap();
+        assert!(csv.starts_with("frame,mono_us,t_s,t_rtc_s,unix_ms,p1_t1_raw"));
+        assert_eq!(csv.lines().count(), d.bins.len() + 1);
+    }
+
+    #[test]
+    fn sfk1_window_with_an_empty_or_bad_entry() {
+        let p1 = sfk1_record::<sfk1::East30K12>(25_000, 400.0);
+        let (bytes, _) = sfk1_window(&[(1, &[]), (2, &p1[..p1.len() - 4])]);
+        let (vi, data) = verify(&bytes, None).unwrap();
+        let d = decode(&vi, data);
+        assert_eq!((d.probes[0].len, d.probes[0].record.is_none()), (0, true));
+        assert!(d.probes[0].error.is_none());
+        assert!(d.probes[1].error.is_some());
+        assert!(d.bins.is_empty());
+
+        // an entry that runs past the data fails verification
+        let (mut bytes, mut info) = sfk1_window(&[(1, &p1)]);
+        let n = bytes.len();
+        bytes.truncate(n - 1);
+        info.n_bins -= 1;
+        info.data_crc32 = crc32(&bytes[WINDOW_INFO_FRAME_LEN..]);
+        let mut fixed = board::window_info_frame(&info, 1);
+        fixed.extend_from_slice(&bytes[WINDOW_INFO_FRAME_LEN..]);
+        assert!(matches!(verify(&fixed, None), Err(WindowError::Sfk1Entries { offset: 0 })));
     }
 
     #[test]

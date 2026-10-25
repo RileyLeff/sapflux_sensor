@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 sapflux-uplink = { path = "../sapflux-uplink", features = ["std"] }
 sap-flux-protocol = { path = "../../software/sap-flux-protocol" }
+sfk1 = { path = "../../software/sfk1", features = ["std", "serde"] }
 tokio = { version = "1.54.1", features = ["net", "rt-multi-thread", "macros", "time", "signal", "sync"] }
 axum = "0.8.9"
 rusqlite = { version = "0.41.0", features = ["bundled"] }

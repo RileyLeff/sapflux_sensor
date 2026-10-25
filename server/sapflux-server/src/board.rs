@@ -13,12 +13,13 @@ pub use sap_flux_protocol::{
     WINDOW_INFO_FRAME_LEN,
 };
 
-const WINDOW_FLAG_NAMES: [&str; 5] = [
+const WINDOW_FLAG_NAMES: [&str; 6] = [
     "TIME_INVALID",
     "ADC_ERRORS",
     "ABORTED",
     "HEATER_FAULT",
     "TRUNCATED",
+    "SFK1",
 ];
 const SCHEDULE_FLAG_NAMES: [&str; 7] = [
     "enabled",
@@ -165,11 +166,15 @@ impl WindowInfo {
         self.bin_ms_div10 as u32 * 10
     }
 
-    /// Expected window data length in bytes.
-    pub fn data_len(&self) -> usize {
-        self.n_bins as usize * self.channels as usize * 2
+    /// Whether the data is SFK1 records rather than bins.
+    pub fn is_sfk1(&self) -> bool {
+        self.window_flags & sap_flux_protocol::WINDOW_FLAG_SFK1 != 0
     }
 
+    /// Expected window data length in bytes.
+    pub fn data_len(&self) -> usize {
+        sap_flux_protocol::WindowInfo::from(*self).data_len()
+    }
 }
 
 /// One decoded board message.
