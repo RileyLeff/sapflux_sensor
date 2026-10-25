@@ -200,8 +200,15 @@ mod east30_1cm { include!("profiles/east30_1cm.rs"); }
 let enc = sfk1::Encoder::<12, east30_1cm::East30At1cm>::new(&[0x0f, 0xff], 12)?;
 ```
 
-`tests/spacing_profile.rs` checks that profile against East30's tables on
-1 cm pulses (202 B vs 269 B mean records).
+The crate bundles one generated profile, `East30Offset`, for the offset
+East30 probes (10 mm above the heater, 5 mm below;
+`--positions='1,0 -0.5,0'`, file `src/profiles/east30_offset.rs`), and
+`sfk1::decode` recognises it. Use one profile per probe type: on simulated
+6-thermistor pulses an offset probe takes 122 B with it vs 153 B with the
+East30 tables (121 B vs 148 B installed upside down, which still decodes
+the same curve), while a classic 6 mm probe is better on `East30K12`
+(111 B vs 125 B). `tests/geometry_profiles.rs` checks these, and a 1 cm
+test profile (202 B vs 269 B for 12 thermistors).
 
 ## On the board (Embassy sketch)
 

@@ -196,7 +196,7 @@ def train_tables(t: np.ndarray, knots: int, t0: float, step: float, positions, p
 
 def profile_tables(name: str, period_us: int, post_s: float, t0: float, knots: int, step: float,
                    positions=EAST30_POSITIONS, phys: Physics = Physics(), struct_name: str | None = None,
-                   bin_s: float = 5.0, max_bins: int = 12, command: str = "") -> str:
+                   bin_s: float = 5.0, max_bins: int = 12, command: str = "", display_name: str | None = None) -> str:
     """Trained tables of a custom profile, as Rust items for `include!`.
 
     Same recipe as encoder_spec.constants() for East30, on the profile's own
@@ -244,11 +244,14 @@ def profile_tables(name: str, period_us: int, post_s: float, t0: float, knots: i
     if struct_name:
         out += [
             "",
-            f"/// The `{name}` profile (tools/generate.py).",
+            f"/// The `{display_name or name}` profile: tables trained for thermistors at",
+            f"/// {', '.join(f'({x:g}, {y:g})' for x, y in positions)} cm from the heater (x along the flow),",
+            "/// by tools/generate.py.",
+            "#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]",
             f"pub struct {struct_name};",
             "",
             f"impl sfk1::Profile for {struct_name} {{",
-            f'    const NAME: &\'static str = "{name}";',
+            f'    const NAME: &\'static str = "{display_name or name}";',
             f"    const FRAME_PERIOD_US: u32 = {period_us};",
             f"    const BIN_FRAMES: u16 = {int(round(bin_frames))};",
             f"    const DEFAULT_BINS: u8 = {min(12, max_bins)};",
@@ -356,6 +359,7 @@ def main() -> None:
     ap.add_argument("--bin-s", type=float, default=5.0, help="baseline bin length, s")
     ap.add_argument("--max-bins", type=int, default=12, help="most baseline bins (Profile::Bins length)")
     ap.add_argument("--struct", help="also emit `pub struct STRUCT` and its impl sfk1::Profile")
+    ap.add_argument("--name", help="Profile::NAME (default: --profile)")
     ap.add_argument("--out", type=Path, help="output file (default tests/profiles/PROFILE.rs)")
     ap.add_argument("--positions", default="0.6,0 -0.6,0", metavar="'X,Y X,Y ...'",
                     help="thermistor positions relative to the heater, cm, x along the expected flow; "
@@ -384,7 +388,7 @@ def main() -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         command = shlex.join(sys.argv[1:])
         path.write_text(profile_tables(args.profile, args.period_us, args.post_s, args.t0, args.knots, args.step,
-                                       positions, phys, args.struct, args.bin_s, args.max_bins, command))
+                                       positions, phys, args.struct, args.bin_s, args.max_bins, command, args.name))
         print(f"wrote {path}")
         return
     if args.check_record:
