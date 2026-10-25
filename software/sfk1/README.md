@@ -109,8 +109,8 @@ From onset, the curve is the line plus `Σ_j B_j(t) w_j`, where:
 A `Profile` is a unit struct that describes a sensor shape and its trained
 tables:
 
-* the grid: sample rate, bin length, post-onset length, the log-time offset
-  `t0`;
+* the grid: frame period, bin length, post-onset length, the log-time
+  offset `t0`;
 * the basis: knot count;
 * the matrices: the encoder matrix `MQ` (i32) and the decoder matrix `D`
   (f64);
@@ -125,8 +125,8 @@ table changes the id. Encoding a profile with an invariant broken (say, the
 `Acc` array not `KNOTS + 4` long) fails to compile, and the error names the
 rule. `Profile::validate()` makes the same check at run time.
 
-To make a new profile, generate its tables from the same physics training as
-East30:
+To make a new profile, generate its tables (see [Training](#training) for
+what goes into them):
 
 ```sh
 cd analysis/compression_research_20261024
@@ -137,7 +137,7 @@ uv run --with numpy --with scipy --with pandas --with matplotlib \
 
 This writes `tests/profiles/probe48_10hz.rs`. Include it and implement the
 trait; the crate docs and `tests/custom_profile.rs` have the full example (a
-48-thermistor probe at 10 Hz, 28 B per channel):
+48-thermistor probe at 10 Hz):
 
 ```rust
 struct Probe48;
@@ -162,6 +162,46 @@ let enc = sfk1::Encoder::<48, Probe48>::new(&[0xff; 6], 12)?;
 excitation lines is encoded as one encoder per group, each fed its own
 excitation, and produces one record per group. Ratiometry stays exact, and
 no change to the format is needed.
+
+### Training
+
+Only two tables are trained: the KLT rotation folded into `MQ`/`D`, and the
+Rice `K_TABLE`. Both come from simulated noise-free heat pulses: an
+isotropic 2D moving finite line source (the Marshall model on the axis) at
+each thermistor's position, with physical amplitude, plus drift curvature,
+over priors on diffusivity, velocity, flow angle, pulse length and needle
+placement error. Everything else (the spline basis, `R`, `KF_Q28`) is
+fixed by the grid and the knot count.
+
+Because the rotation is orthogonal and every rotated coefficient has the
+same quantization step, the priors only change record size, never what
+decodes. They matter mostly through the thermistors' distance from the
+heater, which slides the curve along log time: on simulated sets of six
+downstream and six upstream thermistors, tables trained at the probe's own
+spacing save about 38 B per record at 0.5 cm, 13 B at 0.75 cm and 51 B at
+1.0 cm against the 0.6 cm East30 tables; tangential or diagonal
+thermistors at 0.6 cm need nothing of their own
+(`analysis/compression_research_20261024/README.md` §11). So give each
+spacing its own profile; a probe that mixes distances can send one record
+per distance group.
+
+`--positions` takes the thermistors' (x, y) in cm, x along the expected
+flow; the physics flags (`--k-range`, `--v-range`, `--flow-angle-deg`,
+`--pulse-s`, `--spacing-error`, `--lateral-error-cm`, `--peak-counts`)
+set the priors, with East30 defaults. `--struct NAME` also writes the
+`impl sfk1::Profile`, so the file is all a crate needs:
+
+```sh
+... generate.py --profile east30_1cm --struct East30At1cm --positions='1,0 -1,0'
+```
+
+```rust
+mod east30_1cm { include!("profiles/east30_1cm.rs"); }
+let enc = sfk1::Encoder::<12, east30_1cm::East30At1cm>::new(&[0x0f, 0xff], 12)?;
+```
+
+`tests/spacing_profile.rs` checks that profile against East30's tables on
+1 cm pulses (202 B vs 269 B mean records).
 
 ## On the board (Embassy sketch)
 

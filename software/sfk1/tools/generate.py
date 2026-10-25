@@ -12,15 +12,17 @@ Rust decoder is checked against.
         python ../../software/sfk1/tools/generate.py            # tables + vectors
     ... generate.py --check-record FILE --window NAME --knots 12    # decode a Rust-made record
     ... generate.py --profile probe48_10hz --period-us 100000 --knots 12   # tables for a custom Profile
+    ... generate.py --profile east30_1cm --struct East30At1cm --positions='1,0 -1,0'   # another spacing
 
 Outputs:
 
 * src/tables.rs: log2 polynomial, knot scale, B-spline pieces, the i32
   encoder matrix, the Rice k-tables and the f64 decoder matrix.
-* --profile NAME: tests/profiles/NAME.rs, the trained tables (KF_Q28,
-  K_TABLE, MQ, D) of a custom `sfk1::Profile` with another frame period,
-  window length, t0, knot count or step, from the same physics training
-  as the East30 tables (encoders.klt_rotation / rice_k_table).
+* --profile NAME: tests/profiles/NAME.rs (or --out), the trained tables
+  (KF_Q28, K_TABLE, MQ, D) of a custom `sfk1::Profile` for its own frame
+  period, window, t0, knots, step, thermistor positions and physics priors;
+  with --struct, also a ready `impl sfk1::Profile`. Training simulates
+  heat pulses at the given positions (see train_tables).
 * tests/vectors/*.sfkv: per window, the raw nominal-grid frames (with
   missing slots) plus records and what decoding them must give.
 
@@ -46,8 +48,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import struct
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -119,37 +123,112 @@ def rust_tables() -> str:
     return "\n".join(out) + "\n"
 
 
-def profile_tables(name: str, period_us: int, post_s: float, t0: float, knots: int, step: float) -> str:
-    """Trained tables of a custom profile, as Rust consts for `include!`.
+@dataclass(frozen=True)
+class Physics:
+    """Priors the training curves are drawn from (uniform in each range).
+
+    Defaults are the East30 training of encoders.klt_rotation: wood
+    diffusivity, heat-pulse velocity along +x, a 1 s pulse, needle
+    placement errors, and the post-onset drift curvature of the corpus."""
+
+    k_cm2_s: tuple[float, float] = (0.0016, 0.0034)
+    v_cm_h: tuple[float, float] = (-4.0, 32.0)
+    flow_angle_deg: float = 0.0  # flow direction drawn within +-this of +x
+    pulse_s: float = 1.0
+    spacing_error: float = 0.10  # radial, fraction of the distance
+    lateral_error_cm: float = 0.03
+    peak_counts: tuple[float, float] = (280.0, 420.0)  # at peak_at_cm, v = 0
+    peak_at_cm: float = 0.6
+    counts_per_c: float = 277.5
+    curv_mk_min2: tuple[float, float] = (-2.0, 2.0)
+
+
+EAST30_POSITIONS = ((0.6, 0.0), (-0.6, 0.0))
+
+
+def train_tables(t: np.ndarray, knots: int, t0: float, step: float, positions, phys: Physics,
+                 n: int = 800, seed: int = 99) -> tuple[np.ndarray, tuple]:
+    """KLT rotation V and Rice k-table on the post-onset grid `t` (s).
+
+    The training curves are noise-free heat pulses from an isotropic 2D
+    moving finite line source (exp_geometry.line_source, which matches the
+    Marshall model on the axis) at each thermistor position (x, y) in cm, x
+    along the expected flow, with physical amplitude (a farther thermistor
+    sees a smaller, later pulse), plus post-onset drift curvature. Positions
+    are drawn in turn. V is the uncentered SVD of their orthonormal spline
+    coefficients (each column's largest entry made positive, so the tables
+    do not depend on the LAPACK build); the k-table is
+    encoders.rice_k_table's rule. Only record size depends on these
+    priors: V is a rotation, so a mismatch never costs fidelity."""
+    import encoders as E
+    import exp_geometry as G
+
+    Q = E.spline_q(tuple(np.round(t, 4)), knots, t0)
+    rng = np.random.default_rng(seed)
+    ref_t = np.linspace(0.5, t[-1], 1500)
+    X = []
+    for i in range(n):
+        x0, y0 = positions[i % len(positions)]
+        k = rng.uniform(*phys.k_cm2_s)
+        v = rng.uniform(*phys.v_cm_h) / 3600.0
+        th = np.radians(rng.uniform(-phys.flow_angle_deg, phys.flow_angle_deg))
+        eps = rng.uniform(-phys.spacing_error, phys.spacing_error)
+        lat = rng.uniform(-phys.lateral_error_cm, phys.lateral_error_cm)
+        peak = rng.uniform(*phys.peak_counts)
+        curv = rng.uniform(*phys.curv_mk_min2)
+        r0 = np.hypot(x0, y0)
+        ux, uy = x0 / r0, y0 / r0
+        x, y = x0 * (1 + eps) - uy * lat, y0 * (1 + eps) + ux * lat
+        # flow at angle th from +x: the same as the thermistor rotated by -th
+        x, y = x * np.cos(th) + y * np.sin(th), -x * np.sin(th) + y * np.cos(th)
+        ref = G.line_source(ref_t, phys.peak_at_cm, 0.0, k, 0.0, phys.pulse_s).max()
+        rise = peak / ref * G.line_source(t, x, y, k, v, phys.pulse_s)
+        drift = curv * 1e-3 * phys.counts_per_c * (t / 60.0) ** 2 / 2
+        X.append(Q.T @ (rise + drift))
+    X = np.array(X)
+    _, _, vt = np.linalg.svd(X, full_matrices=False)
+    V = vt.T
+    V *= np.where(V[np.abs(V).argmax(0), np.arange(V.shape[1])] < 0, -1.0, 1.0)
+    med = np.median(np.sqrt((X @ V / step) ** 2 + (E.SIGMA_REF / step) ** 2), axis=0)
+    kt = tuple(int(v) for v in np.maximum(0, np.round(np.log2(med + 0.5))))
+    return V, kt
+
+
+def profile_tables(name: str, period_us: int, post_s: float, t0: float, knots: int, step: float,
+                   positions=EAST30_POSITIONS, phys: Physics = Physics(), struct_name: str | None = None,
+                   bin_s: float = 5.0, max_bins: int = 12, command: str = "") -> str:
+    """Trained tables of a custom profile, as Rust items for `include!`.
 
     Same recipe as encoder_spec.constants() for East30, on the profile's own
     grid t = 0, period, ..., post_s: B = cubic B-splines in ln(t + t0), R from
-    QR(B), V = the physics-trained KLT rotation, M = V^T R^-T, D = R^-1 V;
-    MQ = round(M 2^36 / (192 step)); the Rice k-table from the training
-    curves at noise sigma_ref / step."""
+    QR(B), V and the Rice k-table from train_tables, M = V^T R^-T,
+    D = R^-1 V; MQ = round(M 2^36 / (192 step)). With `struct_name`, also a
+    unit struct and its `impl sfk1::Profile`."""
     import encoders as E
 
     n_post = int(round(post_s * 1e6 / period_us)) + 1
     t = np.arange(n_post) * period_us / 1e6
-    key = tuple(np.round(t, 4))
     B = E.post_spline_basis(t, knots, t0)
     _, R = np.linalg.qr(B)
-    V = E.klt_rotation(key, knots, t0, 1.0)
+    V, kt = train_tables(t, knots, t0, step, positions, phys)
     M = V.T @ np.linalg.inv(R).T
     D = np.linalg.inv(R) @ V
-    kt = E.rice_k_table(key, knots, t0, 1.0, step / E.SIGMA_REF)
     mq = np.round(M * 2.0**S.FW_M_SHIFT / (192 * step)).astype(np.int64)
     assert np.abs(mq).max() < 2**31
     span = np.log(t[-1] + t0) + 1e-9 - np.log(t0)
     kf = int(round(2**28 * (knots + 1) * np.log(2) / span))
     t0f = t0 * 1e6 / period_us
     assert abs(t0f - round(t0f)) < 1e-9, "t0 must be a whole number of frames"
+    bin_frames = bin_s * 1e6 / period_us
+    assert abs(bin_frames - round(bin_frames)) < 1e-9, "bin length must be a whole number of frames"
     n = knots + 4
     out = [
-        f"// @generated by tools/generate.py --profile {name} --period-us {period_us} --post-s {post_s} --t0 {t0} --knots {knots} --step {step}",
+        f"// @generated by tools/generate.py {command}".rstrip(),
         "// Trained tables for a custom sfk1::Profile. Do not edit.",
-        f"// Profile constants to match: FRAME_PERIOD_US = {period_us}, POST_FRAMES = {n_post}, T0_FRAMES = {int(round(t0f))},",
-        f"// KNOTS = {knots}, STEP = {step}, Acc = [i64; {n}].",
+        f"// Thermistor positions (cm, x along the flow): {list(positions)}",
+        f"// Physics priors: {phys}",
+        f"// Profile constants to match: FRAME_PERIOD_US = {period_us}, BIN_FRAMES = {int(round(bin_frames))},",
+        f"// POST_FRAMES = {n_post}, T0_FRAMES = {int(round(t0f))}, KNOTS = {knots}, STEP = {step}, Acc = [i64; {n}].",
         "",
         "/// Knot scale, Q28.",
         f"pub const KF_Q28: i64 = {kf};",
@@ -162,6 +241,29 @@ def profile_tables(name: str, period_us: int, post_s: float, t0: float, knots: i
     out += ["];", "/// Decoder matrix `D = R^-1 V`.", f"pub const D: [[f64; {n}]; {n}] = ["]
     out += ["    [" + ", ".join(repr(float(v)) for v in row) + "]," for row in D]
     out.append("];")
+    if struct_name:
+        out += [
+            "",
+            f"/// The `{name}` profile (tools/generate.py).",
+            f"pub struct {struct_name};",
+            "",
+            f"impl sfk1::Profile for {struct_name} {{",
+            f'    const NAME: &\'static str = "{name}";',
+            f"    const FRAME_PERIOD_US: u32 = {period_us};",
+            f"    const BIN_FRAMES: u16 = {int(round(bin_frames))};",
+            f"    const DEFAULT_BINS: u8 = {min(12, max_bins)};",
+            f"    type Bins = [i32; {max_bins}];",
+            f"    const POST_FRAMES: u16 = {n_post};",
+            f"    const T0_FRAMES: u32 = {int(round(t0f))};",
+            f"    const KNOTS: u8 = {knots};",
+            f"    type Acc = [i64; {n}];",
+            "    const KF_Q28: i64 = KF_Q28;",
+            "    const MQ: &'static [i32] = MQ.as_flattened();",
+            "    const D: &'static [f64] = D.as_flattened();",
+            f"    const STEP: f64 = {float(step)!r};",
+            "    const K_TABLE: &'static [u8] = &K_TABLE;",
+            "}",
+        ]
     return "\n".join(out) + "\n"
 
 
@@ -251,11 +353,38 @@ def main() -> None:
     ap.add_argument("--post-s", type=float, default=181.0)
     ap.add_argument("--t0", type=float, default=2.0)
     ap.add_argument("--step", type=float, default=3.0)
+    ap.add_argument("--bin-s", type=float, default=5.0, help="baseline bin length, s")
+    ap.add_argument("--max-bins", type=int, default=12, help="most baseline bins (Profile::Bins length)")
+    ap.add_argument("--struct", help="also emit `pub struct STRUCT` and its impl sfk1::Profile")
+    ap.add_argument("--out", type=Path, help="output file (default tests/profiles/PROFILE.rs)")
+    ap.add_argument("--positions", default="0.6,0 -0.6,0", metavar="'X,Y X,Y ...'",
+                    help="thermistor positions relative to the heater, cm, x along the expected flow; "
+                    "write --positions='1,0 -1,0' (with '=') when the first starts with a minus")
+    ph = Physics()
+    ap.add_argument("--k-range", type=float, nargs=2, default=ph.k_cm2_s, help="thermal diffusivity, cm^2/s")
+    ap.add_argument("--v-range", type=float, nargs=2, default=ph.v_cm_h, help="heat-pulse velocity, cm/h")
+    ap.add_argument("--flow-angle-deg", type=float, default=ph.flow_angle_deg,
+                    help="flow direction drawn within +-this of +x")
+    ap.add_argument("--pulse-s", type=float, default=ph.pulse_s)
+    ap.add_argument("--spacing-error", type=float, default=ph.spacing_error, help="radial, fraction")
+    ap.add_argument("--lateral-error-cm", type=float, default=ph.lateral_error_cm)
+    ap.add_argument("--peak-counts", type=float, nargs=2, default=ph.peak_counts,
+                    help="pulse peak at --peak-at-cm downstream with no flow, counts")
+    ap.add_argument("--peak-at-cm", type=float, default=ph.peak_at_cm)
     args = ap.parse_args()
     if args.profile:
-        path = CRATE / "tests/profiles" / f"{args.profile}.rs"
+        positions = tuple(tuple(float(v) for v in p.split(",")) for p in args.positions.split())
+        assert all(len(p) == 2 and np.hypot(*p) > 0 for p in positions), "positions are X,Y pairs off the heater"
+        phys = Physics(
+            k_cm2_s=tuple(args.k_range), v_cm_h=tuple(args.v_range), flow_angle_deg=args.flow_angle_deg,
+            pulse_s=args.pulse_s, spacing_error=args.spacing_error, lateral_error_cm=args.lateral_error_cm,
+            peak_counts=tuple(args.peak_counts), peak_at_cm=args.peak_at_cm,
+        )
+        path = args.out or CRATE / "tests/profiles" / f"{args.profile}.rs"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(profile_tables(args.profile, args.period_us, args.post_s, args.t0, args.knots, args.step))
+        command = shlex.join(sys.argv[1:])
+        path.write_text(profile_tables(args.profile, args.period_us, args.post_s, args.t0, args.knots, args.step,
+                                       positions, phys, args.struct, args.bin_s, args.max_bins, command))
         print(f"wrote {path}")
         return
     if args.check_record:
