@@ -273,6 +273,18 @@ impl Planner {
         }
     }
 
+    /// Monotonic time the next baseline is due, so the firmware can sleep
+    /// until shortly before it. `None` while a run is in progress or when
+    /// nothing can start (disabled, or lease-blocked: only a command or the
+    /// RTC can change that).
+    pub fn next_start_ms(&self, now_ms: u64, unix_ms: Option<i64>) -> Option<u64> {
+        if self.run.is_some() || !self.lease_ok(unix_ms) {
+            return None;
+        }
+        let slot = self.next_slot(now_ms, unix_ms)?;
+        Some(slot.fire_at_ms.saturating_sub(self.schedule.baseline_s as u64 * 1000))
+    }
+
     pub fn poll(&mut self, inputs: Inputs) -> Action {
         let now = inputs.now_ms;
         match (inputs.unix_ms, self.mono_anchor_ms) {
@@ -651,6 +663,58 @@ mod tests {
         sim.run_for_ms(3_000_000);
         assert_eq!(sim.fired_at.len(), 1);
         assert!(sim.fired_at[0].0 >= 3_700_000 && sim.fired_at[0].0 < 3_700_080);
+    }
+
+    #[test]
+    fn next_start_is_the_baseline_start() {
+        let sim = Sim::new(Schedule::FACTORY_DEFAULT, true);
+        assert_eq!(sim.planner.next_start_ms(0, sim.unix_ms()), None);
+        let mut sim = Sim::new(enabled(), true);
+        assert_eq!(sim.planner.next_start_ms(0, sim.unix_ms()), Some(3_600_000 - 60_000));
+        // None during the run, the next slot once it is over.
+        sim.run_for_ms(3_600_000 - 60_000 + 40);
+        assert_eq!(sim.machine.state(), State::Baseline);
+        assert_eq!(sim.planner.next_start_ms(sim.now_ms, sim.unix_ms()), None);
+        sim.run_for_ms(1_000_000);
+        assert_eq!(sim.machine.state(), State::SafeIdle);
+        sim.run_for_ms(40);
+        assert_eq!(
+            sim.planner.next_start_ms(sim.now_ms, sim.unix_ms()),
+            Some(2 * 3_600_000 - 60_000)
+        );
+        // A required lease that ran out blocks it.
+        let schedule = Schedule {
+            flags: sap_flux_protocol::SCHEDULE_FLAG_REQUIRE_LEASE,
+            ..enabled()
+        };
+        let sim = Sim::new(schedule, true);
+        assert_eq!(sim.planner.next_start_ms(0, sim.unix_ms()), None);
+    }
+
+    #[test]
+    fn sleeping_between_runs_keeps_every_slot() {
+        // The firmware polls every 1.5 s while asleep and every frame from
+        // 30 s before the baseline start until the run is over.
+        for rtc in [true, false] {
+            let mut sim = Sim::new(enabled(), rtc);
+            while sim.now_ms < 3 * 3_600_000 + 1_000 {
+                sim.step();
+                let wake = sim.planner.next_start_ms(sim.now_ms, sim.unix_ms());
+                let busy = sim.machine.state() != State::SafeIdle
+                    && sim.machine.state() != State::Cooldown;
+                sim.now_ms += match wake {
+                    _ if busy => 40,
+                    Some(at) if at <= sim.now_ms + 30_000 => 40,
+                    Some(at) => 1_500.min(at - 30_000 - sim.now_ms),
+                    None => 1_500,
+                };
+            }
+            assert_eq!(sim.fired_at.len(), 3, "rtc {rtc}");
+            for (i, (at, _)) in sim.fired_at.iter().enumerate() {
+                let slot = (i as u64 + 1) * 3_600_000;
+                assert!(*at >= slot && *at < slot + 80, "rtc {rtc}: fire {i} at {at}");
+            }
+        }
     }
 
     #[test]
