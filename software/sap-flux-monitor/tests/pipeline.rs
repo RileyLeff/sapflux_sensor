@@ -926,3 +926,47 @@ fn field_status_and_window_frames_are_logged() {
     assert!(ev.contains("schedule_crc=4612"), "{ev}");
     assert!(ev.contains("window_chunk"), "{ev}");
 }
+
+#[test]
+fn keeper_waits_before_waking_a_board_that_may_be_streaming() {
+    use sap_flux_monitor::worker::{KeepAction, LinkKeeper, BOARD_SILENT, WAKE_RETRY};
+    let t0 = Instant::now();
+    let mut keeper = LinkKeeper::new(t0);
+    // Right after connect the board may be mid-frame: no wake yet.
+    assert_eq!(keeper.poll(t0 + BOARD_SILENT / 2, None), None);
+    assert_eq!(
+        keeper.poll(t0 + BOARD_SILENT, None),
+        Some(KeepAction::Wake { first: true })
+    );
+    // No answer: retry only every WAKE_RETRY, flagged as a retry.
+    let t1 = t0 + BOARD_SILENT;
+    assert_eq!(keeper.poll(t1 + WAKE_RETRY / 2, None), None);
+    assert_eq!(
+        keeper.poll(t1 + WAKE_RETRY, None),
+        Some(KeepAction::Wake { first: false })
+    );
+}
+
+#[test]
+fn keeper_sends_keepalive_while_streaming_and_wakes_after_silence() {
+    use sap_flux_monitor::worker::{KeepAction, LinkKeeper, BOARD_SILENT, KEEPALIVE};
+    let t0 = Instant::now();
+    let mut keeper = LinkKeeper::new(t0);
+    let frame = |t: Duration| Some(t0 + t);
+    // Streaming: one keepalive per KEEPALIVE, none in between.
+    assert_eq!(keeper.poll(t0 + KEEPALIVE / 2, frame(KEEPALIVE / 2)), None);
+    assert_eq!(
+        keeper.poll(t0 + KEEPALIVE, frame(KEEPALIVE)),
+        Some(KeepAction::Keepalive)
+    );
+    assert_eq!(keeper.poll(t0 + KEEPALIVE, frame(KEEPALIVE)), None);
+    // A user command also counts as traffic.
+    keeper.on_tx(t0 + KEEPALIVE + Duration::from_secs(30));
+    assert_eq!(keeper.poll(t0 + 2 * KEEPALIVE, frame(2 * KEEPALIVE)), None);
+    // The board stops streaming: a fresh silent stretch starts with a first wake.
+    let last = 2 * KEEPALIVE;
+    assert_eq!(
+        keeper.poll(t0 + last + BOARD_SILENT, frame(last)),
+        Some(KeepAction::Wake { first: true })
+    );
+}

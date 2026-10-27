@@ -12,7 +12,7 @@ use crate::stats::{RateWindow, SeqTracker, StatsSnapshot};
 use crate::types::SampleData;
 use crate::types::{host_unix_ns, state_name, ProcessedSample};
 use sap_flux_protocol::{
-    encode, Ack, Decoder, ErrorReport, FieldStatus, Frame, Hello, Message, SetRtc, Status,
+    encode, Ack, Decoder, ErrorReport, FieldStatus, Frame, Hello, Message, Query, SetRtc, Status,
     FLAG_COMMAND_WINDOW, MAX_ENCODED_LEN,
 };
 use std::collections::VecDeque;
@@ -29,6 +29,17 @@ const STATS_INTERVAL: Duration = Duration::from_millis(250);
 /// FT232R driver-enable settle time: RTS is asserted this long before the
 /// first transmitted byte.
 const RTS_SETTLE: Duration = Duration::from_micros(200);
+/// No frame for this long means the board is not streaming (it streams a
+/// frame every 40 ms while a host is attached), so the bus is free.
+pub const BOARD_SILENT: Duration = Duration::from_secs(2);
+/// Wake attempts on a silent bus repeat this often.
+pub const WAKE_RETRY: Duration = Duration::from_secs(5);
+/// After the wake byte, the board needs this long out of Stop before it
+/// decodes a command (it waits 1 ms, then drops the garbled wake byte).
+const WAKE_DELAY: Duration = Duration::from_millis(15);
+/// The board stops streaming 10 min after the last host frame; a `Query`
+/// this often keeps it attached while the monitor is connected.
+pub const KEEPALIVE: Duration = Duration::from_secs(60);
 
 /// What to connect to.
 #[derive(Debug, Clone)]
@@ -156,6 +167,71 @@ impl CommandQueue {
     }
 }
 
+/// Traffic the worker originates on a real serial link to keep the board
+/// streaming (`firmware/sap-flux-blinky/README.md`, link selection).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeepAction {
+    /// The bus is silent: send the `0x00` wake byte, wait, then a `Query`
+    /// directly (no command window exists while the board is quiet).
+    /// `first` is set for the first attempt of a silent stretch.
+    Wake {
+        /// First attempt since the board went quiet.
+        first: bool,
+    },
+    /// The board streams: queue a `Query` for the next command window.
+    Keepalive,
+}
+
+/// Decides when to wake the board or keep it attached. Pure, so tests can
+/// drive it with synthetic time.
+pub struct LinkKeeper {
+    connected_at: Instant,
+    last_wake: Option<Instant>,
+    last_tx: Instant,
+}
+
+impl LinkKeeper {
+    /// New keeper for a link opened at `now`. The first wake waits
+    /// [`BOARD_SILENT`], so it never collides with a board already streaming.
+    pub fn new(now: Instant) -> Self {
+        Self {
+            connected_at: now,
+            last_wake: None,
+            last_tx: now,
+        }
+    }
+
+    /// A command was transmitted (any command refreshes the board's attach).
+    pub fn on_tx(&mut self, now: Instant) {
+        self.last_tx = now;
+    }
+
+    /// What to send now, given when the last frame was decoded.
+    pub fn poll(&mut self, now: Instant, last_frame: Option<Instant>) -> Option<KeepAction> {
+        let heard = last_frame
+            .unwrap_or(self.connected_at)
+            .max(self.connected_at);
+        if now.duration_since(heard) >= BOARD_SILENT {
+            let first = self.last_wake.is_none_or(|t| t < heard);
+            if first
+                || self
+                    .last_wake
+                    .is_some_and(|t| now.duration_since(t) >= WAKE_RETRY)
+            {
+                self.last_wake = Some(now);
+                self.last_tx = now;
+                return Some(KeepAction::Wake { first });
+            }
+            return None;
+        }
+        if now.duration_since(self.last_tx) >= KEEPALIVE {
+            self.last_tx = now;
+            return Some(KeepAction::Keepalive);
+        }
+        None
+    }
+}
+
 /// Events from the worker to the UI.
 pub enum UiEvent {
     /// Connection established (worker started successfully).
@@ -246,6 +322,7 @@ pub struct Pipeline {
     start: Instant,
     last_log_error: Option<String>,
     command_window: bool,
+    last_frame_at: Option<Instant>,
 }
 
 impl Pipeline {
@@ -260,7 +337,13 @@ impl Pipeline {
             start,
             last_log_error: None,
             command_window: false,
+            last_frame_at: None,
         }
+    }
+
+    /// When the last frame was decoded (`None` before the first).
+    pub fn last_frame_at(&self) -> Option<Instant> {
+        self.last_frame_at
     }
 
     /// True when the most recently decoded frame was a Sample carrying
@@ -318,6 +401,7 @@ impl Pipeline {
     fn handle_frame(&mut self, frame: Frame, now: Instant, out: &mut Vec<UiEvent>) {
         let ns = host_unix_ns();
         self.stats.frames_ok += 1;
+        self.last_frame_at = Some(now);
         // A window sample opens the command window; any frame after it means
         // the board is transmitting again, so the window has passed.
         self.command_window = match frame.message {
@@ -620,16 +704,19 @@ fn run_worker(
     let mut read_buf = [0u8; 4096];
     let mut sim_buf: Vec<u8> = Vec::new();
     let mut cmd_queue = CommandQueue::default();
+    let mut keeper = LinkKeeper::new(Instant::now());
+    let mut keeper_nonce = host_unix_ns() as u64;
     let mut tx_seq: u32 = 0;
     let mut last_stats = Instant::now();
     let mut exit_reason: Option<String> = None;
     let mut user_requested_exit = false;
 
     'main: loop {
-        // 1) Drain commands (explicit user actions only — the worker never
-        //    originates traffic by itself). On a real serial link nothing
-        //    is written here: the bus is half-duplex, so commands queue for
-        //    the next command window. The simulator consumes immediately.
+        // 1) Drain commands (explicit user actions; the worker originates
+        //    only the wake and keepalive of step 2c). On a real serial link
+        //    nothing is written here: the bus is half-duplex, so commands
+        //    queue for the next command window. The simulator consumes
+        //    immediately.
         loop {
             match cmd_rx.try_recv() {
                 Ok(WorkerCmd::Send { message, desc }) => match &mut source {
@@ -694,8 +781,8 @@ fn run_worker(
 
         // 2b) If the stream just ended on a command-window sample, the
         //     board is silent and listening for ~40 ms: transmit at most
-        //     one queued command, right now. This is the only place the
-        //     worker ever writes to a real port.
+        //     one queued command, right now. Queued commands leave only
+        //     here; 2c writes only its own wake and Query.
         let window = pipeline.take_command_window();
         if let Source::Serial(port) = &mut source {
             if let Some(cmd) = cmd_queue.pop_for_window(window) {
@@ -712,6 +799,7 @@ fn run_worker(
                 tx_seq = tx_seq.wrapping_add(1);
                 match transmit_in_window(port.as_mut(), &buf[..n]) {
                     Ok(()) => {
+                        keeper.on_tx(Instant::now());
                         pipeline.count_tx(n);
                         pipeline.log_command(&desc, &mut events);
                     }
@@ -727,6 +815,57 @@ fn run_worker(
                         break 'main;
                     }
                 }
+            }
+        }
+
+        // 2c) Keep the board streaming. A silent bus means it stopped
+        //     streaming (no host frame for 10 min) and may be in Stop: send
+        //     the wake byte and, once it is awake, a Query directly. While
+        //     it streams, queue a keepalive Query for a command window.
+        if let Source::Serial(port) = &mut source {
+            match keeper.poll(Instant::now(), pipeline.last_frame_at()) {
+                Some(KeepAction::Wake { first }) => {
+                    keeper_nonce = keeper_nonce.wrapping_add(1);
+                    let message = Message::Query(Query {
+                        command_nonce: keeper_nonce,
+                    });
+                    let mut buf = [0u8; MAX_ENCODED_LEN];
+                    let n = encode(&message, tx_seq, &mut buf).expect("Query encodes");
+                    tx_seq = tx_seq.wrapping_add(1);
+                    let sent = transmit_in_window(port.as_mut(), &[0x00]).and_then(|()| {
+                        std::thread::sleep(WAKE_DELAY);
+                        transmit_in_window(port.as_mut(), &buf[..n])
+                    });
+                    let desc = format!("wake + Query nonce={keeper_nonce}");
+                    match sent {
+                        Ok(()) => {
+                            pipeline.count_tx(n + 1);
+                            if first {
+                                pipeline.log_command(&desc, &mut events);
+                            } else {
+                                pipeline.log_lifecycle("wake_retry", &desc);
+                            }
+                        }
+                        Err(e) => {
+                            exit_reason = Some(format!("serial write: {e}"));
+                            pipeline.log_lifecycle("command_tx_failed", &format!("{desc} ({e})"));
+                            events.push(UiEvent::LogError(format!("wake write failed: {e}")));
+                            break 'main;
+                        }
+                    }
+                }
+                Some(KeepAction::Keepalive) if cmd_queue.is_empty() => {
+                    keeper_nonce = keeper_nonce.wrapping_add(1);
+                    let desc = format!("Query (keepalive) nonce={keeper_nonce}");
+                    let depth = cmd_queue.push(QueuedCommand {
+                        message: Message::Query(Query {
+                            command_nonce: keeper_nonce,
+                        }),
+                        desc: desc.clone(),
+                    });
+                    pipeline.log_command_queued(&desc, depth, &mut events);
+                }
+                _ => {}
             }
         }
 
