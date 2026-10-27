@@ -1,6 +1,7 @@
 //! Shared board support for the sap-flux firmware binaries.
 #![no_std]
 
+pub mod stop;
 pub mod timebase;
 pub mod w25q;
 

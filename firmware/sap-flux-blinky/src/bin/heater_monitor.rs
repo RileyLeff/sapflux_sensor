@@ -1,6 +1,10 @@
 #![no_std]
 #![no_main]
 
+use core::future::{poll_fn, Future};
+use core::pin::Pin;
+use core::task::Poll;
+
 use embassy_executor::Spawner;
 use embassy_stm32::adc::{Adc, SampleTime};
 use embassy_stm32::bind_interrupts;
@@ -22,6 +26,7 @@ use embassy_stm32::usart::{self, Config as UartConfig, RingBufferedUartRx, Uart,
 use embassy_stm32::Peri;
 use embassy_time::{Duration, Instant, Timer};
 use panic_halt as _;
+use sap_flux_blinky::stop;
 use sap_flux_blinky::w25q::W25q;
 use sap_flux_core::civil_time::{datetime_to_unix_ms, unix_ms_to_datetime, UtcDateTime};
 use sap_flux_core::flash::{
@@ -134,6 +139,15 @@ const FAULT_PULSE_OVERRUN: u8 = 2;
 const IWDG_TIMEOUT_US: u32 = 4_000_000;
 /// TPL5010 DONE cadence, independent of WAKE (period ~9.6 s).
 const WATCHDOG_DONE_PERIOD: Duration = Duration::from_secs(1);
+/// Field link with nothing to measure: Stop 1 this long at a time. Each
+/// wake pets the IWDG (4 s) and pulses TPL5010 DONE (~9.6 s).
+const IDLE_TICK: Duration = Duration::from_millis(1_500);
+/// Measuring resumes this long before a scheduled baseline starts, so the
+/// excitation self-heating of the thermistors has settled by then.
+const PREWARM_MS: u64 = 30_000;
+/// No Stop for this long after a command or a wake edge. The gateway sends
+/// follow-up commands without a new wake byte for 500 ms after its last one.
+const RX_HOLD: Duration = Duration::from_millis(1_000);
 // W25Q256JV on SPI2. 4 MHz (PCLK 16 MHz / 4) is 4x board_test's proven
 // 1 MHz and well under the chip's limit: a 256 B page moves in ~0.6 ms.
 const FLASH_SPI_HZ: u32 = 4_000_000;
@@ -234,6 +248,21 @@ impl Link<'_> {
             Link::Rs485(link) => link.poll_message(),
             Link::Ttl(link) => link.poll_message(),
         }
+    }
+
+    /// Drop whatever was received and the decoder state: after a wake from
+    /// Stop, the wake byte may have arrived garbled.
+    fn discard_input(&mut self) {
+        let (rx, decoder) = match self {
+            Link::Rs485(link) => (&mut link.rx, &mut link.decoder),
+            Link::Ttl(link) => (&mut link.rx, &mut link.decoder),
+        };
+        for _ in 0..MAX_ENCODED_LEN {
+            if let Err(nb::Error::WouldBlock) = embedded_hal_nb::serial::Read::read(rx) {
+                break;
+            }
+        }
+        *decoder = Decoder::new();
     }
 
     async fn send(&mut self, messages: &[Option<Message>]) {
@@ -484,10 +513,14 @@ struct Frame {
 impl MuxPins<'_> {
     /// Enable exactly one mux (active-low ~E); the others float off the
     /// shared Z → AIN0 node.
-    fn enable_bank(&mut self, bank: MuxBank) {
+    fn disable(&mut self) {
         self.en_a.set_high();
         self.en_b.set_high();
         self.en_c.set_high();
+    }
+
+    fn enable_bank(&mut self, bank: MuxBank) {
+        self.disable();
         match bank {
             MuxBank::A => self.en_a.set_low(),
             MuxBank::B => self.en_b.set_low(),
@@ -596,6 +629,7 @@ async fn main(_spawner: Spawner) {
         // TX idles high into PA14's 10 kOhm BOOT0 pull-down (330 uA):
         // keep the pin analog except while replying.
         set_pa14_mode(pac::gpio::vals::Moder::ANALOG);
+        stop::init_rx_wake();
         let (tx, rx) = uart.split();
         let rx_buffer = TTL_UART_RX_DMA_BUFFER.init([0; 512]);
         let mut rx = rx.into_ring_buffered(rx_buffer);
@@ -747,95 +781,135 @@ async fn main(_spawner: Spawner) {
     let mut last_watchdog_done = Instant::now();
     let mut frame_counter = 0_u32;
     let mut next_frame_at = Instant::now();
+    // Excitation is on from boot; the first frame bootstraps the TPL5010.
+    let mut measuring = true;
+    let mut awake_until = Instant::now();
 
     loop {
         iwdg.pet();
         service_pulse_state(&mut ctx).await;
-        let cycle_index = frame_counter % FRAMES_PER_CYCLE;
-        frame_counter = frame_counter.wrapping_add(1);
-        excitation.set_high();
 
-        let frame = acquire_frame(
-            &mut ctx.i2c,
-            &mut internal_adc,
-            &mut v24_monitor,
-            &mut mux,
-            &ctx.rtc_provider,
-            ctx.rtc_valid,
-            pgood.is_high(),
-            ctx.hardware_pulse.is_running(),
-        )
-        .await;
-        ctx.machine.update_health(Health {
-            rtc_valid: ctx.rtc_valid,
-            pgood: frame.flags & FLAG_PGOOD != 0,
-            adc_valid: frame.heater_health_valid,
-            measured_at_ms: Instant::now().as_millis(),
-        });
-        ctx.field.v24_raw = frame.v24_raw;
-
-        // TPL5010 does not emit WAKE at the beginning of its first cycle.
-        // Reaching this point proves the control loop completed an acquisition
-        // cycle. Sensor/power health separately gates heater commands and must
-        // never deliberately expire the external firmware-hang watchdog.
-        if !watchdog_bootstrapped {
-            pulse_watchdog_done(&mut watchdog_done).await;
-            watchdog_bootstrapped = true;
-            last_watchdog_done = Instant::now();
+        // Between runs the field board does not measure: excitation and mux
+        // off, internal ADC disabled, and Stop 1 in the wait loop below.
+        let measure = !watchdog_bootstrapped || must_measure(&ctx, &link);
+        if measure && !measuring {
+            excitation.set_high();
+            // Excitation RC (560 Ohm, 1 uF) settles in ~3 ms.
+            Timer::after_millis(5).await;
+            next_frame_at = Instant::now();
+            measuring = true;
+        } else if !measure && measuring {
+            excitation.set_low();
+            mux.disable();
+            measuring = false;
         }
 
-        if ctx.field.windows.recording().is_some() {
-            let mut values = [0_i16; 13];
-            values[..12].copy_from_slice(&frame.thermistor_raw);
-            values[12] = frame.excitation_raw;
-            ctx.field
-                .windows
-                .push(frame.monotonic_us, &values, frame.v24_raw);
+        let mut frame = None;
+        if measuring {
+            let acquired = acquire_frame(
+                &mut ctx.i2c,
+                &mut internal_adc,
+                &mut v24_monitor,
+                &mut mux,
+                &ctx.rtc_provider,
+                ctx.rtc_valid,
+                pgood.is_high(),
+                ctx.hardware_pulse.is_running(),
+            )
+            .await;
+            ctx.machine.update_health(Health {
+                rtc_valid: ctx.rtc_valid,
+                pgood: acquired.flags & FLAG_PGOOD != 0,
+                adc_valid: acquired.heater_health_valid,
+                measured_at_ms: Instant::now().as_millis(),
+            });
+            ctx.field.v24_raw = acquired.v24_raw;
+
+            // TPL5010 does not emit WAKE at the beginning of its first
+            // cycle. Reaching this point proves the control loop completed
+            // an acquisition cycle. Sensor/power health separately gates
+            // heater commands and must never deliberately expire the
+            // external firmware-hang watchdog.
+            if !watchdog_bootstrapped {
+                pulse_watchdog_done(&mut watchdog_done).await;
+                watchdog_bootstrapped = true;
+                last_watchdog_done = Instant::now();
+            }
+
+            if ctx.field.windows.recording().is_some() {
+                let mut values = [0_i16; 13];
+                values[..12].copy_from_slice(&acquired.thermistor_raw);
+                values[12] = acquired.excitation_raw;
+                ctx.field
+                    .windows
+                    .push(acquired.monotonic_us, &values, acquired.v24_raw);
+            }
+            frame = Some(acquired);
+        } else {
+            // FieldStatus reports the battery voltage even between runs.
+            ctx.field.v24_raw = read_v24(&mut internal_adc, &mut v24_monitor);
+            internal_adc.power_down();
         }
 
         // Raw log: every frame of every run (scheduled or host-commanded),
         // RAM only here; flash writes happen in the wait loop below.
-        if run_active(ctx.machine.state()) {
-            let raw_frame = raw_frame(&frame, &ctx.machine);
-            ctx.raw.push(ctx.machine.run_id(), &raw_frame);
-        } else {
-            ctx.raw.end_run();
+        match &frame {
+            Some(frame) if run_active(ctx.machine.state()) => {
+                let raw_frame = raw_frame(frame, &ctx.machine);
+                ctx.raw.push(ctx.machine.run_id(), &raw_frame);
+            }
+            _ => ctx.raw.end_run(),
         }
 
         run_scheduler(&mut ctx).await;
         close_window_if_done(&mut ctx);
 
-        if link.streams() && cycle_index != 0 {
-            let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
-            let extra = if command_window { FLAG_COMMAND_WINDOW } else { 0 };
-            let status = (cycle_index == STATUS_FRAME_IN_CYCLE).then(|| ctx.status());
-            link.send(&[Some(sample12_message(&frame, &ctx.machine, extra)), status])
-                .await;
+        if let Some(frame) = &frame {
+            let cycle_index = frame_counter % FRAMES_PER_CYCLE;
+            frame_counter = frame_counter.wrapping_add(1);
+            if link.streams() && cycle_index != 0 {
+                let command_window = cycle_index == FRAMES_PER_CYCLE - 1;
+                let extra = if command_window { FLAG_COMMAND_WINDOW } else { 0 };
+                let status = (cycle_index == STATUS_FRAME_IN_CYCLE).then(|| ctx.status());
+                link.send(&[Some(sample12_message(frame, &ctx.machine, extra)), status])
+                    .await;
+            }
         }
 
-        // Fixed-rate frames on a grid that never slips: a late frame is
-        // followed at once by the next one, and a stall of a whole period or
-        // more skips those slots (absent frames; every frame carries its own
-        // time). The mean rate stays exact, as SFK1's fixed grid assumes.
-        let period = frame_period(&ctx);
-        next_frame_at += period;
-        let now = Instant::now();
-        while next_frame_at + period <= now {
+        let frame_deadline = if measuring {
+            // Fixed-rate frames on a grid that never slips: a late frame is
+            // followed at once by the next one, and a stall of a whole
+            // period or more skips those slots (absent frames; every frame
+            // carries its own time). The mean rate stays exact, as SFK1's
+            // fixed grid assumes.
+            let period = frame_period(&ctx);
             next_frame_at += period;
-        }
-        let frame_deadline = next_frame_at;
+            let now = Instant::now();
+            while next_frame_at + period <= now {
+                next_frame_at += period;
+            }
+            next_frame_at
+        } else {
+            let tick = Instant::now() + IDLE_TICK;
+            prewarm_at(&ctx).map_or(tick, |at| at.min(tick))
+        };
         loop {
             // Field link: commands that arrive while the heater is on wait
             // in the RX ring buffer and are answered after the pulse.
+            let mut commanded = false;
             if link.streams() || !heater_on(&ctx) {
                 while let Some(message) = link.poll_message() {
                     let responses = handle_command(message, &mut ctx).await;
                     link.send(&responses.messages).await;
+                    commanded = true;
                 }
+            }
+            if commanded {
+                awake_until = Instant::now() + RX_HOLD;
             }
 
             service_pulse_state(&mut ctx).await;
-            service_storage(&mut ctx);
+            let storage_busy = service_storage(&mut ctx);
 
             // WAKE is only a 20 ms pulse, shorter than one acquisition, so
             // polling it can miss it and let the TPL5010 reset the MCU (which
@@ -850,11 +924,19 @@ async fn main(_spawner: Spawner) {
                 last_watchdog_done = Instant::now();
             }
 
-            if Instant::now() >= frame_deadline {
+            // A command may have started a run or changed the schedule.
+            if Instant::now() >= frame_deadline || (commanded && !measuring) {
                 break;
             }
             iwdg.pet();
-            Timer::after_micros(250).await;
+            if measuring || storage_busy || Instant::now() < awake_until {
+                Timer::after_micros(250).await;
+            } else if deep_sleep(&mut ctx, frame_deadline).await {
+                // Woken by the host's wake byte: listen for its commands.
+                awake_until = Instant::now() + RX_HOLD;
+                Timer::after_millis(1).await;
+                link.discard_input();
+            }
         }
     }
 }
@@ -923,9 +1005,7 @@ async fn acquire_frame(
         });
     }
 
-    let v24_raw = internal_adc
-        .blocking_read(v24_monitor, SampleTime::CYCLES160_5)
-        .min(i16::MAX as u16) as i16;
+    let v24_raw = read_v24(internal_adc, v24_monitor);
     let rtc_unix_ms = rtc_now_ms(rtc_provider, rtc_valid).unwrap_or(-1);
 
     let mut flags = FLAG_EXCITATION_ACTIVE;
@@ -962,6 +1042,12 @@ async fn acquire_frame(
     }
 }
 
+fn read_v24(internal_adc: &mut BoardAdc<'_>, v24_monitor: &mut V24MonitorPin<'_>) -> i16 {
+    internal_adc
+        .blocking_read(v24_monitor, SampleTime::CYCLES160_5)
+        .min(i16::MAX as u16) as i16
+}
+
 fn run_active(state: State) -> bool {
     matches!(
         state,
@@ -991,7 +1077,8 @@ fn raw_frame(frame: &Frame, machine: &Machine) -> RawFrame {
 /// At most one flash operation per call (a page program is ~0.6 ms of SPI;
 /// erases only start while the heater is off, and never block: the chip is
 /// polled until done). Called every ~250 us from the frame wait loop.
-fn service_storage(ctx: &mut Ctx<'_>) {
+/// Returns whether the flash is still working (the board must not stop).
+fn service_storage(ctx: &mut Ctx<'_>) -> bool {
     let now_ms = Instant::now().as_millis();
     let heater_off = !heater_on(ctx);
     if !ctx.flash.is_ok() {
@@ -1000,12 +1087,57 @@ fn service_storage(ctx: &mut Ctx<'_>) {
         if ctx.window_log.is_mounted() {
             ctx.window_log.disable();
         }
-        return;
+        return false;
     }
-    if !ctx.raw.service(&mut ctx.flash, now_ms, heater_off) && heater_off {
-        ctx.window_log
-            .service(&mut ctx.flash, now_ms, ctx.field.windows);
+    let started = ctx.raw.service(&mut ctx.flash, now_ms, heater_off)
+        || (heater_off
+            && ctx
+                .window_log
+                .service(&mut ctx.flash, now_ms, ctx.field.windows));
+    started || ctx.flash.poll(now_ms) == Ready::Busy
+}
+
+/// Whether the board has to take frames now: bench streaming, a run or its
+/// window, the heater on, or the pre-warm before a scheduled baseline.
+fn must_measure(ctx: &Ctx<'_>, link: &Link<'_>) -> bool {
+    link.streams()
+        || run_active(ctx.machine.state())
+        || heater_on(ctx)
+        || ctx.field.windows.recording().is_some()
+        || prewarm_at(ctx).is_some_and(|at| Instant::now() >= at)
+}
+
+/// When measuring has to resume for the next scheduled run.
+fn prewarm_at(ctx: &Ctx<'_>) -> Option<Instant> {
+    if ctx.fault_code != 0 {
+        return None;
     }
+    let start_ms = ctx
+        .field
+        .planner
+        .next_start_ms(Instant::now().as_millis(), ctx.unix_ms())?;
+    Some(Instant::from_millis(start_ms.saturating_sub(PREWARM_MS)))
+}
+
+/// Stop 1 until `deadline` or an RX edge (returns true for the edge), with
+/// the SPI flash in deep power-down. Call only while the flash is idle.
+async fn deep_sleep(ctx: &mut Ctx<'_>, deadline: Instant) -> bool {
+    // Register the deadline with the time driver: polling a timer once
+    // programs the LPTIM compare that ends the Stop.
+    let mut timer = Timer::at(deadline);
+    poll_fn(|cx| {
+        let _ = Pin::new(&mut timer).poll(cx);
+        Poll::Ready(())
+    })
+    .await;
+    let flash_ok = ctx.flash.is_ok() && ctx.flash.nor.power_down();
+    let rx_edge = stop::stop_until(deadline);
+    if flash_ok && !ctx.flash.nor.release_power_down() {
+        ctx.flash.fail();
+    }
+    // tRES1: 3 us before the next flash command.
+    cortex_m::asm::delay(64);
+    rx_edge
 }
 
 /// Wait (bounded) for the flash to finish a program or erase in flight.

@@ -56,6 +56,19 @@ from `elec/adc.ato` and **not yet read on hardware**.
   switching. Before attaching an ST-Link, open PA6, reset, and disconnect the
   Feather TX.
 
+  Between runs the field board does not measure. It takes frames only during
+  a run (baseline, pulse, recovery) and for 30 s before each scheduled
+  baseline, so the thermistors have warmed under excitation. Otherwise:
+  - Excitation is low, the muxes are disabled and the internal ADC is off.
+    The ADS1115s already power down between single-shot conversions.
+  - The core sits in Stop 1 with the internal and SPI flash powered down.
+  - It wakes every 1.5 s to pet both watchdogs, read the battery voltage for
+    FieldStatus and run the scheduler.
+
+  A falling edge on PA13 (the host's `0x00` wake byte) also wakes it. The
+  board then stays out of Stop for 1 s after its last command. Bench mode
+  (RS-485) streams continuously as before and never sleeps.
+
 ### Autonomous schedule and windows
 
 `SetSchedule` validates the schedule, stores it in EEPROM and applies it.
@@ -142,6 +155,9 @@ out, the schedule is held, and FieldStatus shows `eeprom_fault` (bit 6).
    - Confirm `sap-flux-field query` works.
    - Confirm there is no traffic between commands.
    - Measure current with the Feather RX idle (PA14 should draw no 330 µA).
+   - Between runs, board 3.3 V current should be tens of µA, with
+     excitation (PC6) low. It should rise only from 30 s before each
+     baseline until the end of recovery.
 3. `sap-flux-field set-schedule` with a short interval:
    - Confirm a window appears and `get-window` reconstructs it.
    - Confirm `ack-window` frees it.

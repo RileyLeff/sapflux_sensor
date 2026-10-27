@@ -34,8 +34,11 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
 - The board leaves PA14 as input/analog when not transmitting (the BOOT0
   pull-down otherwise costs 330 µA with TX idle high). Re-enable TX just for
   a reply.
-- The Feather wakes the board with a single `0x00` byte, waits ≥ 10 ms, then
-  sends commands. Each command gets a reply within 200 ms (one 2 Hz window
+- Between runs the board is in Stop mode and the falling edge of RX wakes
+  it, so the byte that wakes it is lost. The Feather wakes the board with a
+  single `0x00` byte, waits ≥ 10 ms, then sends commands. The board stays
+  awake for 1 s after each command; after 500 ms of silence the Feather
+  sends the wake byte again. Each command gets a reply within 200 ms (one 2 Hz window
   chunk at a time). The Feather retries a command up to 3 times.
 - The board accepts LPUART commands at any time except while the heater is
   on; commands that arrive during the pulse are answered after it (≤ 1.5 s).

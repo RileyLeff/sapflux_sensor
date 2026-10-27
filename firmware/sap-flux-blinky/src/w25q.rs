@@ -12,6 +12,7 @@ use sap_flux_core::flash::Nor;
 const CMD_WRITE_ENABLE: u8 = 0x06;
 const CMD_READ_STATUS1: u8 = 0x05;
 const CMD_JEDEC_ID: u8 = 0x9F;
+const CMD_POWER_DOWN: u8 = 0xB9;
 const CMD_RELEASE_POWER_DOWN: u8 = 0xAB;
 const CMD_READ_4B: u8 = 0x13;
 const CMD_PAGE_PROGRAM_4B: u8 = 0x12;
@@ -33,6 +34,13 @@ impl<'d> W25q<'d> {
     /// needs tRES1 (3 us) before the next command.
     pub fn release_power_down(&mut self) -> bool {
         self.transaction(&[CMD_RELEASE_POWER_DOWN], &mut [])
+    }
+
+    /// Enter deep power-down (1 uA typ instead of 10 uA standby). Only
+    /// [`Self::release_power_down`] is accepted until then; the chip needs
+    /// tDP (3 us) to get there. Call only while no program or erase runs.
+    pub fn power_down(&mut self) -> bool {
+        self.transaction(&[CMD_POWER_DOWN], &mut [])
     }
 
     pub fn jedec_id(&mut self) -> Option<[u8; 3]> {
