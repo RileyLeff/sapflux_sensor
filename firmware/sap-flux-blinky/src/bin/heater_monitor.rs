@@ -139,7 +139,7 @@ const FAULT_PULSE_OVERRUN: u8 = 2;
 const IWDG_TIMEOUT_US: u32 = 4_000_000;
 /// TPL5010 DONE cadence, independent of WAKE (period ~9.6 s).
 const WATCHDOG_DONE_PERIOD: Duration = Duration::from_secs(1);
-/// Field link with nothing to measure: Stop 1 this long at a time. Each
+/// Nothing to measure and no RS-485 host attached: Stop 1 this long at a time. Each
 /// wake pets the IWDG (4 s) and pulses TPL5010 DONE (~9.6 s).
 const IDLE_TICK: Duration = Duration::from_millis(1_500);
 /// Measuring resumes this long before a scheduled baseline starts, so the
@@ -148,6 +148,9 @@ const PREWARM_MS: u64 = 30_000;
 /// No Stop for this long after a command or a wake edge. The gateway sends
 /// follow-up commands without a new wake byte for 500 ms after its last one.
 const RX_HOLD: Duration = Duration::from_millis(1_000);
+/// RS-485 streams from boot and for this long after each host frame, then
+/// replies only and sleeps like the field link until a host wakes it.
+const RS485_ATTACH: Duration = Duration::from_secs(600);
 // W25Q256JV on SPI2. 4 MHz (PCLK 16 MHz / 4) is 4x board_test's proven
 // 1 MHz and well under the chip's limit: a 256 B page moves in ~0.6 ms.
 const FLASH_SPI_HZ: u32 = 4_000_000;
@@ -221,6 +224,8 @@ struct Rs485<'d> {
     n_re: Output<'d>,
     tx_sequence: u32,
     decoder: Decoder,
+    /// Streaming until then (boot or the last host frame + RS485_ATTACH).
+    attached_until: Instant,
 }
 
 struct TtlUart<'d> {
@@ -232,20 +237,30 @@ struct TtlUart<'d> {
 
 /// The one host link chosen by the PA6 strap at boot.
 enum Link<'d> {
-    /// Bench (strap open): v1 RS-485 streaming of Sample12/Status.
+    /// Bench (strap open): v1 RS-485 streaming of Sample12/Status while a
+    /// host is attached, replies only otherwise.
     Rs485(Rs485<'d>),
-    /// Field (strap low): LPUART2 on J6, replies only, SP3485 shut down.
+    /// Field (strap low): LPUART2 on J6, replies only, SP3485 idle.
     Ttl(TtlUart<'d>),
 }
 
 impl Link<'_> {
     fn streams(&self) -> bool {
-        matches!(self, Link::Rs485(_))
+        match self {
+            Link::Rs485(link) => Instant::now() < link.attached_until,
+            Link::Ttl(_) => false,
+        }
     }
 
     fn poll_message(&mut self) -> Option<Message> {
         match self {
-            Link::Rs485(link) => link.poll_message(),
+            Link::Rs485(link) => {
+                let message = link.poll_message();
+                if message.is_some() {
+                    link.attached_until = Instant::now() + RS485_ATTACH;
+                }
+                message
+            }
             Link::Ttl(link) => link.poll_message(),
         }
     }
@@ -606,11 +621,12 @@ async fn main(_spawner: Spawner) {
     // a board reset so the SWD pins cannot become UART pins unexpectedly.
     let ttl_uart_enabled = Input::new(p.PA6, Pull::Up).is_low();
 
-    // Field mode holds the SP3485 in shutdown (~RE high, DE low) and leaves
-    // USART2 unconfigured (PA2/PA3 stay analog).
-    let mut _rs485_shutdown = None;
+    // Field mode holds the SP3485 receiver off (~RE high, DE low; it has no
+    // shutdown, so it still draws its ~0.8 mA) and leaves USART2
+    // unconfigured (PA2/PA3 stay analog).
+    let mut _rs485_idle = None;
     let mut link = if ttl_uart_enabled {
-        _rs485_shutdown = Some((
+        _rs485_idle = Some((
             Output::new(p.PA1, Level::Low, Speed::Low),
             Output::new(p.PA0, Level::High, Speed::Low),
         ));
@@ -629,7 +645,7 @@ async fn main(_spawner: Spawner) {
         // TX idles high into PA14's 10 kOhm BOOT0 pull-down (330 uA):
         // keep the pin analog except while replying.
         set_pa14_mode(pac::gpio::vals::Moder::ANALOG);
-        stop::init_rx_wake();
+        stop::init(stop::RxPin::Pa13);
         let (tx, rx) = uart.split();
         let rx_buffer = TTL_UART_RX_DMA_BUFFER.init([0; 512]);
         let mut rx = rx.into_ring_buffered(rx_buffer);
@@ -657,6 +673,11 @@ async fn main(_spawner: Spawner) {
         let rx_buffer = RS485_RX_DMA_BUFFER.init([0; 256]);
         let mut rx = rx.into_ring_buffered(rx_buffer);
         rx.start_uart();
+        // The receiver stays on in Stop (~RE low), so any bus traffic
+        // (the host's wake byte) pulls PA3 low and wakes the core. SWD
+        // stays usable while it sleeps.
+        stop::init(stop::RxPin::Pa3);
+        stop::keep_debug_in_stop();
         Link::Rs485(Rs485 {
             tx,
             rx,
@@ -664,6 +685,7 @@ async fn main(_spawner: Spawner) {
             n_re: Output::new(p.PA0, Level::Low, Speed::Low),
             tx_sequence: 0,
             decoder: Decoder::new(),
+            attached_until: Instant::now() + RS485_ATTACH,
         })
     };
 
@@ -789,8 +811,9 @@ async fn main(_spawner: Spawner) {
         iwdg.pet();
         service_pulse_state(&mut ctx).await;
 
-        // Between runs the field board does not measure: excitation and mux
-        // off, internal ADC disabled, and Stop 1 in the wait loop below.
+        // Between runs, with no RS-485 host attached, the board does not
+        // measure: excitation and mux off, internal ADC disabled, and Stop 1
+        // in the wait loop below.
         let measure = !watchdog_bootstrapped || must_measure(&ctx, &link);
         if measure && !measuring {
             excitation.set_high();
@@ -894,7 +917,7 @@ async fn main(_spawner: Spawner) {
             prewarm_at(&ctx).map_or(tick, |at| at.min(tick))
         };
         loop {
-            // Field link: commands that arrive while the heater is on wait
+            // Reply-only link: commands that arrive while the heater is on wait
             // in the RX ring buffer and are answered after the pulse.
             let mut commanded = false;
             if link.streams() || !heater_on(&ctx) {
@@ -1097,7 +1120,7 @@ fn service_storage(ctx: &mut Ctx<'_>) -> bool {
     started || ctx.flash.poll(now_ms) == Ready::Busy
 }
 
-/// Whether the board has to take frames now: bench streaming, a run or its
+/// Whether the board has to take frames now: RS-485 streaming, a run or its
 /// window, the heater on, or the pre-warm before a scheduled baseline.
 fn must_measure(ctx: &Ctx<'_>, link: &Link<'_>) -> bool {
     link.streams()

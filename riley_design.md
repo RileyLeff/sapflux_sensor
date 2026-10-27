@@ -74,7 +74,7 @@ Calibration, config, device identity. Written rarely. NOT used for heater safety
 **MCU peripheral allocation** (pin assignment deferred to PCB layout phase, will use STM32CubeMX):
 - **Power:** 4x 100nF on VDD/VDDA pins, FB_VDDA (600Ω ferrite bead) + 1µF bulk on VDDA, 100nF on NRST
 - **I2C:** SDA + SCL (shared bus: 2x ADC + EEPROM, 5kΩ effective pull-ups from ADS1115 registry packages)
-- **USART + RS-485 control:** TX, RX, DE, ~RE (4 pins). SP3485 receiver always on (~RE=0 via R_RE_PD pull-down). USART wakeup from Stop mode on RX start bit detection. R_DE_PD (100kΩ) pulls DE low during boot (prevents bus driving). Split DE/~RE enables firmware-configurable polling mode.
+- **USART + RS-485 control:** TX, RX, DE, ~RE (4 pins). SP3485 receiver always on (~RE=0 via R_RE_PD pull-down). A falling edge on USART RX (EXTI) wakes the MCU from Stop. R_DE_PD (100kΩ) pulls DE low during boot (prevents bus driving).
 - **Timer output:** One channel for heater gate via R_GATE (one-pulse mode)
 - **Watchdog I/O:** WAKE (EXTI input) + DONE (output) for TPL5010. RSTn → NRST.
 - **GPIOs:** 3x LED (R/G/B sink), 1x PGOOD input, 2x ADC ALERT/DRDY inputs (conversion-ready interrupts, one per ADS1115)
@@ -88,7 +88,7 @@ Converts MCU UART to differential RS-485 on the M8 cable. Half-duplex. Receiver 
 
 | Ref | Component | LCSC | MPN | Specs | Price | Type | Notes |
 |-----|-----------|------|-----|-------|-------|------|-------|
-| U_RS485 | RS-485 Transceiver | C8963 | MaxLinear SP3485EN-L/TR | 3.3V, half-duplex, 10Mbps, SOIC-8 | $0.20 | **Basic** | DE and ~RE on separate MCU GPIOs. Default mode: receive (DE=0/~RE=0, 800µA typ / 1500µA max per datasheet). Transmit: DE=1/~RE=1. Shutdown (DE=0/~RE=1) available for firmware polling mode. Fail-safe receiver: outputs HIGH (UART idle) when bus is floating — no external bias needed. |
+| U_RS485 | RS-485 Transceiver | C8963 | MaxLinear SP3485EN-L/TR | 3.3V, half-duplex, 10Mbps, SOIC-8 | $0.20 | **Basic** | DE and ~RE on separate MCU GPIOs. Default mode: receive (DE=0/~RE=0, 800µA typ / 1500µA max per datasheet). Transmit: DE=1/~RE=1. **No shutdown mode:** the datasheet specifies supply current only with the receiver enabled, so ~RE high (DE=0) is not a proven low-power state. Fail-safe receiver: outputs HIGH (UART idle) when bus is floating — no external bias needed. |
 | R_DE_PD | DE Default Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | DE pin to GND. STM32 GPIOs are Hi-Z during reset/boot — without this, DE floats and SP3485 may drive the bus. 100kΩ is high enough to not interfere with MCU drive. Same part as R_WD_PU. |
 | R_RE_PD | ~RE Default Pull-down | C25803 | UNI-ROYAL 0603WAF1003T5E | 100kΩ 1%, 0603 | $0.001 | **Basic** | ~RE pin to GND. Ensures receiver is enabled during boot (DE=0/~RE=0 = receive). SP3485 fail-safe outputs idle when bus is floating, so enabling the receiver during boot is safe — MCU UART sees clean silence. Same part as R_WD_PU. |
 | R_TERM | RS-485 Termination | C22787 | UNI-ROYAL 0603WAF1200T5E | 120Ω 1%, 0603 | $0.001 | **Basic** | In series with C_TERM (AC termination). Hard-populated: this adapter is always at end-of-line (point-to-point cable from logger). Terminates signal edges for data integrity but blocks DC current. |
@@ -97,7 +97,7 @@ Converts MCU UART to differential RS-485 on the M8 cable. Half-duplex. Receiver 
 
 **RS-485 architecture:** No bias resistors. SP3485 has a fail-safe receiver — when the bus is floating (nobody transmitting), the receiver outputs logic HIGH (UART idle/mark). This eliminates the need for bias resistors, which in traditional designs create unpredictable DC current paths through the cable depending on the far-end device's termination and bias network. The receiver stays on during MCU Stop mode (800µA typ / 1500µA max from 3.3V = 130-243µA from 24V battery via buck). STM32 USART wakeup detects a start bit on RX and wakes the MCU from Stop — the logger can reach the adapter instantly by sending any RS-485 data. No polling latency, no wake line, no extra connector pins.
 
-**RS-485 power modes (firmware-configurable, see Firmware Notes):** Default mode is always-on receiver (~130-243µA from battery). For large-scale deployments where per-unit battery cost matters, firmware can switch to polling mode (~15-20µA) by disabling the receiver between configurable listen windows. Hardware supports both modes via split DE/~RE pins — no PCB change needed.
+**RS-485 power:** the receiver is always on (~130-243µA from battery), which dominates the board's sleep current on a battery-only deployment. A receiver duty cycle would need a transceiver with a real shutdown mode (or a switched VCC) in a future revision; with the SP3485, toggling ~RE saves nothing that the datasheet backs.
 
 ### Heater Driver
 
@@ -371,7 +371,7 @@ The MCU earns its keep as a safety interlock and protocol handler. Main loop mus
 
 **Ratiometric ADC reads:** For each measurement cycle, read U_ADC1 AIN3 (excitation voltage) alongside the 6 thermistor channels. Compute resistance as R_therm = R_ref × (V_ain / V_exc) / (1 - V_ain / V_exc). This cancels excitation drift (including GPIO output voltage variation) and improves absolute accuracy. All channels use PGA = +/-4.096V (see ADC section for rationale).
 
-**Sleep entry sequence:** (1) Turn off excitation (excitation GPIO low). (2) Enter Stop mode. SP3485 receiver stays on (~RE=0). USART remains configured for wakeup on RX start bit. GPIOs maintain state during Stop. In polling mode: firmware sets ~RE=1 before Stop, wakes on timer, briefly enables receiver (~RE=0) to listen.
+**Sleep entry sequence:** (1) Turn off excitation (excitation GPIO low). (2) Enter Stop mode. SP3485 receiver stays on (~RE=0). An EXTI falling edge on USART RX wakes the MCU. GPIOs maintain state during Stop.
 
 **Wake/measurement sequence:** (1) Turn on excitation GPIO. (2) Wait ~3ms for C_EXC to charge (5× RC at 560Ω). (3) Read all thermistor channels + excitation on AIN3. (4) If comms needed: set DE=1 to transmit, DE=0 to listen. RS-485 receiver is already on — no enable step needed.
 
@@ -385,11 +385,7 @@ The MCU earns its keep as a safety interlock and protocol handler. Main loop mus
 
 **No ADC reads during heater pulse:** With 25m cables, 0.6A heater current through the shared ground wire creates ~800mV ground bounce (22AWG = 53mΩ/m × 25m one-way = 1.32Ω, × 0.6A = 794mV). This shifts all thermistor readings by ~6,400 LSBs (at PGA ±4.096V). The sap flux measurement protocol naturally separates ADC reads (before/after pulse) from the heater pulse itself, but firmware must enforce this constraint: never call ADC read functions while the heater GPIO is active. After the heater pulse ends, wait 10ms before reading ADCs — cable inductance (~25µH for 25m) and parasitic capacitance (~2.5nF) ring at ~637kHz with L/R decay τ=38µs; 10ms gives >250τ for complete settling.
 
-**Runtime configurable RX power mode:** Hardware supports two RS-485 listen modes via EEPROM config, with no PCB changes required (split DE/~RE pins enable both):
-- **Always-on (default):** Receiver enabled (~RE=0). USART wakeup from Stop on RX start bit. ~130-243µA from 24V battery (800-1500µA from 3.3V via buck). Zero-latency response to logger commands. Works with any data logger out of the box.
-- **Polling mode (advanced):** Receiver disabled (~RE=1) between listen windows. MCU sleeps for a configurable interval (1-60s), wakes briefly (~50ms) to listen, then sleeps again. ~15-20µA from 24V battery. Logger must retry or send a preamble longer than the poll interval. Useful for large-scale deployments (1000+ sensors) where per-unit battery cost dominates.
-
-**Safety boot (anti-bricking):** Regardless of EEPROM RX power mode setting, the receiver is forced ON for 10 seconds after every power cycle. This prevents soft-bricking — if a user sets an aggressive poll interval that their logger can't accommodate, power-cycling the sensor opens a 10-second window to send a "reset config" command.
+**RS-485 attach (heater_monitor):** the board streams after boot and for 10 min after each host frame, then replies only and sleeps between runs. The host wakes it with a `0x00` byte, waits ≥ 10 ms, then sends a command; `sap-flux-monitor` does this and sends a keepalive `Query` while connected.
 
 **Unused MCU pins:** STM32G0B1 has 44 GPIOs; this design uses ~19. Configure all unused pins as analog mode (GPIO_MODE_ANALOG) during initialization — this is the reset default and the lowest-leakage state. Avoid push-pull low which can sink current if a pin accidentally couples to a signal. Floating digital inputs waste power through CMOS input buffer shoot-through and can pick up noise that couples into the analog section.
 

@@ -44,14 +44,24 @@ from `elec/adc.ato` and **not yet read on hardware**.
   `Status` once a second, Hello + Status at boot. The last frame of each
   1 s cycle carries `FLAG_COMMAND_WINDOW` and the next frame is silent
   (about 45 ms quiet for one command). The legacy `Sample` is no longer sent.
+
+  The board streams from boot and for 10 min after each host frame. After
+  that it replies only and sleeps between runs exactly like the field link.
+  Any bus traffic wakes it at once (the SP3485 receiver stays on): the host
+  sends `0x00`, waits ≥ 10 ms, then a command, and streaming resumes.
+  `sap-flux-monitor` does this on its own and sends a `Query` every minute
+  while connected, so an open monitor keeps it streaming. SWD keeps working
+  while it sleeps (DBGMCU DBG_STOP keeps the clocks running in Stop), so
+  measure sleep current with the field strap.
 - **PA6 to ground before reset: field.** LPUART2 on J6 replies only:
   - J6 p2 / PA13 is RX, from the Feather TX through 1 kΩ.
   - J6 p3 / PA14 is TX, to the Feather RX through 1 kΩ.
   - J6 p4 is ground. Do not connect J6 p1 / 3.3 V.
 
   Nothing is sent unsolicited. PA14 stays analog between replies, and each
-  reply burst starts with `0x00` after a 200 µs idle-high. The SP3485 is held
-  in shutdown (~RE high, DE low) and USART2 is not configured. Commands that
+  reply burst starts with `0x00` after a 200 µs idle-high. The SP3485
+  receiver is disabled (~RE high, DE low) and USART2 is not configured. The
+  SP3485 has no shutdown mode, so it may still draw ~0.8 mA; measure it. Commands that
   arrive during the heater pulse are answered after it. There is no hot
   switching. Before attaching an ST-Link, open PA6, reset, and disconnect the
   Feather TX.
@@ -66,8 +76,7 @@ from `elec/adc.ato` and **not yet read on hardware**.
     FieldStatus and run the scheduler.
 
   A falling edge on PA13 (the host's `0x00` wake byte) also wakes it. The
-  board then stays out of Stop for 1 s after its last command. Bench mode
-  (RS-485) streams continuously as before and never sleeps.
+  board then stays out of Stop for 1 s after its last command.
 
 ### Autonomous schedule and windows
 
@@ -163,7 +172,9 @@ out, the schedule is held, and FieldStatus shows `eeprom_fault` (bit 6).
    - Confirm `ack-window` frees it.
 4. Power-cycle and confirm that the schedule, the boot count (+1) and the
    trim persist.
-5. Bench strap: confirm `sap-flux-monitor` still streams Sample12.
+5. Bench strap: confirm `sap-flux-monitor` still streams Sample12. Close
+   it, wait 10 min, and confirm the bus goes quiet; reopen it and confirm
+   streaming resumes within a few seconds.
 6. Flash: `sap-flux-field status` shows `flash_ok` and a nonzero
    `flash_used_kib` after one run (with the bench strap, no `Error`
    0x0100 at boot).

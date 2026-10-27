@@ -42,8 +42,11 @@ pull-up on Feather RX (PA14 has the 10 kΩ BOOT0 pull-down).
   chunk at a time). The Feather retries a command up to 3 times.
 - The board accepts LPUART commands at any time except while the heater is
   on; commands that arrive during the pulse are answered after it (≤ 1.5 s).
-- RS-485 (J5) keeps its v1 bench behavior. In field mode the SP3485 is held
-  in shutdown (~RE high, DE low) unless the RS-485 transport is selected.
+- RS-485 (J5, bench strap) streams v1 frames from boot and for 10 min after
+  each host frame. After that it replies only and sleeps between runs like
+  the field link; a host wakes it the same way (`0x00`, wait ≥ 10 ms, then
+  the command). In field mode the SP3485 receiver is disabled (~RE high, DE
+  low); it has no shutdown mode, so it may still draw its ~0.8 mA.
 
 ### New host → board commands
 
