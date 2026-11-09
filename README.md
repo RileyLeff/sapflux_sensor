@@ -33,7 +33,7 @@ Want to measure how fast water moves through a tree at high frequency? It's usef
 - The actual probes in the tree get slightly misaligned when you install them, and tiny misalignments produce mega-huge errors.
 - The probes work by introducing a heat pulse into the tree and measuring how fast it moves. How much of that movement is attributable to convection (sap flux) versus conduction? Current implementations attribute all variation to convection, which is a bad assumption.
 
-The first problem is massive in magnitude; the second one is smaller (convection does genuinely change more than conduction) but more destructive per unit error because it's deeply confounded with stuff on the tree that you actually want to measure, like water potential or wood density.
+The first problem is massive in magnitude. The second one is smaller (convection does genuinely change more than conduction) but more destructive per unit error because it's deeply confounded with stuff on the tree that you actually want to measure, like water potential or wood density.
 
 This is open hardware that allows me to test my newly derived method for inferring sap flux rates from the raw data: we can't use commercial sensors because they're locked down and they discard most of the raw signal in favor of restrictive summary statistics. I do have a separate project that decompresses those summary statistics into distributions of possible raw measurements, but it's better to just keep the data in the first place.
 
@@ -67,7 +67,7 @@ This one:
 
 Commercial:
 - Closed
-- >100mW idle power consumption
+- \>100mW idle power consumption
 - $1000/sensor + $1000+ logger
 - More expensive infrastructure to support the greater power consumption
 
@@ -94,7 +94,7 @@ The shipped fabrication packages are frozen here:
 - v0.2 (current, working board): [`releases/sap-flux-adapter-v0.2-2026-06-26/`](releases/sap-flux-adapter-v0.2-2026-06-26/)
 - v0.1 (first board; the folder name says v1.1, but the board itself is labeled v0.1): [`releases/sap-flux-adapter-v1.1-shipped-2026-03-21/`](releases/sap-flux-adapter-v1.1-shipped-2026-03-21/)
 
-For more detail, see [`docs/reproducibility.md`](docs/reproducibility.md). Note that it's a Claude-written document; I suggest pointing your LLM agent at the repo to inspect the guts of it. This README is written by hand (by Riley) but the rest of the repo is a Claude party.
+For more detail, see [`docs/reproducibility.md`](docs/reproducibility.md). Note that it's a Claude-written document. I suggest pointing your LLM agent at the repo to inspect the guts of it. This README is written by hand (by Riley) but the rest of the repo is a Claude party.
 
 ## Internal Links (Claude's Docs)
 
